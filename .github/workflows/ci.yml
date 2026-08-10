@@ -61,7 +61,7 @@ jobs:
       DB_RUNTIME_USERNAME: maestro_runtime
       DB_RUNTIME_PASSWORD: maestro_runtime
       CACHE_STORE: redis
-      SESSION_DRIVER: redis
+      SESSION_DRIVER: database
       QUEUE_CONNECTION: redis
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: "6379"
@@ -138,7 +138,7 @@ jobs:
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_ORIGIN: http://localhost:8000
 
     steps:
       - name: Checkout
@@ -175,6 +175,50 @@ jobs:
 
       - name: Build Next.js
         run: pnpm build
+
+  identity-smoke:
+    name: Sanctum + Next.js identity smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.5"
+          coverage: none
+          extensions: dom, fileinfo, intl, mbstring, pcntl, pdo_sqlite
+          tools: composer:v2
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          package_json_file: apps/web/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install Laravel dependencies
+        run: composer install --working-dir=apps/api --prefer-dist --no-interaction --no-progress
+
+      - name: Install Next.js dependencies
+        run: pnpm --dir apps/web install --frozen-lockfile
+
+      - name: Exercise real cookie and CSRF transport
+        run: scripts/quality/identity-smoke.sh
 
   contracts:
     name: OpenAPI contracts / Node 24
