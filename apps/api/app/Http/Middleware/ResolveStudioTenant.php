@@ -2,40 +2,33 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
 use App\Models\Studio;
 use App\Models\StudioMembership;
 use App\Support\Tenancy\TenantContext;
 use Closure;
-use Filament\Facades\Filament;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-final class EnsureActiveStudioMembership
+final class ResolveStudioTenant
 {
     public function __construct(private readonly TenantContext $tenantContext) {}
 
     public function handle(Request $request, Closure $next): Response
     {
-        $tenant = Filament::getTenant();
+        $studio = $request->route('studio');
 
-        if ($tenant === null) {
-            return $next($request);
-        }
-
-        abort_unless($tenant instanceof Studio, Response::HTTP_FORBIDDEN);
+        abort_unless($studio instanceof Studio, Response::HTTP_NOT_FOUND);
 
         $membership = StudioMembership::query()
-            ->where('studio_id', $tenant->getKey())
+            ->where('studio_id', $studio->getKey())
             ->where('user_id', $request->user()?->getAuthIdentifier())
             ->where('status', MembershipStatus::Active)
-            ->whereIn('role', MembershipRole::managementValues())
             ->first();
 
         abort_unless($membership !== null, Response::HTTP_FORBIDDEN);
 
-        $this->tenantContext->activate($tenant, $membership);
+        $this->tenantContext->activate($studio, $membership);
 
         try {
             return $next($request);

@@ -20,6 +20,38 @@ class StudioApiTest extends TestCase
         $this->getJson('/api/v1/studios')->assertUnauthorized();
     }
 
+    public function test_api_cors_allows_only_the_configured_credentialed_frontend(): void
+    {
+        $preflightHeaders = [
+            'Origin' => 'http://localhost:3000',
+            'Access-Control-Request-Method' => 'GET',
+        ];
+
+        $this->call('OPTIONS', '/api/v1/studios', server: $this->transformHeadersToServerVars(
+            $preflightHeaders,
+        ))
+            ->assertNoContent()
+            ->assertHeader('Access-Control-Allow-Origin', 'http://localhost:3000')
+            ->assertHeader('Access-Control-Allow-Credentials', 'true');
+
+        $untrustedResponse = $this->call(
+            'OPTIONS',
+            '/api/v1/studios',
+            server: $this->transformHeadersToServerVars([
+                ...$preflightHeaders,
+                'Origin' => 'https://untrusted.example',
+            ]),
+        );
+
+        $untrustedResponse
+            ->assertNoContent()
+            ->assertHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+        $this->assertNotSame(
+            'https://untrusted.example',
+            $untrustedResponse->headers->get('Access-Control-Allow-Origin'),
+        );
+    }
+
     public function test_members_only_see_their_active_studios(): void
     {
         $user = User::factory()->create();

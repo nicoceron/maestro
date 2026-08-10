@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -34,6 +35,18 @@ class Studio extends Model
             ->using(StudioMembership::class)
             ->withPivot(['id', 'role', 'status', 'job_title', 'joined_at', 'last_active_at', 'preferences'])
             ->withTimestamps();
+    }
+
+    /** @return HasMany<Household, $this> */
+    public function households(): HasMany
+    {
+        return $this->hasMany(Household::class);
+    }
+
+    /** @return HasMany<Person, $this> */
+    public function people(): HasMany
+    {
+        return $this->hasMany(Person::class);
     }
 
     public function getRouteKeyName(): string
