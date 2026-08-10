@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Actions\Fortify\CompletePasswordReset;
-use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\NormalizeLoginEmail;
 use App\Actions\Fortify\RedirectIfTwoFactorAuthenticatable;
 use App\Actions\Fortify\ResetUserPassword;
@@ -77,12 +76,8 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         Password::defaults(fn (): Password => Password::min(12)
-            ->mixedCase()
-            ->numbers()
-            ->symbols()
             ->uncompromised());
 
-        Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
         Fortify::authenticateThrough(fn (): array => array_filter([
@@ -97,6 +92,18 @@ class FortifyServiceProvider extends ServiceProvider
 
         RateLimiter::for('auth-forms', fn (Request $request): Limit => Limit::perMinute(60)
             ->by(app(SensitiveRateLimitKey::class)->for('auth-forms', (string) $request->ip())));
+
+        RateLimiter::for('registration', fn (Request $request): array => [
+            Limit::perHour(5)->by(app(SensitiveRateLimitKey::class)->for(
+                'registration-account',
+                User::normalizeEmail((string) $request->input('email', '')),
+                (string) $request->ip(),
+            )),
+            Limit::perHour(20)->by(app(SensitiveRateLimitKey::class)->for(
+                'registration-ip',
+                (string) $request->ip(),
+            )),
+        ]);
 
         RateLimiter::for('invitations', fn (Request $request): Limit => Limit::perMinute(30)
             ->by(app(SensitiveRateLimitKey::class)->for(

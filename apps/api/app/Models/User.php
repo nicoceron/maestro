@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
 use App\Notifications\QueuedResetPasswordNotification;
+use App\Notifications\QueuedVerifyEmailNotification;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
@@ -49,6 +50,11 @@ class User extends Authenticatable implements FilamentUser, HasName, HasTenants,
     public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
     {
         $this->notify(new QueuedResetPasswordNotification($token));
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new QueuedVerifyEmailNotification);
     }
 
     /** @return BelongsToMany<Studio, $this> */

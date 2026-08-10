@@ -228,25 +228,32 @@ class StudioInvitationApiTest extends TestCase
         $token = $this->createInvitation($studio, $owner, 'new.user@example.com');
         Auth::forgetGuards();
 
-        $this->postJson('/api/v1/auth/register', [
+        $wrongInviteResponse = $this->postJson('/api/v1/auth/register', [
             'name' => 'Wrong Invitee',
             'email' => 'wrong.invitee@example.com',
             'password' => self::PASSWORD,
             'password_confirmation' => self::PASSWORD,
             'invitation_token' => $token,
-        ])->assertUnprocessable()->assertJsonValidationErrors('invitation_token');
+        ])->assertAccepted()->assertExactJson([
+            'message' => 'If registration can be completed, check your email for next steps.',
+        ]);
         $this->assertDatabaseMissing('users', ['email' => 'wrong.invitee@example.com']);
 
-        $registration = $this->postJson('/api/v1/auth/register', [
+        $validInviteResponse = $this->postJson('/api/v1/auth/register', [
             'name' => 'New User',
             'email' => 'NEW.USER@example.com',
             'password' => self::PASSWORD,
             'password_confirmation' => self::PASSWORD,
             'invitation_token' => $token,
-        ])->assertCreated();
+        ])->assertAccepted();
+        $this->assertSame($wrongInviteResponse->getContent(), $validInviteResponse->getContent());
+        $this->assertSame(
+            $wrongInviteResponse->headers->get('Location'),
+            $validInviteResponse->headers->get('Location'),
+        );
 
         $user = User::query()->where('email', 'new.user@example.com')->sole();
-        $this->assertAuthenticatedAs($user);
+        $this->assertGuest('web');
         $this->assertNull($user->email_verified_at);
         $this->assertDatabaseMissing('studio_memberships', [
             'studio_id' => $studio->getKey(),
@@ -254,9 +261,28 @@ class StudioInvitationApiTest extends TestCase
         ]);
         $this->assertNull(StudioInvitation::query()->sole()->accepted_at);
 
-        $sessionCookie = $registration->getCookie((string) config('session.cookie'));
+        $password = $user->password;
+        $existingInviteResponse = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Replacement User',
+            'email' => 'new.user@example.com',
+            'password' => 'Replacement-Password-84!',
+            'password_confirmation' => 'Replacement-Password-84!',
+            'invitation_token' => $token,
+        ])->assertAccepted();
+        $this->assertSame($validInviteResponse->getContent(), $existingInviteResponse->getContent());
+        $this->assertSame($password, $user->refresh()->password);
+        $this->assertSame('New User', $user->name);
+
+        $login = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => self::PASSWORD,
+        ])->assertOk();
+        $sessionCookie = $login->getCookie((string) config('session.cookie'));
         $this->assertNotNull($sessionCookie);
-        $this->withCredentials()->withCookie((string) config('session.cookie'), $sessionCookie->getValue());
+        $this->withCredentials()->withCookie(
+            (string) config('session.cookie'),
+            $sessionCookie->getValue(),
+        );
         Auth::forgetGuards();
 
         $this->postJson('/api/v1/onboarding', ['invitation_token' => $token])
@@ -279,7 +305,7 @@ class StudioInvitationApiTest extends TestCase
             'password' => self::PASSWORD,
             'password_confirmation' => self::PASSWORD,
             'invitation_token' => $token,
-        ])->assertUnprocessable()->assertJsonValidationErrors('invitation_token');
+        ])->assertAccepted();
         $this->assertDatabaseMissing('users', ['email' => 'replay@example.com']);
     }
 

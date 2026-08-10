@@ -71,7 +71,6 @@ return [
         'timeout' => (int) env('PASSKEYS_TIMEOUT_MILLISECONDS', 60000),
     ],
     'features' => [
-        Features::registration(),
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([

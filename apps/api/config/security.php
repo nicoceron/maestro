@@ -18,6 +18,7 @@ return [
     'trusted_hosts' => $trustedHosts,
     'request_origins' => $requestOrigins,
     'password_breach_timeout_seconds' => (int) env('PASSWORD_BREACH_TIMEOUT_SECONDS', 2),
+    'registration_timebox_microseconds' => 300_000,
     'session_idle_minutes' => (int) env('SESSION_LIFETIME', 480),
     'session_absolute_minutes' => (int) env('SESSION_ABSOLUTE_LIFETIME_MINUTES', 43200),
     'session_max_idle_minutes' => 480,

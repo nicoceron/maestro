@@ -6,10 +6,11 @@ use App\Actions\Fortify\ResetUserPassword;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Notifications\QueuedResetPasswordNotification;
+use App\Notifications\QueuedVerifyEmailNotification;
 use App\Support\Auth\LoginRateLimitKey;
 use App\Support\Auth\PasswordResetRateLimitKey;
+use App\Support\Auth\SensitiveRateLimitKey;
 use App\Support\Tenancy\RequestDatabaseContext;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -43,28 +44,73 @@ class BrowserAuthenticationTest extends TestCase
             ->assertCookie('XSRF-TOKEN');
     }
 
-    public function test_registration_normalizes_email_rotates_the_session_and_sends_verification(): void
+    public function test_registration_returns_the_same_accepted_response_without_logging_in_new_or_existing_emails(): void
     {
         Notification::fake();
-        $this->withSession(['before' => true]);
+        $this->withCredentials()->withSession(['before' => true]);
         $oldSessionId = session()->getId();
+        $this->withCookie((string) config('session.cookie'), $oldSessionId);
+        $existing = User::factory()->create([
+            'name' => 'Existing Name',
+            'email' => 'existing@example.com',
+            'password' => 'Original-Password-42!',
+            'remember_token' => 'known-registration-token',
+        ]);
+        $existingPassword = $existing->password;
+        $existingVerifiedAt = $existing->email_verified_at;
 
-        $this->postJson('/api/v1/auth/register', [
+        $newResponse = $this->postJson('/api/v1/auth/register', [
             'name' => '  Ada Lovelace  ',
             'email' => '  ADA@Example.COM ',
             'password' => self::PASSWORD,
             'password_confirmation' => self::PASSWORD,
-        ])->assertCreated();
+        ])->assertAccepted()
+            ->assertExactJson([
+                'message' => 'If registration can be completed, check your email for next steps.',
+            ])
+            ->assertHeader('Cache-Control', 'no-store, private');
 
-        $user = User::query()->sole();
+        $user = User::query()->where('email', 'ada@example.com')->sole();
         $this->assertSame('Ada Lovelace', $user->name);
         $this->assertSame('ada@example.com', $user->email);
-        $this->assertAuthenticatedAs($user);
-        $this->assertNotSame($oldSessionId, session()->getId());
-        Notification::assertSentTo($user, VerifyEmail::class);
+        $this->assertNull($user->email_verified_at);
+        $this->assertGuest('web');
+        $this->assertSame($oldSessionId, session()->getId());
+        Notification::assertSentTo($user, QueuedVerifyEmailNotification::class);
+
+        $existingResponse = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Replacement Name',
+            'email' => "\u{00A0}EXISTING@EXAMPLE.COM\u{2003}",
+            'password' => 'Replacement-Password-84!',
+            'password_confirmation' => 'Replacement-Password-84!',
+        ])->assertAccepted()
+            ->assertHeader('Cache-Control', 'no-store, private');
+
+        $this->assertSame($newResponse->getContent(), $existingResponse->getContent());
+        $this->assertSame($newResponse->headers->get('Location'), $existingResponse->headers->get('Location'));
+        $this->assertSame(
+            collect($newResponse->headers->getCookies())->map->getName()->all(),
+            collect($existingResponse->headers->getCookies())->map->getName()->all(),
+        );
+        $this->assertGuest('web');
+        $this->assertSame($oldSessionId, session()->getId());
+        $this->assertSame('Existing Name', $existing->refresh()->name);
+        $this->assertSame($existingPassword, $existing->password);
+        $this->assertSame('known-registration-token', $existing->remember_token);
+        $this->assertTrue($existingVerifiedAt->equalTo($existing->email_verified_at));
+        Notification::assertNotSentTo($existing, QueuedVerifyEmailNotification::class);
+
+        $this->withHeader('Accept', 'text/html')->post('/api/v1/auth/register', [
+            'name' => 'Replacement Name',
+            'email' => 'existing@example.com',
+            'password' => self::PASSWORD,
+            'password_confirmation' => self::PASSWORD,
+        ])->assertAccepted()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertHeaderMissing('Location');
     }
 
-    public function test_registration_enforces_a_strong_confirmed_password_and_generic_duplicate_error(): void
+    public function test_registration_validates_only_input_syntax_and_password_strength_before_uniform_acceptance(): void
     {
         User::factory()->create(['email' => 'member@example.com']);
 
@@ -74,8 +120,15 @@ class BrowserAuthenticationTest extends TestCase
             'password' => 'short',
             'password_confirmation' => 'different',
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['email', 'password'])
-            ->assertJsonPath('errors.email.0', 'We could not create an account with those details.');
+            ->assertJsonValidationErrors(['password'])
+            ->assertJsonMissingValidationErrors(['email']);
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Member',
+            'email' => 'not-an-email',
+            'password' => self::PASSWORD,
+            'password_confirmation' => self::PASSWORD,
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
     }
 
     public function test_registration_rejects_a_password_reported_as_compromised(): void
@@ -112,14 +165,113 @@ class BrowserAuthenticationTest extends TestCase
         ]);
         $this->assertSame('member@example.com', $user->email);
 
+        $password = $user->password;
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Duplicate Member',
             'email' => "\u{2003}MEMBER@EXAMPLE.COM\u{00A0}",
             'password' => self::PASSWORD,
             'password_confirmation' => self::PASSWORD,
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors('email')
-            ->assertJsonPath('errors.email.0', 'We could not create an account with those details.');
+        ])->assertAccepted();
+        $this->assertSame($password, $user->refresh()->password);
+        $this->assertSame(1, User::query()->count());
+    }
+
+    public function test_new_and_existing_registration_paths_use_the_same_timebox_and_password_hash_work(): void
+    {
+        Notification::fake();
+        config([
+            'hashing.bcrypt.rounds' => 4,
+            'security.registration_timebox_microseconds' => 1_000_000,
+        ]);
+        User::factory()->create(['email' => 'existing-timed@example.com']);
+        Sleep::fake();
+
+        try {
+            foreach (['new-timed@example.com', 'existing-timed@example.com'] as $email) {
+                $this->postJson('/api/v1/auth/register', [
+                    'name' => 'Timed Registration',
+                    'email' => $email,
+                    'password' => self::PASSWORD,
+                    'password_confirmation' => self::PASSWORD,
+                ])->assertAccepted();
+            }
+
+            Sleep::assertSleptTimes(2);
+        } finally {
+            Sleep::fake(false);
+        }
+    }
+
+    public function test_registration_accepts_long_passphrases_without_composition_rules(): void
+    {
+        Notification::fake();
+        $passphrase = 'correct horse battery staple';
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Passphrase User',
+            'email' => 'passphrase@example.com',
+            'password' => $passphrase,
+            'password_confirmation' => $passphrase,
+        ])->assertAccepted();
+
+        $this->assertTrue(Hash::check(
+            $passphrase,
+            User::query()->where('email', 'passphrase@example.com')->sole()->password,
+        ));
+    }
+
+    public function test_registration_limiter_uses_hmac_keys_and_applies_equally_after_creation(): void
+    {
+        Notification::fake();
+        config(['security.registration_timebox_microseconds' => 1]);
+        $keyFactory = app(SensitiveRateLimitKey::class);
+        $accountKey = $keyFactory->for(
+            'registration-account',
+            'limited-registration@example.com',
+            '127.0.0.1',
+        );
+        $ipKey = $keyFactory->for('registration-ip', '127.0.0.1');
+
+        foreach (range(1, 5) as $attempt) {
+            $this->postJson('/api/v1/auth/register', [
+                'name' => 'Limited Registration',
+                'email' => "\u{00A0}LIMITED-REGISTRATION@EXAMPLE.COM\u{2003}",
+                'password' => self::PASSWORD,
+                'password_confirmation' => self::PASSWORD,
+            ])->assertAccepted();
+        }
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Limited Registration',
+            'email' => 'limited-registration@example.com',
+            'password' => self::PASSWORD,
+            'password_confirmation' => self::PASSWORD,
+        ])->assertTooManyRequests();
+
+        $this->assertSame(5, (int) RateLimiter::attempts(md5('registration'.$accountKey)));
+        $this->assertSame(5, (int) RateLimiter::attempts(md5('registration'.$ipKey)));
+        $this->assertSame(0, (int) RateLimiter::attempts(
+            'registration:limited-registration@example.com|127.0.0.1',
+        ));
+        $this->assertSame(1, User::query()->where('email', 'limited-registration@example.com')->count());
+
+        foreach (range(6, 20) as $attempt) {
+            $this->postJson('/api/v1/auth/register', [
+                'name' => 'Registration Spray',
+                'email' => "registration-spray-{$attempt}@example.com",
+                'password' => self::PASSWORD,
+                'password_confirmation' => self::PASSWORD,
+            ])->assertAccepted();
+        }
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Registration Spray',
+            'email' => 'registration-spray-21@example.com',
+            'password' => self::PASSWORD,
+            'password_confirmation' => self::PASSWORD,
+        ])->assertTooManyRequests();
+        $this->assertSame(20, (int) RateLimiter::attempts(md5('registration'.$ipKey)));
+        $this->assertDatabaseMissing('users', ['email' => 'registration-spray-21@example.com']);
     }
 
     public function test_postgresql_normalizes_direct_email_writes_and_rejects_equivalent_variants(): void
@@ -176,18 +328,18 @@ class BrowserAuthenticationTest extends TestCase
         ])->assertUnprocessable();
 
         $accountKey = app(LoginRateLimitKey::class)->for($user->email, '127.0.0.1');
-        $this->assertSame(1, RateLimiter::attempts($accountKey));
-        $this->assertSame(1, RateLimiter::attempts('login-ip|127.0.0.1'));
-        $this->assertSame(0, RateLimiter::attempts('private.user@example.com|127.0.0.1'));
-        $this->assertSame(0, RateLimiter::attempts("\u{00A0}PRIVATE.USER@EXAMPLE.COM\u{2003}|127.0.0.1"));
+        $this->assertSame(1, (int) RateLimiter::attempts($accountKey));
+        $this->assertSame(1, (int) RateLimiter::attempts('login-ip|127.0.0.1'));
+        $this->assertSame(0, (int) RateLimiter::attempts('private.user@example.com|127.0.0.1'));
+        $this->assertSame(0, (int) RateLimiter::attempts("\u{00A0}PRIVATE.USER@EXAMPLE.COM\u{2003}|127.0.0.1"));
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
             'password' => self::PASSWORD,
         ])->assertOk();
 
-        $this->assertSame(0, RateLimiter::attempts($accountKey));
-        $this->assertSame(1, RateLimiter::attempts('login-ip|127.0.0.1'));
+        $this->assertSame(0, (int) RateLimiter::attempts($accountKey));
+        $this->assertSame(1, (int) RateLimiter::attempts('login-ip|127.0.0.1'));
     }
 
     public function test_login_ip_spray_limit_applies_across_distinct_email_addresses(): void
@@ -201,7 +353,7 @@ class BrowserAuthenticationTest extends TestCase
             ])->assertUnprocessable();
         }
 
-        $this->assertSame(30, RateLimiter::attempts('login-ip|127.0.0.1'));
+        $this->assertSame(30, (int) RateLimiter::attempts('login-ip|127.0.0.1'));
         $this->postJson('/api/v1/auth/login', [
             'email' => 'spray-31@example.com',
             'password' => 'wrong-password',
@@ -388,9 +540,9 @@ class BrowserAuthenticationTest extends TestCase
                 ->assertJsonPath('message', 'If an account matches that email, a password reset link will be sent.');
         }
 
-        $this->assertSame(5, RateLimiter::attempts($key));
-        $this->assertSame(5, RateLimiter::attempts('password-reset-ip|127.0.0.1'));
-        $this->assertSame(0, RateLimiter::attempts('limited-reset@example.com|127.0.0.1'));
+        $this->assertSame(5, (int) RateLimiter::attempts($key));
+        $this->assertSame(5, (int) RateLimiter::attempts('password-reset-ip|127.0.0.1'));
+        $this->assertSame(0, (int) RateLimiter::attempts('limited-reset@example.com|127.0.0.1'));
         Notification::assertSentToTimes($user, QueuedResetPasswordNotification::class, 1);
 
         foreach (range(1, 25) as $attempt) {
@@ -399,11 +551,11 @@ class BrowserAuthenticationTest extends TestCase
             ])->assertAccepted();
         }
 
-        $this->assertSame(30, RateLimiter::attempts('password-reset-ip|127.0.0.1'));
+        $this->assertSame(30, (int) RateLimiter::attempts('password-reset-ip|127.0.0.1'));
         $this->postJson('/api/v1/auth/forgot-password', [
             'email' => 'reset-spray-blocked@example.com',
         ])->assertAccepted();
-        $this->assertSame(0, RateLimiter::attempts(
+        $this->assertSame(0, (int) RateLimiter::attempts(
             app(PasswordResetRateLimitKey::class)->for('reset-spray-blocked@example.com', '127.0.0.1'),
         ));
     }
@@ -499,8 +651,8 @@ class BrowserAuthenticationTest extends TestCase
         $verificationUrl = null;
         Notification::assertSentTo(
             $user,
-            VerifyEmail::class,
-            function (VerifyEmail $notification, array $channels, User $notifiable) use (&$verificationUrl): bool {
+            QueuedVerifyEmailNotification::class,
+            function (QueuedVerifyEmailNotification $notification, array $channels, User $notifiable) use (&$verificationUrl): bool {
                 $verificationUrl = $notification->toMail($notifiable)->actionUrl;
 
                 return is_string($verificationUrl)

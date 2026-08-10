@@ -281,7 +281,9 @@ class PostgresRowLevelSecurityTest extends TestCase
                 'password' => 'Correct-Horse-42!',
                 'password_confirmation' => 'Correct-Horse-42!',
                 'invitation_token' => $registrationToken,
-            ])->assertCreated();
+            ])->assertAccepted()->assertExactJson([
+                'message' => 'If registration can be completed, check your email for next steps.',
+            ]);
             $registeredUserId = DB::connection($originalDefault)
                 ->table('users')
                 ->where('email', 'security-runtime-registration@example.com')
