@@ -9,11 +9,13 @@
     "openapi.yaml"
   ],
   "scripts": {
+    "audit": "node scripts/audit-contract.mjs",
     "lint": "redocly lint maestro@v1 --config redocly.yaml",
     "generate": "openapi-typescript --redocly redocly.yaml --immutable --alphabetize --default-non-nullable false",
     "generate:check": "openapi-typescript --redocly redocly.yaml --immutable --alphabetize --default-non-nullable false --check",
+    "test": "pnpm run generate:check && pnpm run audit",
     "typecheck": "tsc --project tsconfig.json",
-    "check": "pnpm run lint && pnpm run generate:check && pnpm run typecheck"
+    "check": "pnpm run lint && pnpm run generate:check && pnpm run audit && pnpm run typecheck"
   },
   "devDependencies": {
     "@redocly/cli": "2.46.0",

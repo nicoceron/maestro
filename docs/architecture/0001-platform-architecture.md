@@ -23,7 +23,7 @@ Tenant safety has three layers:
 2. Composite database constraints that make cross-studio relationships invalid.
 3. PostgreSQL row-level security using a restricted runtime role that cannot bypass RLS.
 
-The People module is the first concrete implementation of all three layers: API and persistent Filament middleware initialize `TenantContext`, composite foreign keys reject cross-studio relationships, and forced PostgreSQL policies compare every tenant row with `app.current_studio_id`. The Compose bootstrap creates a non-owner, non-superuser, non-`BYPASSRLS` role, and the integration suite probes default-deny reads and cross-tenant writes through that role. Each new tenant table must adopt the same migration and direct-SQL test pattern.
+The People module is the first concrete implementation of all three layers: API and persistent Filament middleware initialize `TenantContext`, composite foreign keys reject cross-studio relationships, and forced PostgreSQL policies compare every tenant row with `app.current_studio_id`. Memberships and invitations now apply the same forced-RLS boundary, with authenticated-user and digest-scoped invitation contexts for their non-route workflows. The Compose bootstrap creates a non-owner, non-superuser, non-`BYPASSRLS` role, and the integration suite probes default-deny reads and cross-tenant writes through that role. Each new tenant table must adopt the same migration and direct-SQL test pattern.
 
 Queues, scheduled commands, imports, exports, cache keys, search documents, files, notifications, realtime channels, and webhooks all carry explicit studio identity. Platform support access is separate, MFA-protected, time-bound, and audited.
 

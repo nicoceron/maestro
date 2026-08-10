@@ -4,6 +4,292 @@
  */
 
 export interface paths {
+    readonly "/api/v1/auth/email/verification-notification": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Resend the verification email
+         * @description Queues another temporary signed verification link for the current unverified user.
+         */
+        readonly post: operations["resendEmailVerification"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/email/verify/{id}/{hash}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Consume a signed email-verification link
+         * @description Verifies the exact authenticated user's current email through Laravel's
+         *     temporary signed URL. JSON clients receive `204`; browser navigation redirects
+         *     to the configured onboarding URL with `verified=1`.
+         */
+        readonly get: operations["verifyEmail"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/forgot-password": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Request a password reset link
+         * @description Always returns the same success response for a syntactically valid email,
+         *     whether or not an account exists. Email is normalized for lookup. Only a known
+         *     eligible account receives the queued reset notification.
+         */
+        readonly post: operations["requestPasswordReset"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/login": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Log in with email and password
+         * @description Authenticates a normalized email against the global user identity and rotates
+         *     the Laravel session. Unknown-email and wrong-password attempts use the same
+         *     Laravel validation response. TOTP is not enabled in the implemented slice, so
+         *     a successful response currently reports `two_factor: false`.
+         */
+        readonly post: operations["login"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/logout": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Log out the current browser session
+         * @description Logs out the web guard, invalidates the current session, and regenerates the CSRF token.
+         */
+        readonly post: operations["logout"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/register": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Register a global user
+         * @description Creates and authenticates a global user with a normalized email. When an
+         *     invitation token is supplied, registration validates that the pending token is
+         *     bound to the submitted normalized email but does not verify the user, accept the
+         *     invitation, or create a membership. Explicit onboarding or invitation acceptance
+         *     performs that later transition. Without a token the user remains unverified until
+         *     completing email verification. Public registration is the currently implemented
+         *     behavior; invitation-first gating remains a documented security follow-up.
+         */
+        readonly post: operations["register"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/reset-password": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Reset a password
+         * @description Consumes a valid Laravel password-broker token, sets a strong confirmed
+         *     uncompromised password, rotates the remember token, removes that user's
+         *     database-backed browser sessions, and revokes that user's Sanctum personal
+         *     access tokens without affecting other users.
+         */
+        readonly post: operations["resetPassword"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get the current global user
+         * @description Returns safe global identity fields only; studio memberships are fetched through the studio collection.
+         */
+        readonly get: operations["getCurrentUser"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/confirm-password": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Confirm the current password
+         * @description Confirms the authenticated user's password and records Laravel's recent-confirmation timestamp in this session.
+         */
+        readonly post: operations["confirmPassword"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/confirmed-password-status": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read the current password-confirmation status
+         * @description Returns whether this session's password confirmation remains within the server's configured timeout.
+         */
+        readonly get: operations["getPasswordConfirmationStatus"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/invitations/accept": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Accept an invitation
+         * @description Atomically accepts a pending invitation for the authenticated user's matching
+         *     normalized email. The studio and role come only from the locked invitation.
+         *     Successful replay by the same active member is idempotent.
+         */
+        readonly post: operations["acceptInvitation"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/invitations/preview": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview a pending invitation
+         * @description Public, rate-limited, and intentionally minimal. It returns only a pending
+         *     status, masked email hint, and expiry. It never returns the studio, role,
+         *     inviter, full email, account-existence, or token details.
+         */
+        readonly post: operations["previewInvitation"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/onboarding": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Complete the current user's studio onboarding
+         * @description Requires exactly one server-authorized path: an invitation token or a new-studio
+         *     intent. Invitation onboarding accepts the token's locked role and can verify its
+         *     matching email. New-studio onboarding requires a verified email and creates an
+         *     owner membership only when the user has no active membership; otherwise it
+         *     returns the user's earliest active studio. Preference fields merge into the
+         *     selected membership. `workspace_mode` is UX personalization only and never
+         *     selects or changes the authorization role.
+         */
+        readonly post: operations["completeOnboarding"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/studios": {
         readonly parameters: {
             readonly query?: never;
@@ -131,10 +417,105 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/invitations": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        /**
+         * List studio invitations
+         * @description Returns the studio's invitations newest-first in Laravel's fixed 25-item
+         *     paginator. Owners and administrators may list; all records and counts are
+         *     scoped to the route studio. Tokens and token hashes are never serialized.
+         */
+        readonly get: operations["listStudioInvitations"];
+        readonly put?: never;
+        /**
+         * Invite a studio member
+         * @description Normalizes the email and sends a seven-day invitation. The request role is
+         *     limited to administrator, office, billing, or teacher. Owners may invite any
+         *     of those roles; administrators may invite only office, billing, or teacher.
+         *     The route studio, inviter, status, and token are always server-controlled.
+         */
+        readonly post: operations["createStudioInvitation"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/invitations/{invitation}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Studio invitation ULID, constrained to the route studio before policy evaluation.
+                 * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
+                 */
+                readonly invitation: components["parameters"]["InvitationId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Revoke a studio invitation
+         * @description Idempotently revokes a non-accepted invitation in the route studio. Owners
+         *     may revoke invitations for any implemented management role; administrators
+         *     may revoke only office, billing, and teacher invitations.
+         */
+        readonly delete: operations["revokeStudioInvitation"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/sanctum/csrf-cookie": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Initialize browser CSRF protection
+         * @description Starts or resumes the Laravel browser session and sets the readable
+         *     `XSRF-TOKEN` cookie. The client URL-decodes that cookie and returns it in
+         *     `X-XSRF-TOKEN` on every state-changing request. This endpoint does not
+         *     authenticate a user.
+         */
+        readonly get: operations["initializeCsrf"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        readonly ConfirmPasswordInput: {
+            /** Format: password */
+            readonly password: string;
+        };
         /**
          * @description Keys must reference a guardian member and a learner member in the same request.
          *     Each guardian/learner pair may appear only once.
@@ -206,6 +587,31 @@ export interface components {
              * @default 1
              */
             readonly week_starts_on?: number;
+        };
+        readonly CreateStudioInvitationInput: {
+            readonly email: components["schemas"]["NormalizedEmail"];
+            readonly role: components["schemas"]["InvitableMembershipRole"];
+        };
+        readonly CurrentUser: {
+            readonly email: components["schemas"]["NormalizedEmail"];
+            /** Format: date-time */
+            readonly email_verified_at: string | null;
+            /**
+             * Format: int64
+             * @description Current Laravel bigint user primary key; global users have not been migrated to ULIDs.
+             */
+            readonly id: number;
+            readonly name: string;
+        };
+        readonly CurrentUserEnvelope: {
+            readonly data: components["schemas"]["CurrentUser"];
+        };
+        readonly EmailInput: {
+            readonly email: components["schemas"]["NormalizedEmail"];
+        };
+        readonly ForgotPasswordResult: {
+            /** @constant */
+            readonly message: "If an account matches that email, a password reset link will be sent.";
         };
         readonly GuardianRelationship: {
             readonly guardian_person_id: components["schemas"]["Ulid"];
@@ -292,6 +698,39 @@ export interface components {
             readonly school_grade: string | null;
             readonly status: components["schemas"]["StudentStatus"];
         };
+        /**
+         * @description Roles accepted by the invitation request. `owner` is intentionally excluded;
+         *     owner changes require a future ownership-transfer flow. Administrators are
+         *     additionally forbidden by policy from inviting another administrator.
+         * @enum {string}
+         */
+        readonly InvitableMembershipRole: "administrator" | "office" | "billing" | "teacher";
+        readonly InvitationAcceptedEnvelope: {
+            readonly data: components["schemas"]["Studio"];
+            /** @constant */
+            readonly message: "Invitation accepted.";
+        };
+        readonly InvitationPreview: {
+            /**
+             * @description Masked email with the full domain and only the first local-part character visible.
+             * @example n••••••••••@example.com
+             */
+            readonly email_hint: string;
+            /** Format: date-time */
+            readonly expires_at: string;
+            /** @constant */
+            readonly status: "pending";
+        };
+        readonly InvitationPreviewEnvelope: {
+            readonly data: components["schemas"]["InvitationPreview"];
+        };
+        /** @enum {string} */
+        readonly InvitationStatus: "pending" | "accepted" | "revoked" | "expired";
+        /** @description Opaque invitation bearer token. Email links carry it in the URL fragment; the browser scrubs the fragment and submits the token only in a JSON request body. It is never returned by an API resource. */
+        readonly InvitationToken: string;
+        readonly InvitationTokenInput: {
+            readonly invitation_token: components["schemas"]["InvitationToken"];
+        };
         readonly LaravelPaginationLink: {
             readonly active: boolean;
             readonly label: string;
@@ -319,20 +758,108 @@ export interface components {
         };
         /** @enum {string} */
         readonly Locale: "de" | "en" | "es" | "fr" | "ja" | "nl";
+        readonly LoginInput: {
+            readonly email: components["schemas"]["NormalizedEmail"];
+            /** Format: password */
+            readonly password: string;
+            /** @default false */
+            readonly remember?: boolean;
+        };
+        readonly LoginResult: {
+            /**
+             * @description TOTP is not enabled in the implemented identity slice.
+             * @constant
+             */
+            readonly two_factor: false;
+        };
         /** @enum {string} */
         readonly MembershipRole: "owner" | "administrator" | "office" | "billing" | "teacher";
         /** @enum {string} */
         readonly MembershipStatus: "invited" | "active" | "suspended";
+        readonly Message: {
+            readonly message: string;
+        };
+        /**
+         * Format: email
+         * @description Global identity email after Unicode whitespace trim, NFKC normalization, and Unicode-aware lowercase normalization.
+         * @example member@example.com
+         */
+        readonly NormalizedEmail: string;
+        readonly OnboardingCompletedEnvelope: {
+            readonly data: components["schemas"]["Studio"];
+            /** @constant */
+            readonly message: "Onboarding completed.";
+        };
+        /**
+         * @description Exactly one of `invitation_token` or `studio` is required. `role` and
+         *     `studio.role` are prohibited by the closed schemas. Preference fields merge
+         *     into the selected membership and cannot grant authorization.
+         */
+        readonly OnboardingInput: {
+            readonly invitation_token?: components["schemas"]["InvitationToken"];
+            /** @description Trimmed membership UX preference; empty/null input is not persisted. */
+            readonly preferred_name?: string | null;
+            readonly primary_goal?: components["schemas"]["PrimaryGoal"] | null;
+            readonly studio?: components["schemas"]["OnboardingStudioInput"];
+            /** @description Non-authorizing UX preference. */
+            readonly workspace_mode?: components["schemas"]["WorkspaceMode"] | null;
+        } & (unknown | unknown);
+        readonly OnboardingStudioInput: {
+            /**
+             * @description ISO 4217 code normalized to uppercase.
+             * @default USD
+             */
+            readonly currency?: string;
+            /** @default en */
+            readonly locale?: components["schemas"]["Locale"];
+            readonly name: string;
+            /** @description Optional unique custom slug. Null uses collision-safe generation from the studio name. */
+            readonly slug?: components["schemas"]["StudioSlug"] | null;
+            /**
+             * @description Valid PHP/IANA timezone identifier. Defaults to `UTC`.
+             * @example America/Bogota
+             */
+            readonly timezone?: string;
+            /** @default 1 */
+            readonly week_starts_on?: number;
+        };
+        readonly PasswordConfirmationStatus: {
+            readonly confirmed: boolean;
+        };
         /** @enum {string} */
         readonly PersonStatus: "active" | "inactive" | "archived";
         /** @enum {string} */
         readonly PortalPermission: "calendar" | "attendance" | "learning" | "billing" | "booking" | "messages";
+        /** @enum {string} */
+        readonly PrimaryGoal: "schedule" | "billing" | "teaching" | "growth";
         /** @description Laravel JSON error envelope for API exceptions. */
         readonly Problem: {
             readonly message: string;
         } & {
             readonly [key: string]: unknown;
         };
+        readonly RegisterInput: {
+            readonly email: components["schemas"]["NormalizedEmail"];
+            /** @description Optional invitation token validated against the normalized email during account creation; it does not verify the user or create a membership. */
+            readonly invitation_token?: components["schemas"]["InvitationToken"] | null;
+            readonly name: string;
+            readonly password: components["schemas"]["StrongPassword"];
+            /** @description Must exactly match `password`. */
+            readonly password_confirmation: components["schemas"]["StrongPassword"];
+        };
+        readonly ResetPasswordInput: {
+            readonly email: components["schemas"]["NormalizedEmail"];
+            readonly password: components["schemas"]["StrongPassword"];
+            /** @description Must exactly match `password`. */
+            readonly password_confirmation: components["schemas"]["StrongPassword"];
+            /** @description Single-use Laravel password-broker token received in a URL fragment, scrubbed by the browser, and submitted only in this JSON body. */
+            readonly token: string;
+        };
+        /**
+         * Format: password
+         * @description Implemented Fortify rule requiring 12 or more characters, mixed case, a number, a symbol, and Laravel's uncompromised-password check.
+         */
+        readonly StrongPassword: string;
         /** @enum {string} */
         readonly StudentStatus: "lead" | "trial" | "waiting" | "active" | "paused" | "former";
         readonly Studio: {
@@ -369,6 +896,30 @@ export interface components {
         readonly StudioEnvelope: {
             readonly data: components["schemas"]["Studio"];
         };
+        readonly StudioInvitation: {
+            /** Format: date-time */
+            readonly accepted_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly email: components["schemas"]["NormalizedEmail"];
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly revoked_at: string | null;
+            readonly role: components["schemas"]["InvitableMembershipRole"];
+            readonly status: components["schemas"]["InvitationStatus"];
+        };
+        readonly StudioInvitationCreatedEnvelope: {
+            readonly data: components["schemas"]["StudioInvitation"];
+            /** @constant */
+            readonly message: "Invitation sent.";
+        };
+        readonly StudioInvitationPaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["StudioInvitation"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
         readonly StudioMembership: {
             readonly role: components["schemas"]["MembershipRole"];
             readonly status: components["schemas"]["MembershipStatus"];
@@ -395,6 +946,13 @@ export interface components {
                 readonly [key: string]: readonly string[];
             };
         };
+        /**
+         * @description Onboarding UX preference used to personalize the first workspace. It never
+         *     selects or changes the authorization role; new studios create an owner and
+         *     invitation onboarding uses the invitation's server-locked role.
+         * @enum {string}
+         */
+        readonly WorkspaceMode: "owner" | "administrator" | "teacher";
     };
     responses: {
         /** @description The Sanctum CSRF cookie/header pair is absent or invalid. */
@@ -411,6 +969,20 @@ export interface components {
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
+        /** @description A verified global email is required for verified studio business routes and new-studio onboarding. */
+        readonly EmailNotVerified: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "Your email address is not verified."
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
         /** @description The authenticated user cannot access the requested studio or resource. */
         readonly Forbidden: {
             headers: {
@@ -420,6 +992,62 @@ export interface components {
                 /**
                  * @example {
                  *       "message": "This action is unauthorized."
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description The invitation is missing, terminal, expired, bound to a different normalized
+         *     email, or otherwise cannot create an active membership. These states share one
+         *     validation field and message.
+         */
+        readonly InvitationCannotBeAccepted: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "The invitation token field is invalid.",
+                 *       "errors": {
+                 *         "invitation_token": [
+                 *           "This invitation cannot be accepted."
+                 *         ]
+                 *       }
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["ValidationProblem"];
+            };
+        };
+        /** @description The invitation was already accepted and cannot be revoked. */
+        readonly InvitationCannotBeRevoked: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "The invitation field is invalid.",
+                 *       "errors": {
+                 *         "invitation": [
+                 *           "An accepted invitation cannot be revoked."
+                 *         ]
+                 *       }
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["ValidationProblem"];
+            };
+        };
+        /** @description The token does not identify a currently pending invitation. */
+        readonly InvitationUnavailable: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "Invitation unavailable."
                  *     }
                  */
                 readonly "application/json": components["schemas"]["Problem"];
@@ -505,6 +1133,11 @@ export interface components {
          */
         readonly HouseholdSearch: string | null;
         /**
+         * @description Studio invitation ULID, constrained to the route studio before policy evaluation.
+         * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
+         */
+        readonly InvitationId: components["schemas"]["Ulid"];
+        /**
          * @description One-based Laravel paginator page number.
          * @example 1
          */
@@ -528,11 +1161,369 @@ export interface components {
         readonly RateLimitRemaining: number;
         /** @description Seconds until another request may be attempted. */
         readonly RetryAfter: number;
+        /**
+         * @description One or more `Set-Cookie` header fields initializing `XSRF-TOKEN` and the
+         *     Laravel session. User agents preserve separate header fields even though
+         *     OpenAPI represents the header value as a string.
+         */
+        readonly SetCookie: string;
     };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    readonly resendEmailVerification: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Verification notification accepted for delivery; response has no body. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The current user was already verified; no notification was required and the response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly verifyEmail: {
+        readonly parameters: {
+            readonly query: {
+                readonly expires: number;
+                readonly signature: string;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description SHA-1 hash of the current verification email. */
+                readonly hash: string;
+                readonly id: number;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Email verified, or already verified; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Browser navigation redirected to onboarding after verification. */
+            readonly 302: {
+                headers: {
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly requestPasswordReset: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmailInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Generic anti-enumeration response, independent of account existence. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ForgotPasswordResult"];
+                };
+            };
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly login: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["LoginInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Password authentication completed and session rotated. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LoginResult"];
+                };
+            };
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly logout: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current browser session invalidated; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly register: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RegisterInput"];
+            };
+        };
+        readonly responses: {
+            /** @description User registered and authenticated. Fortify returns an empty JSON string rather than a user resource. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    /** @example  */
+                    readonly "application/json": "";
+                };
+            };
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly resetPassword: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ResetPasswordInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Password reset completed. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["Message"];
+                };
+            };
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getCurrentUser: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current authenticated global identity. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CurrentUserEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly confirmPassword: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ConfirmPasswordInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Password confirmed; response body is an empty JSON string. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": "";
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getPasswordConfirmationStatus: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current session password-confirmation status. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PasswordConfirmationStatus"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly acceptInvitation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["InvitationTokenInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Invitation accepted, or an already accepted invitation replayed by the same active member. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["InvitationAcceptedEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["InvitationCannotBeAccepted"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewInvitation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["InvitationTokenInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Safe pending invitation preview. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control"?: "no-store, private";
+                    readonly Pragma?: "no-cache";
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["InvitationPreviewEnvelope"];
+                };
+            };
+            readonly 404: components["responses"]["InvitationUnavailable"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly completeOnboarding: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["OnboardingInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Onboarding preferences stored and the selected or created studio returned. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["OnboardingCompletedEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["EmailNotVerified"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly listStudios: {
         readonly parameters: {
             readonly query?: never;
@@ -552,6 +1543,7 @@ export interface operations {
                 };
             };
             readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["EmailNotVerified"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -578,6 +1570,7 @@ export interface operations {
                 };
             };
             readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["EmailNotVerified"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["ValidationFailed"];
             readonly 429: components["responses"]["TooManyRequests"];
@@ -728,6 +1721,133 @@ export interface operations {
             readonly 401: components["responses"]["Unauthenticated"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listStudioInvitations: {
+        readonly parameters: {
+            readonly query?: {
+                /**
+                 * @description One-based Laravel paginator page number.
+                 * @example 1
+                 */
+                readonly page?: components["parameters"]["Page"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Paginated tenant-scoped invitations. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["StudioInvitationPaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createStudioInvitation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateStudioInvitationInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Invitation created and queued for delivery. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["StudioInvitationCreatedEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly revokeStudioInvitation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Studio invitation ULID, constrained to the route studio before policy evaluation.
+                 * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
+                 */
+                readonly invitation: components["parameters"]["InvitationId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Invitation revoked or already revoked; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["InvitationCannotBeRevoked"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly initializeCsrf: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description CSRF cookie and browser session initialized; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly "Set-Cookie": components["headers"]["SetCookie"];
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };

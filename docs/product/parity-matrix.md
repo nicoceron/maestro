@@ -6,8 +6,8 @@ This is the release ledger. A feature is `done` only when its acceptance behavio
 |---|---|---:|---|---|
 | FND-01 | Global user identity and multi-studio memberships | P0 | scaffolded | API + policy + Filament tenant tests; cross-studio switching E2E |
 | FND-02 | Studio onboarding, regional defaults, trial state | P0 | scaffolded | Validated create API, owner membership, onboarding E2E |
-| FND-03 | Roles, granular permissions, invitations, suspension | P0 | planned | Complete role matrix across API, Filament, Next, jobs |
-| FND-04 | Password reset, verification, session security, MFA/passkeys | P0 | planned | Throttle, fixation, reset invalidation, MFA recovery tests |
+| FND-03 | Roles, granular permissions, invitations, suspension | P0 | scaffolded | Complete role matrix across API, Filament, Next, jobs |
+| FND-04 | Password reset, verification, session security, MFA/passkeys | P0 | scaffolded | Throttle, fixation, reset invalidation, MFA recovery tests |
 | FND-05 | Tenant context across HTTP, queues, scheduler, cache, files | P0 | scaffolded | Cross-tenant denial matrix for every execution surface |
 | FND-06 | PostgreSQL RLS and composite tenant constraints | P0 | scaffolded | Direct-SQL default-deny integration suite |
 | FND-07 | Audit log, impersonation controls, support access | P0 | planned | Immutable security-event assertions and admin E2E |
@@ -79,7 +79,8 @@ This is the release ledger. A feature is `done` only when its acceptance behavio
 
 ## Current verification
 
-- Laravel: 24 passing PostgreSQL tests / 109 assertions covering studio creation, credentialed CORS, People aggregates, guardian portal scopes and billing-data redaction, role restrictions, tenant search/IDOR denial, Filament resource isolation, composite constraints, and restricted-role RLS.
-- Next.js: 9 passing tests for the landing page plus fixture-backed Studio Home shell/dashboard; ESLint and production build pass.
+- Identity: headless Fortify registration/login/logout/reset/verification/confirmation, current-user lookup, JSON-body studio invitation preview/management/acceptance, fragment credential scrubbing, and two-path onboarding are scaffolded. Password compromise checks, reset throttling/invalidation, trusted browser boundaries, and membership/invitation RLS are covered. MFA, passkeys, session inventory/revocation, invitation resend, and full security audit/outbox remain next gaps, not completed capabilities; implement them against [Laravel 13 Fortify's TOTP and passkey contracts](https://laravel.com/docs/13.x/fortify) and the [identity acceptance specification](../security/identity-access-acceptance.md).
+- Laravel: SQLite runs 61 tests with 57 passed, 434 assertions, and four PostgreSQL-only skips. A clean PostgreSQL 18 run passes all 61 tests / 480 assertions, including restricted-role membership/invitation RLS, token-scoped invitation access, browser-boundary controls, reset invalidation, and the existing studio/People/household policy coverage.
+- Next.js: 10 test files / 51 tests pass; ESLint and the production build pass. The live identity transport smoke also passes against Laravel with cookie/CSRF registration and login, current-user lookup, onboarding, tenant membership lookup, and logout. Fragment credential scrubbing and invitation preview/acceptance are covered by focused frontend and Laravel tests.
 - API contract: strict OpenAPI lint, deterministic TypeScript generation, and declaration typecheck.
 - Visual smoke: landing and Studio Home reviewed at desktop and 390px mobile widths with no horizontal overflow or application console errors.

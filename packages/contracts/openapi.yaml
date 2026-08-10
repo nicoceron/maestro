@@ -4,8 +4,10 @@ info:
   title: Maestro API
   version: 0.1.0
   description: |-
-    Contract for Maestro's versioned Laravel JSON API. The initial surface covers
-    authenticated studio discovery and household aggregate management.
+    Contract for Maestro's Laravel JSON API. It covers browser identity and CSRF,
+    onboarding, authenticated studio discovery, studio invitations, and household
+    aggregate management. First-party browser mutations use Sanctum's stateful
+    session together with Laravel's XSRF cookie/header pair.
   contact:
     name: Maestro engineering
   license:
@@ -15,13 +17,504 @@ servers:
   - url: /
     description: Laravel API origin for the current environment
 tags:
+  - name: Authentication
+    description: Sanctum browser bootstrap and headless Fortify identity lifecycle.
+  - name: Onboarding
+    description: Authenticated workspace onboarding without deriving authorization from UI preferences.
   - name: Studios
     description: Studio discovery and lifecycle entry points for authenticated members.
+  - name: Invitations
+    description: Public invitation preview and tenant-scoped invitation management and acceptance.
   - name: Households
     description: Tenant-scoped household, learner, guardian, and portal-access management.
 security:
   - sanctumSession: []
 paths:
+  /sanctum/csrf-cookie:
+    get:
+      tags:
+        - Authentication
+      summary: Initialize browser CSRF protection
+      description: |-
+        Starts or resumes the Laravel browser session and sets the readable
+        `XSRF-TOKEN` cookie. The client URL-decodes that cookie and returns it in
+        `X-XSRF-TOKEN` on every state-changing request. This endpoint does not
+        authenticate a user.
+      operationId: initializeCsrf
+      security: []
+      responses:
+        '204':
+          description: CSRF cookie and browser session initialized; response has no body.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookie'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in with email and password
+      description: |-
+        Authenticates a normalized email against the global user identity and rotates
+        the Laravel session. Unknown-email and wrong-password attempts use the same
+        Laravel validation response. TOTP is not enabled in the implemented slice, so
+        a successful response currently reports `two_factor: false`.
+      operationId: login
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+            examples:
+              passwordLogin:
+                $ref: '#/components/examples/Login'
+      responses:
+        '200':
+          description: Password authentication completed and session rotated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResult'
+              examples:
+                authenticated:
+                  value:
+                    two_factor: false
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a global user
+      description: |-
+        Creates and authenticates a global user with a normalized email. When an
+        invitation token is supplied, registration validates that the pending token is
+        bound to the submitted normalized email but does not verify the user, accept the
+        invitation, or create a membership. Explicit onboarding or invitation acceptance
+        performs that later transition. Without a token the user remains unverified until
+        completing email verification. Public registration is the currently implemented
+        behavior; invitation-first gating remains a documented security follow-up.
+      operationId: register
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+            examples:
+              invitedUser:
+                $ref: '#/components/examples/InvitedRegistration'
+              uninvitedUser:
+                value:
+                  name: Ada Lovelace
+                  email: ada@example.com
+                  password: Correct-Horse-42!
+                  password_confirmation: Correct-Horse-42!
+      responses:
+        '201':
+          description: User registered and authenticated. Fortify returns an empty JSON string rather than a user resource.
+          content:
+            application/json:
+              schema:
+                type: string
+                const: ''
+              example: ''
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out the current browser session
+      description: Logs out the web guard, invalidates the current session, and regenerates the CSRF token.
+      operationId: logout
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Current browser session invalidated; response has no body.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request a password reset link
+      description: |-
+        Always returns the same success response for a syntactically valid email,
+        whether or not an account exists. Email is normalized for lookup. Only a known
+        eligible account receives the queued reset notification.
+      operationId: requestPasswordReset
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailInput'
+            examples:
+              resetRequest:
+                value:
+                  email: member@example.com
+      responses:
+        '202':
+          description: Generic anti-enumeration response, independent of account existence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordResult'
+              examples:
+                generic:
+                  value:
+                    message: If an account matches that email, a password reset link will be sent.
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset a password
+      description: |-
+        Consumes a valid Laravel password-broker token, sets a strong confirmed
+        uncompromised password, rotates the remember token, removes that user's
+        database-backed browser sessions, and revokes that user's Sanctum personal
+        access tokens without affecting other users.
+      operationId: resetPassword
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordInput'
+            examples:
+              validReset:
+                value:
+                  email: member@example.com
+                  token: 6f319385ccb4898c2b275bb531db899b
+                  password: Even-Stronger-84!
+                  password_confirmation: Even-Stronger-84!
+      responses:
+        '200':
+          description: Password reset completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              examples:
+                reset:
+                  value:
+                    message: Your password has been reset.
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/email/verification-notification:
+    post:
+      tags:
+        - Authentication
+      summary: Resend the verification email
+      description: Queues another temporary signed verification link for the current unverified user.
+      operationId: resendEmailVerification
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '202':
+          description: Verification notification accepted for delivery; response has no body.
+        '204':
+          description: The current user was already verified; no notification was required and the response has no body.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/email/verify/{id}/{hash}:
+    get:
+      tags:
+        - Authentication
+      summary: Consume a signed email-verification link
+      description: |-
+        Verifies the exact authenticated user's current email through Laravel's
+        temporary signed URL. JSON clients receive `204`; browser navigation redirects
+        to the configured onboarding URL with `verified=1`.
+      operationId: verifyEmail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: hash
+          in: path
+          required: true
+          description: SHA-1 hash of the current verification email.
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{40}$'
+        - name: expires
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: signature
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
+      responses:
+        '204':
+          description: Email verified, or already verified; response has no body.
+        '302':
+          description: Browser navigation redirected to onboarding after verification.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user:
+    get:
+      tags:
+        - Authentication
+      summary: Get the current global user
+      description: Returns safe global identity fields only; studio memberships are fetched through the studio collection.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current authenticated global identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserEnvelope'
+              examples:
+                verifiedUser:
+                  $ref: '#/components/examples/CurrentUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/confirm-password:
+    post:
+      tags:
+        - Authentication
+      summary: Confirm the current password
+      description: Confirms the authenticated user's password and records Laravel's recent-confirmation timestamp in this session.
+      operationId: confirmPassword
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmPasswordInput'
+      responses:
+        '201':
+          description: Password confirmed; response body is an empty JSON string.
+          content:
+            application/json:
+              schema:
+                type: string
+                const: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/confirmed-password-status:
+    get:
+      tags:
+        - Authentication
+      summary: Read the current password-confirmation status
+      description: Returns whether this session's password confirmation remains within the server's configured timeout.
+      operationId: getPasswordConfirmationStatus
+      responses:
+        '200':
+          description: Current session password-confirmation status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordConfirmationStatus'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/invitations/preview:
+    post:
+      tags:
+        - Invitations
+      summary: Preview a pending invitation
+      description: |-
+        Public, rate-limited, and intentionally minimal. It returns only a pending
+        status, masked email hint, and expiry. It never returns the studio, role,
+        inviter, full email, account-existence, or token details.
+      operationId: previewInvitation
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenInput'
+            examples:
+              token:
+                $ref: '#/components/examples/InvitationTokenInput'
+      responses:
+        '200':
+          description: Safe pending invitation preview.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store, private
+            Pragma:
+              schema:
+                type: string
+                const: no-cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPreviewEnvelope'
+              examples:
+                pending:
+                  $ref: '#/components/examples/InvitationPreview'
+        '404':
+          $ref: '#/components/responses/InvitationUnavailable'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/invitations/accept:
+    post:
+      tags:
+        - Invitations
+      summary: Accept an invitation
+      description: |-
+        Atomically accepts a pending invitation for the authenticated user's matching
+        normalized email. The studio and role come only from the locked invitation.
+        Successful replay by the same active member is idempotent.
+      operationId: acceptInvitation
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationTokenInput'
+            examples:
+              token:
+                $ref: '#/components/examples/InvitationTokenInput'
+      responses:
+        '200':
+          description: Invitation accepted, or an already accepted invitation replayed by the same active member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationAcceptedEnvelope'
+              examples:
+                accepted:
+                  $ref: '#/components/examples/InvitationAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/InvitationCannotBeAccepted'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/onboarding:
+    post:
+      tags:
+        - Onboarding
+      summary: Complete the current user's studio onboarding
+      description: |-
+        Requires exactly one server-authorized path: an invitation token or a new-studio
+        intent. Invitation onboarding accepts the token's locked role and can verify its
+        matching email. New-studio onboarding requires a verified email and creates an
+        owner membership only when the user has no active membership; otherwise it
+        returns the user's earliest active studio. Preference fields merge into the
+        selected membership. `workspace_mode` is UX personalization only and never
+        selects or changes the authorization role.
+      operationId: completeOnboarding
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingInput'
+            examples:
+              newStudio:
+                $ref: '#/components/examples/NewStudioOnboarding'
+              invitedWorkspace:
+                $ref: '#/components/examples/InvitationOnboarding'
+      responses:
+        '200':
+          description: Onboarding preferences stored and the selected or created studio returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingCompletedEnvelope'
+              examples:
+                completed:
+                  $ref: '#/components/examples/OnboardingCompleted'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/EmailNotVerified'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /api/v1/studios:
     get:
       tags:
@@ -60,6 +553,8 @@ paths:
                           manage: true
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/EmailNotVerified'
         '429':
           $ref: '#/components/responses/TooManyRequests'
     post:
@@ -118,6 +613,8 @@ paths:
                     message: Studio created.
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/EmailNotVerified'
         '419':
           $ref: '#/components/responses/CsrfTokenMismatch'
         '422':
@@ -148,6 +645,113 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/StudioSlug'
+    get:
+      tags:
+        - Invitations
+      summary: List studio invitations
+      description: |-
+        Returns the studio's invitations newest-first in Laravel's fixed 25-item
+        paginator. Owners and administrators may list; all records and counts are
+        scoped to the route studio. Tokens and token hashes are never serialized.
+      operationId: listStudioInvitations
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Paginated tenant-scoped invitations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioInvitationPaginatedCollectionEnvelope'
+              examples:
+                invitations:
+                  $ref: '#/components/examples/StudioInvitationCollection'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      tags:
+        - Invitations
+      summary: Invite a studio member
+      description: |-
+        Normalizes the email and sends a seven-day invitation. The request role is
+        limited to administrator, office, billing, or teacher. Owners may invite any
+        of those roles; administrators may invite only office, billing, or teacher.
+        The route studio, inviter, status, and token are always server-controlled.
+      operationId: createStudioInvitation
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStudioInvitationInput'
+            examples:
+              teacher:
+                $ref: '#/components/examples/CreateStudioInvitation'
+      responses:
+        '201':
+          description: Invitation created and queued for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioInvitationCreatedEnvelope'
+              examples:
+                sent:
+                  $ref: '#/components/examples/StudioInvitationCreated'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/invitations/{invitation}:
+    parameters:
+      - $ref: '#/components/parameters/StudioSlug'
+      - $ref: '#/components/parameters/InvitationId'
+    delete:
+      tags:
+        - Invitations
+      summary: Revoke a studio invitation
+      description: |-
+        Idempotently revokes a non-accepted invitation in the route studio. Owners
+        may revoke invitations for any implemented management role; administrators
+        may revoke only office, billing, and teacher invitations.
+      operationId: revokeStudioInvitation
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Invitation revoked or already revoked; response has no body.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/InvitationCannotBeRevoked'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /api/v1/studios/{studio}/households:
@@ -286,6 +890,14 @@ components:
       schema:
         $ref: '#/components/schemas/Ulid'
       example: 01KZN6AKC49V3YM8ZJ7T2R5QWD
+    InvitationId:
+      name: invitation
+      in: path
+      required: true
+      description: Studio invitation ULID, constrained to the route studio before policy evaluation.
+      schema:
+        $ref: '#/components/schemas/Ulid'
+      example: 01KZN7C5V3EVQW9G2FN8X6MP4R
     HouseholdSearch:
       name: q
       in: query
@@ -321,6 +933,13 @@ components:
         default: 1
       example: 1
   headers:
+    SetCookie:
+      description: |-
+        One or more `Set-Cookie` header fields initializing `XSRF-TOKEN` and the
+        Laravel session. User agents preserve separate header fields even though
+        OpenAPI represents the header value as a string.
+      schema:
+        type: string
     RateLimitLimit:
       description: Maximum requests allowed in the current rate-limit window.
       schema:
@@ -337,6 +956,153 @@ components:
         type: integer
         minimum: 0
   examples:
+    Login:
+      summary: Normalized global identity login
+      value:
+        email: member@example.com
+        password: Correct-Horse-42!
+        remember: false
+    InvitedRegistration:
+      summary: Registration bound to a studio invitation
+      value:
+        name: New Teacher
+        email: new.teacher@example.com
+        password: Correct-Horse-42!
+        password_confirmation: Correct-Horse-42!
+        invitation_token: exampletokenexampletokenexampletokenexampletokenexampletoken1234
+    CurrentUser:
+      summary: Safe current-user resource
+      value:
+        data:
+          id: 42
+          name: Ada Lovelace
+          email: ada@example.com
+          email_verified_at: '2026-08-10T18:45:00+00:00'
+    InvitationPreview:
+      summary: Minimal public preview
+      value:
+        data:
+          status: pending
+          email_hint: n••••••••••@example.com
+          expires_at: '2026-08-17T18:45:00+00:00'
+    InvitationTokenInput:
+      summary: Opaque token submitted only in a JSON request body
+      value:
+        invitation_token: exampletokenexampletokenexampletokenexampletokenexampletoken1234
+    CreateStudioInvitation:
+      summary: Invite a teacher
+      value:
+        email: new.teacher@example.com
+        role: teacher
+    StudioInvitationCreated:
+      summary: Safe invitation resource without token material
+      value:
+        data:
+          id: 01KZN7C5V3EVQW9G2FN8X6MP4R
+          email: new.teacher@example.com
+          role: teacher
+          status: pending
+          expires_at: '2026-08-17T18:45:00+00:00'
+          accepted_at: null
+          revoked_at: null
+          created_at: '2026-08-10T18:45:00+00:00'
+        message: Invitation sent.
+    InvitationAccepted:
+      summary: Accepted invitation returns the joined studio
+      value:
+        data:
+          id: 01KZN5W3P3507MV3FBN2BG5WKF
+          name: Aria Academy
+          slug: aria-academy
+          status: trial
+          timezone: America/Bogota
+          locale: en
+          currency: USD
+          week_starts_on: 1
+          trial_ends_at: '2026-09-09T18:45:00+00:00'
+          membership:
+            role: teacher
+            status: active
+          permissions:
+            manage: false
+        message: Invitation accepted.
+    StudioInvitationCollection:
+      summary: One-page studio invitation collection
+      value:
+        data:
+          - id: 01KZN7C5V3EVQW9G2FN8X6MP4R
+            email: new.teacher@example.com
+            role: teacher
+            status: pending
+            expires_at: '2026-08-17T18:45:00+00:00'
+            accepted_at: null
+            revoked_at: null
+            created_at: '2026-08-10T18:45:00+00:00'
+        links:
+          first: http://localhost/api/v1/studios/aria-academy/invitations?page=1
+          last: http://localhost/api/v1/studios/aria-academy/invitations?page=1
+          prev: null
+          next: null
+        meta:
+          current_page: 1
+          from: 1
+          last_page: 1
+          links:
+            - url: null
+              label: '&laquo; Previous'
+              page: null
+              active: false
+            - url: http://localhost/api/v1/studios/aria-academy/invitations?page=1
+              label: '1'
+              page: 1
+              active: true
+            - url: null
+              label: Next &raquo;
+              page: null
+              active: false
+          path: http://localhost/api/v1/studios/aria-academy/invitations
+          per_page: 25
+          to: 1
+          total: 1
+    NewStudioOnboarding:
+      summary: Verified user creates an owner workspace
+      value:
+        preferred_name: Ada
+        workspace_mode: owner
+        primary_goal: schedule
+        studio:
+          name: Aria Academy
+          slug: aria-academy
+          timezone: America/Bogota
+          locale: en
+          currency: USD
+          week_starts_on: 1
+    InvitationOnboarding:
+      summary: User joins with the invitation's locked role
+      value:
+        preferred_name: New Teacher
+        workspace_mode: teacher
+        primary_goal: teaching
+        invitation_token: exampletokenexampletokenexampletokenexampletokenexampletoken1234
+    OnboardingCompleted:
+      summary: Completed onboarding returns a Studio resource
+      value:
+        data:
+          id: 01KZN5W3P3507MV3FBN2BG5WKF
+          name: Aria Academy
+          slug: aria-academy
+          status: trial
+          timezone: America/Bogota
+          locale: en
+          currency: USD
+          week_starts_on: 1
+          trial_ends_at: '2026-09-09T18:45:00+00:00'
+          membership:
+            role: owner
+            status: active
+          permissions:
+            manage: true
+        message: Onboarding completed.
     CreateHousehold:
       summary: Guardian and learner household
       value:
@@ -390,6 +1156,14 @@ components:
             $ref: '#/components/schemas/Problem'
           example:
             message: This action is unauthorized.
+    EmailNotVerified:
+      description: A verified global email is required for verified studio business routes and new-studio onboarding.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            message: Your email address is not verified.
     NotFound:
       description: The requested studio or tenant-scoped resource does not exist.
       content:
@@ -419,6 +1193,39 @@ components:
                 - The selected slug is invalid.
               currency:
                 - The currency field must be 3 characters.
+    InvitationUnavailable:
+      description: The token does not identify a currently pending invitation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            message: Invitation unavailable.
+    InvitationCannotBeAccepted:
+      description: |-
+        The invitation is missing, terminal, expired, bound to a different normalized
+        email, or otherwise cannot create an active membership. These states share one
+        validation field and message.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          example:
+            message: The invitation token field is invalid.
+            errors:
+              invitation_token:
+                - This invitation cannot be accepted.
+    InvitationCannotBeRevoked:
+      description: The invitation was already accepted and cannot be revoked.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          example:
+            message: The invitation field is invalid.
+            errors:
+              invitation:
+                - An accepted invitation cannot be revoked.
     TooManyRequests:
       description: API rate limit exceeded.
       headers:
@@ -442,6 +1249,412 @@ components:
       maxLength: 26
       pattern: '^[0-7][0-9A-HJKMNP-TV-Z]{25}$'
       example: 01KZN5W3P3507MV3FBN2BG5WKF
+    NormalizedEmail:
+      type: string
+      format: email
+      minLength: 3
+      maxLength: 254
+      description: Global identity email after Unicode whitespace trim, NFKC normalization, and Unicode-aware lowercase normalization.
+      example: member@example.com
+    InvitationToken:
+      type: string
+      minLength: 40
+      maxLength: 128
+      pattern: '^[A-Za-z0-9]+$'
+      description: Opaque invitation bearer token. Email links carry it in the URL fragment; the browser scrubs the fragment and submits the token only in a JSON request body. It is never returned by an API resource.
+    InvitationTokenInput:
+      type: object
+      additionalProperties: false
+      required:
+        - invitation_token
+      properties:
+        invitation_token:
+          $ref: '#/components/schemas/InvitationToken'
+    StrongPassword:
+      type: string
+      format: password
+      minLength: 12
+      writeOnly: true
+      pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}$'
+      description: Implemented Fortify rule requiring 12 or more characters, mixed case, a number, a symbol, and Laravel's uncompromised-password check.
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - password
+      properties:
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+        password:
+          type: string
+          format: password
+          minLength: 1
+          writeOnly: true
+        remember:
+          type: boolean
+          default: false
+    LoginResult:
+      type: object
+      additionalProperties: false
+      required:
+        - two_factor
+      properties:
+        two_factor:
+          type: boolean
+          const: false
+          description: TOTP is not enabled in the implemented identity slice.
+    RegisterInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - email
+        - password
+        - password_confirmation
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+        password:
+          $ref: '#/components/schemas/StrongPassword'
+        password_confirmation:
+          allOf:
+            - $ref: '#/components/schemas/StrongPassword'
+          description: Must exactly match `password`.
+        invitation_token:
+          description: Optional invitation token validated against the normalized email during account creation; it does not verify the user or create a membership.
+          anyOf:
+            - $ref: '#/components/schemas/InvitationToken'
+            - type: 'null'
+    EmailInput:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+      properties:
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+    ResetPasswordInput:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - token
+        - password
+        - password_confirmation
+      properties:
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+        token:
+          type: string
+          minLength: 1
+          writeOnly: true
+          description: Single-use Laravel password-broker token received in a URL fragment, scrubbed by the browser, and submitted only in this JSON body.
+        password:
+          $ref: '#/components/schemas/StrongPassword'
+        password_confirmation:
+          allOf:
+            - $ref: '#/components/schemas/StrongPassword'
+          description: Must exactly match `password`.
+    Message:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    ConfirmPasswordInput:
+      type: object
+      additionalProperties: false
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          format: password
+          minLength: 1
+          writeOnly: true
+    PasswordConfirmationStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmed
+      properties:
+        confirmed:
+          type: boolean
+    ForgotPasswordResult:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          const: If an account matches that email, a password reset link will be sent.
+    CurrentUser:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - email
+        - email_verified_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Current Laravel bigint user primary key; global users have not been migrated to ULIDs.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+        email_verified_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    CurrentUserEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/CurrentUser'
+    WorkspaceMode:
+      type: string
+      description: |-
+        Onboarding UX preference used to personalize the first workspace. It never
+        selects or changes the authorization role; new studios create an owner and
+        invitation onboarding uses the invitation's server-locked role.
+      enum:
+        - owner
+        - administrator
+        - teacher
+    PrimaryGoal:
+      type: string
+      enum:
+        - schedule
+        - billing
+        - teaching
+        - growth
+    OnboardingStudioInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        slug:
+          description: Optional unique custom slug. Null uses collision-safe generation from the studio name.
+          anyOf:
+            - $ref: '#/components/schemas/StudioSlug'
+            - type: 'null'
+        timezone:
+          type: string
+          minLength: 1
+          description: Valid PHP/IANA timezone identifier. Defaults to `UTC`.
+          example: America/Bogota
+        locale:
+          allOf:
+            - $ref: '#/components/schemas/Locale'
+          default: en
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Za-z]{3}$'
+          default: USD
+          description: ISO 4217 code normalized to uppercase.
+        week_starts_on:
+          type: integer
+          minimum: 0
+          maximum: 6
+          default: 1
+    OnboardingInput:
+      type: object
+      additionalProperties: false
+      description: |-
+        Exactly one of `invitation_token` or `studio` is required. `role` and
+        `studio.role` are prohibited by the closed schemas. Preference fields merge
+        into the selected membership and cannot grant authorization.
+      oneOf:
+        - title: Invitation onboarding
+          required:
+            - invitation_token
+          not:
+            properties:
+              studio: {}
+            required:
+              - studio
+        - title: New-studio onboarding
+          required:
+            - studio
+          not:
+            properties:
+              invitation_token: {}
+            required:
+              - invitation_token
+      properties:
+        invitation_token:
+          $ref: '#/components/schemas/InvitationToken'
+        studio:
+          $ref: '#/components/schemas/OnboardingStudioInput'
+        preferred_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 80
+          description: Trimmed membership UX preference; empty/null input is not persisted.
+        workspace_mode:
+          description: Non-authorizing UX preference.
+          anyOf:
+            - $ref: '#/components/schemas/WorkspaceMode'
+            - type: 'null'
+        primary_goal:
+          anyOf:
+            - $ref: '#/components/schemas/PrimaryGoal'
+            - type: 'null'
+    OnboardingCompletedEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - message
+      properties:
+        data:
+          $ref: '#/components/schemas/Studio'
+        message:
+          type: string
+          const: Onboarding completed.
+    InvitationStatus:
+      type: string
+      enum:
+        - pending
+        - accepted
+        - revoked
+        - expired
+    InvitableMembershipRole:
+      type: string
+      description: |-
+        Roles accepted by the invitation request. `owner` is intentionally excluded;
+        owner changes require a future ownership-transfer flow. Administrators are
+        additionally forbidden by policy from inviting another administrator.
+      enum:
+        - administrator
+        - office
+        - billing
+        - teacher
+    InvitationPreview:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - email_hint
+        - expires_at
+      properties:
+        status:
+          type: string
+          const: pending
+        email_hint:
+          type: string
+          minLength: 5
+          description: Masked email with the full domain and only the first local-part character visible.
+          example: n••••••••••@example.com
+        expires_at:
+          type: string
+          format: date-time
+    InvitationPreviewEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/InvitationPreview'
+    CreateStudioInvitationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - role
+      properties:
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+        role:
+          $ref: '#/components/schemas/InvitableMembershipRole'
+    StudioInvitation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - role
+        - status
+        - expires_at
+        - accepted_at
+        - revoked_at
+        - created_at
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        email:
+          $ref: '#/components/schemas/NormalizedEmail'
+        role:
+          $ref: '#/components/schemas/InvitableMembershipRole'
+        status:
+          $ref: '#/components/schemas/InvitationStatus'
+        expires_at:
+          type: string
+          format: date-time
+        accepted_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        revoked_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    StudioInvitationCreatedEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - message
+      properties:
+        data:
+          $ref: '#/components/schemas/StudioInvitation'
+        message:
+          type: string
+          const: Invitation sent.
+    InvitationAcceptedEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - message
+      properties:
+        data:
+          $ref: '#/components/schemas/Studio'
+        message:
+          type: string
+          const: Invitation accepted.
     StudioSlug:
       type: string
       description: ASCII alpha-dash studio slug, unique across studios.
@@ -1150,6 +2363,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Household'
+        links:
+          $ref: '#/components/schemas/LaravelPaginationLinks'
+        meta:
+          $ref: '#/components/schemas/LaravelPaginationMeta'
+    StudioInvitationPaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudioInvitation'
         links:
           $ref: '#/components/schemas/LaravelPaginationLinks'
         meta:
