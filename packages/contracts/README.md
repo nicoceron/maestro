@@ -19,6 +19,8 @@ pnpm check
 
 Browser clients first call `GET /sanctum/csrf-cookie`. Public Fortify mutations require the XSRF cookie/header pair; authenticated mutations require both that pair and the Sanctum session. Never interpret the UI-only onboarding `workspace_mode` as a membership role.
 
+Public registration is Maestro-owned rather than Fortify auto-login: every syntactically valid new, existing, or semantically unusable-invitation request receives the same unauthenticated generic `202`, with no redirect or session rotation. Only a genuinely new eligible identity is created and sent the queued verification notification. Password schemas require 12 or more characters, exact confirmation, and server-side compromised-password validation without mixed-case, number, or symbol composition rules.
+
 The identity contract follows the installed Laravel 13 behavior exactly: TOTP QR setup returns `{svg,url}` (or Fortify's empty array before setup), recovery-code GET returns the raw string array while regeneration returns an empty JSON string, and WebAuthn options/credentials follow the official passkey package. Sensitive identity responses are `no-store`; TOTP/passkey management, session revocation, and invitation create/revoke expose `423` when the current session needs recent confirmation.
 
 Session inventory uses opaque public ULIDs, derived device labels, and coarse network prefixes rather than raw IP/user-agent values, cookies, or backend storage identifiers. The current session can revoke itself (which logs out that browser), or the user can revoke one other/all other database-backed sessions.

@@ -103,17 +103,23 @@ paths:
         - Authentication
       summary: Register a global user
       description: |-
-        Creates and authenticates a global user with a normalized email. When an
-        invitation token is supplied, registration validates that the pending token is
-        bound to the submitted normalized email but does not verify the user, accept the
-        invitation, or create a membership. Explicit onboarding or invitation acceptance
-        performs that later transition. Without a token the user remains unverified until
-        completing email verification. Public verified-email owner onboarding is an
-        intentional product path; registration alone never grants tenant authority.
-        The current `201` for a new email versus field-level `422` for an existing email
-        is a known enumeration blocker and will be replaced by a uniform unauthenticated
-        `202`; this operation documents the implemented interim transport only.
+        Accepts a syntactically valid registration request without revealing whether the
+        normalized email, account, or invitation exists. New and existing emails receive
+        the same generic `202`, response headers, cookie behavior, and no redirect. The
+        operation never authenticates the browser, rotates its existing CSRF session, or
+        grants studio authority. Only a genuinely new email with no invitation or a valid
+        email-bound pending invitation creates an unverified global user and queues an
+        encrypted, after-commit verification notification. Existing emails and unusable,
+        terminal, or email-mismatched invitation tokens produce the same accepted response
+        without mutation or notification. Explicit sign-in plus onboarding or invitation
+        acceptance performs any later studio-authority transition. Every semantically
+        accepted path performs password-hash work inside a 300 ms minimum timebox. HMACed
+        limiter keys allow five requests/hour per normalized email plus IP and 20/hour per
+        IP, with the shared auth-form ceiling also applied; raw emails are never limiter keys.
+        `422` is reserved for account-independent input syntax, confirmation, length, or
+        compromised-password validation and never reports account or invitation semantics.
       operationId: register
+      x-acceptance-ids: [IDA-REG-001, REGISTER-E001, REGISTER-E002, REGISTER-E003, REGISTER-E004, REGISTER-E005]
       security:
         - csrfToken: []
       requestBody:
@@ -132,8 +138,10 @@ paths:
                   password: Correct-Horse-42!
                   password_confirmation: Correct-Horse-42!
       responses:
-        '201':
-          description: User registered and authenticated. Fortify returns an empty JSON string rather than a user resource.
+        '202':
+          description: |-
+            Uniform unauthenticated response for every semantically accepted request.
+            It does not claim that an account was created or a notification was sent.
           headers:
             Cache-Control:
               $ref: '#/components/headers/NoStore'
@@ -144,9 +152,10 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-                const: ''
-              example: ''
+                $ref: '#/components/schemas/RegistrationAcceptedResult'
+              examples:
+                generic:
+                  $ref: '#/components/examples/RegistrationAccepted'
         '419':
           $ref: '#/components/responses/CsrfTokenMismatch'
         '422':
@@ -1732,6 +1741,10 @@ components:
         password: Correct-Horse-42!
         password_confirmation: Correct-Horse-42!
         invitation_token: exampletokenexampletokenexampletokenexampletokenexampletoken1234
+    RegistrationAccepted:
+      summary: Uniform unauthenticated registration guidance
+      value:
+        message: If registration can be completed, check your email for next steps.
     CurrentUser:
       summary: Safe current-user resource
       value:
@@ -2060,8 +2073,7 @@ components:
       format: password
       minLength: 12
       writeOnly: true
-      pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}$'
-      description: Implemented Fortify rule requiring 12 or more characters, mixed case, a number, a symbol, and Laravel's uncompromised-password check.
+      description: At least 12 characters. Passphrases are allowed; confirmation equality and Laravel's uncompromised-password check are enforced server-side without character-composition rules.
     LoginInput:
       type: object
       additionalProperties: false
@@ -2112,7 +2124,7 @@ components:
             - $ref: '#/components/schemas/StrongPassword'
           description: Must exactly match `password`.
         invitation_token:
-          description: Optional invitation token validated against the normalized email during account creation; it does not verify the user or create a membership.
+          description: Optional bearer considered during account creation. Unusable or email-mismatched tokens receive the generic accepted response and create nothing; registration never verifies the user, consumes the invitation, or creates a membership.
           anyOf:
             - $ref: '#/components/schemas/InvitationToken'
             - type: 'null'
@@ -2437,6 +2449,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BrowserSession'
+    RegistrationAcceptedResult:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          const: If registration can be completed, check your email for next steps.
+          description: Generic guidance that does not claim an account or notification exists.
     ForgotPasswordResult:
       type: object
       additionalProperties: false

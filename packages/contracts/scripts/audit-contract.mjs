@@ -87,6 +87,7 @@ const expectedSchemas = [
   "WebAuthnCredential",
   "Passkey",
   "BrowserSession",
+  "RegistrationAcceptedResult",
   "InvitationTokenInput",
   "InvitationPreview",
   "OnboardingInput",
@@ -95,6 +96,7 @@ const expectedSchemas = [
 ];
 
 const expectedAcceptanceIds = {
+  register: ["IDA-REG-001", "REGISTER-E001", "REGISTER-E002", "REGISTER-E003", "REGISTER-E004", "REGISTER-E005"],
   completeTwoFactorChallenge: ["IDA-MFA-002", "AUTH-E009"],
   enableTwoFactorAuthentication: ["IDA-MFA-001", "MFA-E001"],
   getTwoFactorQrCode: ["MFA-E006"],
@@ -135,6 +137,7 @@ for (const [operation, ids] of Object.entries(expectedAcceptanceIds)) {
 const invariants = [
   ["CSRF bootstrap is public", /\/sanctum\/csrf-cookie:[\s\S]*?operationId: initializeCsrf[\s\S]*?security: \[\]/],
   ["login requires the CSRF scheme", /operationId: login[\s\S]*?security:\n\s+- csrfToken: \[\]/],
+  ["registration requires CSRF and stays unauthenticated", /operationId: register[\s\S]*?security:\n\s+- csrfToken: \[\][\s\S]*?'202':[\s\S]*?RegistrationAcceptedResult/],
   ["invitation preview is public", /operationId: previewInvitation[\s\S]*?security: \[\]/],
   ["invitation acceptance requires session and CSRF", /operationId: acceptInvitation[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\]/],
   ["invitation preview takes the bearer in JSON", /\/api\/v1\/invitations\/preview:[\s\S]*?requestBody:[\s\S]*?InvitationTokenInput/],
@@ -153,6 +156,34 @@ const invariants = [
 
 for (const [label, pattern] of invariants) {
   if (!pattern.test(source)) missing.push(label);
+}
+
+const registrationBlock = source.slice(
+  source.indexOf("  /api/v1/auth/register:"),
+  source.indexOf("  /api/v1/auth/logout:"),
+);
+
+if (registrationBlock.includes("'201':")) {
+  missing.push("registration still advertises authenticated 201");
+}
+
+for (const requiredText of [
+  "same generic `202`",
+  "never authenticates the browser",
+  "without mutation or notification",
+]) {
+  if (!registrationBlock.includes(requiredText)) {
+    missing.push(`registration privacy rule: ${requiredText}`);
+  }
+}
+
+const passwordBlock = source.slice(
+  source.indexOf("    StrongPassword:"),
+  source.indexOf("    LoginInput:"),
+);
+
+if (passwordBlock.includes("pattern:")) {
+  missing.push("StrongPassword encodes a character-composition rule");
 }
 
 const browserSessionBlock = source.slice(

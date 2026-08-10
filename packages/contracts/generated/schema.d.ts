@@ -223,16 +223,21 @@ export interface paths {
         readonly put?: never;
         /**
          * Register a global user
-         * @description Creates and authenticates a global user with a normalized email. When an
-         *     invitation token is supplied, registration validates that the pending token is
-         *     bound to the submitted normalized email but does not verify the user, accept the
-         *     invitation, or create a membership. Explicit onboarding or invitation acceptance
-         *     performs that later transition. Without a token the user remains unverified until
-         *     completing email verification. Public verified-email owner onboarding is an
-         *     intentional product path; registration alone never grants tenant authority.
-         *     The current `201` for a new email versus field-level `422` for an existing email
-         *     is a known enumeration blocker and will be replaced by a uniform unauthenticated
-         *     `202`; this operation documents the implemented interim transport only.
+         * @description Accepts a syntactically valid registration request without revealing whether the
+         *     normalized email, account, or invitation exists. New and existing emails receive
+         *     the same generic `202`, response headers, cookie behavior, and no redirect. The
+         *     operation never authenticates the browser, rotates its existing CSRF session, or
+         *     grants studio authority. Only a genuinely new email with no invitation or a valid
+         *     email-bound pending invitation creates an unverified global user and queues an
+         *     encrypted, after-commit verification notification. Existing emails and unusable,
+         *     terminal, or email-mismatched invitation tokens produce the same accepted response
+         *     without mutation or notification. Explicit sign-in plus onboarding or invitation
+         *     acceptance performs any later studio-authority transition. Every semantically
+         *     accepted path performs password-hash work inside a 300 ms minimum timebox. HMACed
+         *     limiter keys allow five requests/hour per normalized email plus IP and 20/hour per
+         *     IP, with the shared auth-form ceiling also applied; raw emails are never limiter keys.
+         *     `422` is reserved for account-independent input syntax, confirmation, length, or
+         *     compromised-password validation and never reports account or invitation semantics.
          */
         readonly post: operations["register"];
         readonly delete?: never;
@@ -1250,12 +1255,19 @@ export interface components {
         };
         readonly RegisterInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
-            /** @description Optional invitation token validated against the normalized email during account creation; it does not verify the user or create a membership. */
+            /** @description Optional bearer considered during account creation. Unusable or email-mismatched tokens receive the generic accepted response and create nothing; registration never verifies the user, consumes the invitation, or creates a membership. */
             readonly invitation_token?: components["schemas"]["InvitationToken"] | null;
             readonly name: string;
             readonly password: components["schemas"]["StrongPassword"];
             /** @description Must exactly match `password`. */
             readonly password_confirmation: components["schemas"]["StrongPassword"];
+        };
+        readonly RegistrationAcceptedResult: {
+            /**
+             * @description Generic guidance that does not claim an account or notification exists.
+             * @constant
+             */
+            readonly message: "If registration can be completed, check your email for next steps.";
         };
         readonly ResetPasswordInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
@@ -1270,7 +1282,7 @@ export interface components {
         };
         /**
          * Format: password
-         * @description Implemented Fortify rule requiring 12 or more characters, mixed case, a number, a symbol, and Laravel's uncompromised-password check.
+         * @description At least 12 characters. Passphrases are allowed; confirmation equality and Laravel's uncompromised-password check are enforced server-side without character-composition rules.
          */
         readonly StrongPassword: string;
         /** @enum {string} */
@@ -1972,8 +1984,11 @@ export interface operations {
             };
         };
         readonly responses: {
-            /** @description User registered and authenticated. Fortify returns an empty JSON string rather than a user resource. */
-            readonly 201: {
+            /**
+             * @description Uniform unauthenticated response for every semantically accepted request.
+             *     It does not claim that an account was created or a notification was sent.
+             */
+            readonly 202: {
                 headers: {
                     readonly "Cache-Control": components["headers"]["NoStore"];
                     readonly Expires: components["headers"]["ExpiresImmediately"];
@@ -1981,8 +1996,7 @@ export interface operations {
                     readonly [name: string]: unknown;
                 };
                 content: {
-                    /** @example  */
-                    readonly "application/json": "";
+                    readonly "application/json": components["schemas"]["RegistrationAcceptedResult"];
                 };
             };
             readonly 419: components["responses"]["CsrfTokenMismatch"];
