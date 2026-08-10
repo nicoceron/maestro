@@ -182,6 +182,8 @@ jobs:
     timeout-minutes: 20
 
     env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
 

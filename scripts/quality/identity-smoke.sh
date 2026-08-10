@@ -139,7 +139,29 @@ register_status=$(curl --silent --show-error \
   --output "$smoke_root/register.json" \
   --write-out '%{http_code}' \
   "$web_origin/api/v1/auth/register")
-assert_status 201 "$register_status" 'Registration'
+assert_status 202 "$register_status" 'Registration'
+jq --exit-status \
+  '.message == "If registration can be completed, check your email for next steps."' \
+  "$smoke_root/register.json" >/dev/null
+
+duplicate_registration_status=$(curl --silent --show-error \
+  --cookie "$cookie_jar" \
+  --cookie-jar "$cookie_jar" \
+  --header 'Accept: application/json' \
+  --header 'Content-Type: application/json' \
+  --header "Origin: $web_origin" \
+  --header "Referer: $web_origin/register" \
+  --header "X-XSRF-TOKEN: $xsrf_token" \
+  --request POST \
+  --data '{"name":"Replacement Owner","email":"LIVE-SMOKE-OWNER@EXAMPLE.TEST","password":"Replacement-Password-84!","password_confirmation":"Replacement-Password-84!"}' \
+  --output "$smoke_root/duplicate-registration.json" \
+  --write-out '%{http_code}' \
+  "$web_origin/api/v1/auth/register")
+assert_status 202 "$duplicate_registration_status" 'Existing-address registration'
+if ! cmp --silent "$smoke_root/register.json" "$smoke_root/duplicate-registration.json"; then
+  echo 'New and existing registrations did not return the same response body.' >&2
+  exit 1
+fi
 
 current_user_status=$(curl --silent --show-error \
   --cookie "$cookie_jar" \
@@ -148,9 +170,46 @@ current_user_status=$(curl --silent --show-error \
   --output "$smoke_root/current-user.json" \
   --write-out '%{http_code}' \
   "$web_origin/api/v1/auth/user")
-assert_status 200 "$current_user_status" 'Current-user lookup'
+assert_status 401 "$current_user_status" 'Unauthenticated lookup after registration'
+
+# PHP expands its own variables.
+# shellcheck disable=SC2016
+php -r '
+  $database = new PDO("sqlite:".$argv[1]);
+  $statement = $database->prepare(
+      "UPDATE users SET email_verified_at = CURRENT_TIMESTAMP WHERE email = ?"
+  );
+  $statement->execute(["live-smoke-owner@example.test"]);
+  if ($statement->rowCount() !== 1) {
+      throw new RuntimeException("Expected one user to be verified.");
+  }
+' "$database_path"
+
+login_status=$(curl --silent --show-error \
+  --cookie "$cookie_jar" \
+  --cookie-jar "$cookie_jar" \
+  --header 'Accept: application/json' \
+  --header 'Content-Type: application/json' \
+  --header "Origin: $web_origin" \
+  --header "Referer: $web_origin/login" \
+  --header "X-XSRF-TOKEN: $xsrf_token" \
+  --request POST \
+  --data '{"email":"live-smoke-owner@example.test","password":"Correct-Horse-42!"}' \
+  --output "$smoke_root/login.json" \
+  --write-out '%{http_code}' \
+  "$web_origin/api/v1/auth/login")
+assert_status 200 "$login_status" 'Login after verification'
+
+current_user_status=$(curl --silent --show-error \
+  --cookie "$cookie_jar" \
+  --header 'Accept: application/json' \
+  --header "Referer: $web_origin/login" \
+  --output "$smoke_root/current-user.json" \
+  --write-out '%{http_code}' \
+  "$web_origin/api/v1/auth/user")
+assert_status 200 "$current_user_status" 'Current-user lookup after login'
 jq --exit-status \
-  '.data.email == "live-smoke-owner@example.test" and .data.email_verified_at == null' \
+  '.data.email == "live-smoke-owner@example.test" and .data.email_verified_at != null' \
   "$smoke_root/current-user.json" >/dev/null
 
 onboarding_payload='{"preferred_name":"Live","workspace_mode":"owner","primary_goal":"schedule","studio":{"name":"Live Smoke Studio","slug":"live-smoke-studio","timezone":"America/Bogota","currency":"USD"}}'
@@ -180,19 +239,6 @@ xsrf_encoded=$(awk '$6 == "XSRF-TOKEN" { token=$7 } END { print token }' "$cooki
 # PHP expands $argv, not the shell.
 # shellcheck disable=SC2016
 xsrf_token=$(php -r 'echo rawurldecode($argv[1]);' "$xsrf_encoded")
-
-# PHP expands its own variables.
-# shellcheck disable=SC2016
-php -r '
-  $database = new PDO("sqlite:".$argv[1]);
-  $statement = $database->prepare(
-      "UPDATE users SET email_verified_at = CURRENT_TIMESTAMP WHERE email = ?"
-  );
-  $statement->execute(["live-smoke-owner@example.test"]);
-  if ($statement->rowCount() !== 1) {
-      throw new RuntimeException("Expected one user to be verified.");
-  }
-' "$database_path"
 
 onboarding_status=$(curl --silent --show-error \
   --cookie "$cookie_jar" \
