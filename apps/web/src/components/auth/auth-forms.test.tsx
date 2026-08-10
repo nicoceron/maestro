@@ -48,6 +48,23 @@ function fixtureGuestClient(): AuthClient {
   };
 }
 
+async function submitRegistration(buttonName: string | RegExp = "Create account") {
+  fireEvent.change(await screen.findByLabelText("Your name"), {
+    target: { value: "Ari Bennett" },
+  });
+  fireEvent.change(screen.getByLabelText("Email address"), {
+    target: { value: "ari@studio.test" },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "Strong-Password-42!" },
+  });
+  fireEvent.change(screen.getByLabelText("Confirm password"), {
+    target: { value: "Strong-Password-42!" },
+  });
+  fireEvent.click(screen.getByRole("checkbox"));
+  fireEvent.click(screen.getByRole("button", { name: buttonName }));
+}
+
 describe("identity forms", () => {
   beforeEach(() => {
     navigation.replace.mockReset();
@@ -154,6 +171,67 @@ describe("identity forms", () => {
     expect(screen.getByText(/same confirmation whether or not/i)).toBeInTheDocument();
   });
 
+  it("shows a focused generic registration result without assuming a session", async () => {
+    const register = vi.fn(createFixtureAuthClient().register);
+    renderAuth(<RegisterForm />, {
+      ...fixtureGuestClient(),
+      register,
+    });
+
+    await submitRegistration();
+
+    const heading = await screen.findByRole("heading", {
+      name: "Check your email for next steps",
+    });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "If those details can be used",
+    );
+    expect(screen.getByText(/confirmation is the same for every request/i)).toBeInTheDocument();
+    expect(screen.getByText(/You have not been signed in/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue to sign in" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(register).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+  });
+
+  it("accepts a 12-plus character passphrase without composition rules", async () => {
+    const register = vi.fn(createFixtureAuthClient().register);
+    renderAuth(<RegisterForm />, {
+      ...fixtureGuestClient(),
+      register,
+    });
+
+    fireEvent.change(await screen.findByLabelText("Your name"), {
+      target: { value: "Ari Bennett" },
+    });
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "ari@studio.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "quiet meadow violin" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "quiet meadow violin" },
+    });
+    expect(screen.getByText(/uppercase, numbers, and symbols are optional/i)).toBeInTheDocument();
+    expect(screen.getByText(/known compromises/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    await waitFor(() => expect(register).toHaveBeenCalledTimes(1));
+    expect(register).toHaveBeenCalledWith(
+      expect.objectContaining({
+        password: "quiet meadow violin",
+        passwordConfirmation: "quiet meadow violin",
+      }),
+    );
+    expect(screen.queryByText(/Add lowercase/i)).not.toBeInTheDocument();
+  });
+
   it("keeps invite membership private and surfaces an expired invite", async () => {
     window.history.replaceState(
       {},
@@ -176,24 +254,33 @@ describe("identity forms", () => {
       expiredClient,
     );
 
-    expect(await screen.findByText("Joining by invitation")).toBeInTheDocument();
+    expect(await screen.findByText("Continue from an invitation")).toBeInTheDocument();
     expect(screen.queryByText(/Sonora House/i)).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Your name"), {
-      target: { value: "Ari Bennett" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "Strong-Password-42!" },
-    });
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
-      target: { value: "Strong-Password-42!" },
-    });
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+    await submitRegistration("Continue securely");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This invitation can no longer be used",
     );
+  });
+
+  it("keeps an invitation fragment-scrubbed after generic registration success", async () => {
+    window.history.replaceState({}, "", `/register#invite=${invitationBearer}`);
+    renderAuth(<RegisterForm />, fixtureGuestClient());
+
+    expect(await screen.findByText("Continue from an invitation")).toBeInTheDocument();
+    await submitRegistration("Continue securely");
+
+    expect(
+      await screen.findByRole("heading", { name: "Check your email for next steps" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/invitation remains secured in this browser/i)).toBeInTheDocument();
+    const signIn = screen.getByRole("link", { name: "Continue to sign in" });
+    expect(signIn).toHaveAttribute("href", "/login");
+    expect(signIn.getAttribute("href")).not.toContain(invitationBearer);
+    expect(window.location.href).not.toContain(invitationBearer);
+    expect(JSON.stringify(window.history.state)).toContain(invitationBearer);
+    expect(navigation.replace).not.toHaveBeenCalled();
   });
 
   it("routes an authenticated invite recipient around the guest-only register endpoint", async () => {
@@ -208,7 +295,7 @@ describe("identity forms", () => {
         "/onboarding",
       );
     });
-    expect(screen.queryByRole("button", { name: "Accept invitation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue securely" })).not.toBeInTheDocument();
   });
 
   it("routes an authenticated invite recipient around the guest-only login endpoint", async () => {
@@ -252,10 +339,10 @@ describe("identity forms", () => {
     renderAuth(<ResetPasswordForm />);
 
     fireEvent.change(await screen.findByLabelText("New password"), {
-      target: { value: "Strong-Password-42!" },
+      target: { value: "quiet meadow violin" },
     });
     fireEvent.change(screen.getByLabelText("Confirm new password"), {
-      target: { value: "Strong-Password-42!" },
+      target: { value: "quiet meadow violin" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
 

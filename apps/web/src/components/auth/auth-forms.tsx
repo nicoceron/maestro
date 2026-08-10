@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, RefreshCcw, ShieldCheck } from "lucide-react";
@@ -55,14 +55,6 @@ function validateEmail(email: string): string | undefined {
 
 function validatePassword(password: string): string | undefined {
   if (password.length < 12) return "Use at least 12 characters.";
-  if (
-    !/[a-z]/.test(password) ||
-    !/[A-Z]/.test(password) ||
-    !/\d/.test(password) ||
-    !/[^A-Za-z0-9]/.test(password)
-  ) {
-    return "Add lowercase, uppercase, a number, and a symbol.";
-  }
   return undefined;
 }
 
@@ -278,7 +270,6 @@ export function RegisterForm({
 }: {
   initialEmail?: string;
 }) {
-  const router = useRouter();
   const { client } = useAuthClient();
   const { token: inviteToken } = useInvitationSession();
   const inviteSession = useInviteSessionGate(client, inviteToken);
@@ -286,8 +277,14 @@ export function RegisterForm({
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<AuthFailure | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [success, setSuccess] = useState<string>();
   const termsErrorId = useId();
+  const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const formRef = useFocusFirstInvalid(fieldErrors, registerFieldOrder);
+
+  useEffect(() => {
+    if (success) successHeadingRef.current?.focus();
+  }, [success]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -348,9 +345,7 @@ export function RegisterForm({
       return;
     }
 
-    if (result.data.sessionEstablished) {
-      router.replace(result.data.redirectTo);
-    }
+    setSuccess(result.data.message);
   }
 
   if (inviteSession.checking) return <InviteSessionCheck />;
@@ -363,12 +358,49 @@ export function RegisterForm({
     );
   }
 
+  if (success) {
+    return (
+      <div className="space-y-5">
+        <FormAlert tone="success">
+          <div>
+            <h2
+              ref={successHeadingRef}
+              tabIndex={-1}
+              className="font-semibold outline-none focus-visible:rounded focus-visible:ring-4 focus-visible:ring-[#8768d8]/15"
+            >
+              Check your email for next steps
+            </h2>
+            <p className="mt-1">{success}</p>
+          </div>
+        </FormAlert>
+        <p className="text-sm leading-6 text-[#716a76]">
+          This confirmation is the same for every request. You have not been
+          signed in. Follow any email instructions, or sign in if you already
+          use Maestro.
+        </p>
+        {inviteToken ? (
+          <p className="rounded-xl border border-[#ded7ef] bg-[#f7f4ff] px-3.5 py-3 text-sm leading-6 text-[#5d4b8d]">
+            Your invitation remains secured in this browser. Studio access is
+            not granted until you sign in and Maestro validates the invitation.
+          </p>
+        ) : null}
+        <Link
+          href="/login"
+          className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#7457d2] px-4 text-sm font-semibold text-white shadow-[0_9px_24px_rgba(106,76,195,.24)] transition hover:bg-[#684bc6]"
+        >
+          Continue to sign in
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-5">
       {inviteToken ? (
         <FormAlert tone="info">
-          <strong className="block font-semibold">Joining by invitation</strong>
-          Your access is granted only after the secure invite is validated.
+          <strong className="block font-semibold">Continue from an invitation</strong>
+          Submitting does not accept the invitation or reveal studio details.
+          Maestro validates access after you verify or sign in.
         </FormAlert>
       ) : null}
       {formError ? <FormAlert>{formError.message}</FormAlert> : null}
@@ -435,8 +467,8 @@ export function RegisterForm({
 
       <AuthSubmitButton
         pending={pending}
-        idleLabel={inviteToken ? "Accept invitation" : "Create account"}
-        pendingLabel="Creating your account…"
+        idleLabel={inviteToken ? "Continue securely" : "Create account"}
+        pendingLabel="Sending your secure request…"
       />
     </form>
   );

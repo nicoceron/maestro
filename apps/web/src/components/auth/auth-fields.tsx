@@ -176,33 +176,32 @@ export function PasswordField({
 }
 
 export function PasswordRequirements({ value }: { value: string }) {
-  const checks = [
-    { label: "12+ characters", valid: value.length >= 12 },
-    { label: "Lowercase", valid: /[a-z]/.test(value) },
-    { label: "Uppercase", valid: /[A-Z]/.test(value) },
-    { label: "A number", valid: /\d/.test(value) },
-    { label: "A symbol", valid: /[^A-Za-z0-9]/.test(value) },
-  ];
+  const minimumMet = value.length >= 12;
 
   return (
-    <div className="rounded-xl bg-[#f6f3fa] px-3.5 py-3" aria-live="polite">
-      <p className="mb-2 text-xs font-semibold text-[#5b5166]">Make it memorable and strong</p>
-      <ul className="grid gap-1.5 text-xs sm:grid-cols-2">
-        {checks.map((check) => (
-          <li
-            key={check.label}
-            className={`flex items-center gap-1.5 ${check.valid ? "text-[#37775e]" : "text-[#807886]"}`}
+    <div className="rounded-xl bg-[#f6f3fa] px-3.5 py-3 text-xs text-[#6f6676]">
+      <p className="font-semibold text-[#5b5166]">Password policy</p>
+      <ul className="mt-2" aria-live="polite">
+        <li
+          className={`flex items-center gap-1.5 ${minimumMet ? "text-[#37775e]" : "text-[#807886]"}`}
+        >
+          <span
+            className={`grid size-4 place-items-center rounded-full ${minimumMet ? "bg-[#dff1e8]" : "border border-[#cbc5cf]"}`}
+            aria-hidden="true"
           >
-            <span
-              className={`grid size-4 place-items-center rounded-full ${check.valid ? "bg-[#dff1e8]" : "border border-[#cbc5cf]"}`}
-              aria-hidden="true"
-            >
-              {check.valid ? <Check className="size-2.5" /> : null}
-            </span>
-            {check.label}
-          </li>
-        ))}
+            {minimumMet ? <Check className="size-2.5" /> : null}
+          </span>
+          At least 12 characters <span className="font-semibold">Required</span>
+        </li>
       </ul>
+      <p className="mt-3 font-semibold text-[#5b5166]">Strength tips · optional</p>
+      <ul className="mt-1.5 list-disc space-y-1 pl-4 leading-5">
+        <li>Use a unique passphrase you do not use anywhere else.</li>
+        <li>Longer is stronger; uppercase, numbers, and symbols are optional.</li>
+      </ul>
+      <p className="mt-2 leading-5 text-[#756c7c]">
+        Maestro checks submitted passwords against known compromises.
+      </p>
     </div>
   );
 }

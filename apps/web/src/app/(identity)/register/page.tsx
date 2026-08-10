@@ -21,7 +21,7 @@ export default async function RegisterPage({
     <AuthCard
       eyebrow="Start your studio"
       title="Make room for better teaching."
-      description="Create your account now, then shape a studio workspace around the way you teach."
+      description="Share your details, then check your email or sign in to continue securely."
       footer={
         <>
           Already have an account?{" "}

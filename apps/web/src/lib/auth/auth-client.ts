@@ -48,6 +48,10 @@ export type GenericDeliveryResult = {
   message: string;
 };
 
+export type RegistrationResult = GenericDeliveryResult & {
+  sessionEstablished: false;
+};
+
 export type CurrentUserDto = {
   id: string | number;
   name: string;
@@ -158,7 +162,7 @@ export interface AuthClient {
     credentials: "same-origin";
   };
   login(input: LoginInput): Promise<AuthResult<SessionResult>>;
-  register(input: RegisterInput): Promise<AuthResult<SessionResult>>;
+  register(input: RegisterInput): Promise<AuthResult<RegistrationResult>>;
   requestPasswordReset(
     input: PasswordResetRequestInput,
   ): Promise<AuthResult<GenericDeliveryResult>>;
@@ -306,10 +310,9 @@ export function createFixtureAuthClient(
       return {
         ok: true,
         data: {
-          sessionEstablished: true,
-          redirectTo: input.invitationToken
-            ? "/onboarding"
-            : "/verify-email",
+          sessionEstablished: false,
+          message:
+            "If those details can be used, check that email for next steps.",
         },
       };
     },

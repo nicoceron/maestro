@@ -542,10 +542,9 @@ export function createSanctumAuthClient(): AuthClient {
       return {
         ok: true,
         data: {
-          sessionEstablished: true,
-          redirectTo: input.invitationToken
-            ? "/onboarding"
-            : "/verify-email",
+          sessionEstablished: false,
+          message:
+            "If those details can be used, check that email for next steps.",
         },
       };
     },

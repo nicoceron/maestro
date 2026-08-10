@@ -157,9 +157,12 @@ describe("Sanctum auth client contract", () => {
     ]);
   });
 
-  it("maps registration confirmation and invitation payloads to Fortify", async () => {
+  it("maps the invitation payload and keeps an accepted registration unauthenticated", async () => {
     csrfReady();
-    fetchMock.mockResolvedValueOnce(json({}, 201));
+    fetchMock.mockResolvedValueOnce(
+      json({ message: "Account-specific copy must not reach the UI." }, 202),
+    );
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
     const client = createSanctumAuthClient();
 
     const result = await client.register({
@@ -177,10 +180,19 @@ describe("Sanctum auth client contract", () => {
       password_confirmation: "Correct-Horse-42!",
       invitation_token: "invite-token",
     });
-    expect(result).toMatchObject({
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      "/sanctum/csrf-cookie",
+      "/api/v1/auth/register",
+    ]);
+    expect(result).toEqual({
       ok: true,
-      data: { redirectTo: "/onboarding" },
+      data: {
+        sessionEstablished: false,
+        message: "If those details can be used, check that email for next steps.",
+      },
     });
+    expect(storageWrite).not.toHaveBeenCalled();
+    storageWrite.mockRestore();
   });
 
   it("resets the password and logs in again to establish the new session", async () => {

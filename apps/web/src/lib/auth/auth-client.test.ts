@@ -22,6 +22,23 @@ describe("auth client boundary", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("models registration as a generic unauthenticated delivery", async () => {
+    const result = await createFixtureAuthClient().register({
+      name: "Maya Ortiz",
+      email: "maya@studio.test",
+      password: "Strong-Password-42!",
+      passwordConfirmation: "Strong-Password-42!",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        sessionEstablished: false,
+        message: "If those details can be used, check that email for next steps.",
+      },
+    });
+  });
+
   it("sanitizes auth query values before they reach client components", () => {
     expect(
       readAuthQuery({
