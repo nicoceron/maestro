@@ -4,11 +4,16 @@ import type {
   AuthFailure,
   AuthFieldName,
   AuthResult,
+  BrowserSessionDto,
   CurrentUserDto,
   LoginInput,
+  PasskeyDto,
+  RecoveryCodesDto,
   SessionResult,
   StudioDto,
   StudioMembershipRole,
+  TwoFactorSetupDto,
+  WebAuthnOptionsDto,
 } from "@/lib/auth/auth-client";
 
 type Operation =
@@ -19,17 +24,23 @@ type Operation =
   | "resend"
   | "current-user"
   | "studios"
-  | "onboarding";
+  | "onboarding"
+  | "password-confirmation"
+  | "two-factor-management"
+  | "two-factor-challenge"
+  | "passkey"
+  | "sessions";
 
 type LaravelErrors = Record<string, string[] | string>;
 type LaravelPayload = {
   message?: string;
   errors?: LaravelErrors;
   data?: unknown;
+  [key: string]: unknown;
 };
 
 type RequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   body?: Record<string, unknown>;
   csrf?: boolean;
   operation: Operation;
@@ -46,6 +57,8 @@ const fieldAliases: Record<string, AuthFieldName | undefined> = {
   email: "email",
   password: "password",
   password_confirmation: "passwordConfirmation",
+  code: "code",
+  recovery_code: "recoveryCode",
   preferred_name: "name",
   "studio.name": "studioName",
   "studio.slug": "studioSlug",
@@ -85,11 +98,14 @@ function firstMessage(value: string[] | string | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function fieldErrors(errors?: LaravelErrors) {
+function fieldErrors(errors?: LaravelErrors, operation?: Operation) {
   if (!errors) return undefined;
   const mapped: Partial<Record<AuthFieldName, string>> = {};
   for (const [laravelField, messages] of Object.entries(errors)) {
-    const field = fieldAliases[laravelField];
+    const field =
+      operation === "passkey" && laravelField === "name"
+        ? "passkeyName"
+        : fieldAliases[laravelField];
     const message = firstMessage(messages);
     if (field && message) mapped[field] = message;
   }
@@ -107,6 +123,12 @@ function failureFor(
     return {
       code: "authentication_required",
       message: "Your secure session has ended. Sign in and try again.",
+    };
+  }
+  if (response.status === 423) {
+    return {
+      code: "recent_password_required",
+      message: "Confirm your password before changing account security.",
     };
   }
   if (response.status === 403 && /verified/i.test(message ?? "")) {
@@ -133,6 +155,8 @@ function failureFor(
   if (response.status === 422) {
     let code: AuthErrorCode = "validation_failed";
     if (operation === "login") code = "invalid_credentials";
+    if (operation === "password-confirmation") code = "invalid_credentials";
+    if (operation === "two-factor-challenge") code = "challenge_invalid";
     if (operation === "reset" && (payload.errors?.email || payload.errors?.token)) {
       code = "token_expired";
     }
@@ -149,7 +173,13 @@ function failureFor(
         (code === "invalid_credentials"
           ? "That email and password combination was not recognized."
           : "Review the highlighted fields and try again."),
-      fieldErrors: fieldErrors(payload.errors),
+      fieldErrors: fieldErrors(payload.errors, operation),
+    };
+  }
+  if (response.status === 404 || response.status === 405) {
+    return {
+      code: "feature_unavailable",
+      message: "This security feature is not available on this server yet.",
     };
   }
   return {
@@ -166,6 +196,10 @@ function networkFailure(): AuthFailure {
     code: "service_unavailable",
     message: "We could not reach Maestro. Check your connection and try again.",
   };
+}
+
+function safeContinueTo(value?: string) {
+  return value === "/account/security" ? value : undefined;
 }
 
 function normalizeUser(payload: LaravelPayload): CurrentUserDto | null {
@@ -185,6 +219,81 @@ function normalizeUser(payload: LaravelPayload): CurrentUserDto | null {
     email: user.email,
     emailVerifiedAt:
       typeof user.email_verified_at === "string" ? user.email_verified_at : null,
+    twoFactorEnabled: user.two_factor_enabled === true,
+    passkeysCount:
+      typeof user.passkeys_count === "number" ? user.passkeys_count : 0,
+  };
+}
+
+function dataObject(payload: LaravelPayload): Record<string, unknown> | null {
+  return payload.data && typeof payload.data === "object"
+    ? (payload.data as Record<string, unknown>)
+    : null;
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function recoveryCodes(payload: LaravelPayload): RecoveryCodesDto {
+  if (Array.isArray(payload)) {
+    return { recoveryCodes: stringArray(payload) };
+  }
+  const data = dataObject(payload);
+  return {
+    recoveryCodes: stringArray(
+      payload.recoveryCodes ?? data?.recoveryCodes ?? data?.recovery_codes,
+    ),
+  };
+}
+
+function normalizePasskey(value: unknown): PasskeyDto | null {
+  if (!value || typeof value !== "object") return null;
+  const passkey = value as Record<string, unknown>;
+  if (
+    (typeof passkey.id !== "string" && typeof passkey.id !== "number") ||
+    typeof passkey.name !== "string" ||
+    typeof passkey.created_at !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: String(passkey.id),
+    name: passkey.name,
+    authenticator:
+      typeof passkey.authenticator === "string"
+        ? passkey.authenticator
+        : undefined,
+    lastUsedAt:
+      typeof passkey.last_used_at === "string" ? passkey.last_used_at : null,
+    createdAt: passkey.created_at,
+  };
+}
+
+function normalizeSession(value: unknown): BrowserSessionDto | null {
+  if (!value || typeof value !== "object") return null;
+  const session = value as Record<string, unknown>;
+  if (
+    typeof session.id !== "string" ||
+    typeof session.current !== "boolean" ||
+    typeof session.device !== "string" ||
+    typeof session.created_at !== "string" ||
+    typeof session.last_seen_at !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: session.id,
+    current: session.current,
+    device: session.device,
+    approximateLocation:
+      typeof session.approximate_location === "string"
+        ? session.approximate_location
+        : null,
+    createdAt: session.created_at,
+    lastSeenAt: session.last_seen_at,
   };
 }
 
@@ -341,6 +450,7 @@ export function createSanctumAuthClient(): AuthClient {
 
   async function destinationAfterLogin(
     invitationToken?: string,
+    continueTo?: string,
   ): Promise<AuthResult<SessionResult>> {
     if (invitationToken) {
       return {
@@ -363,6 +473,13 @@ export function createSanctumAuthClient(): AuthClient {
         },
       };
     }
+    const destination = safeContinueTo(continueTo);
+    if (destination) {
+      return {
+        ok: true,
+        data: { sessionEstablished: true, redirectTo: destination },
+      };
+    }
     const studios = await getStudios();
     if (!studios.ok) return studios;
     return {
@@ -377,7 +494,7 @@ export function createSanctumAuthClient(): AuthClient {
   }
 
   async function postLogin(input: LoginInput): Promise<AuthResult<SessionResult>> {
-    const login = await request("/api/v1/auth/login", {
+    const login = await request<LaravelPayload>("/api/v1/auth/login", {
       method: "POST",
       csrf: true,
       operation: "login",
@@ -388,7 +505,19 @@ export function createSanctumAuthClient(): AuthClient {
       },
     });
     if (!login.ok) return login;
-    return destinationAfterLogin(input.invitationToken);
+    if (login.data.two_factor === true) {
+      return {
+        ok: true,
+        data: {
+          sessionEstablished: false,
+          requiresTwoFactor: true,
+          redirectTo: safeContinueTo(input.continueTo)
+            ? "/two-factor-challenge?returnTo=%2Faccount%2Fsecurity"
+            : "/two-factor-challenge",
+        },
+      };
+    }
+    return destinationAfterLogin(input.invitationToken, input.continueTo);
   }
 
   return {
@@ -514,6 +643,250 @@ export function createSanctumAuthClient(): AuthClient {
         };
       }
       return destinationAfterLogin();
+    },
+    async getPasswordConfirmationStatus() {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/user/confirmed-password-status",
+        { operation: "password-confirmation" },
+      );
+      if (!result.ok) return result;
+      return {
+        ok: true,
+        data: { confirmed: result.data.confirmed === true },
+      };
+    },
+    async confirmPassword(password) {
+      const result = await request("/api/v1/auth/user/confirm-password", {
+        method: "POST",
+        csrf: true,
+        operation: "password-confirmation",
+        body: { password },
+      });
+      return result.ok ? { ok: true, data: null } : result;
+    },
+    async getPasskeyConfirmationOptions() {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/passkeys/confirm/options",
+        { operation: "passkey" },
+      );
+      if (!result.ok) return result;
+      const options = result.data.options;
+      return options && typeof options === "object"
+        ? { ok: true, data: options as WebAuthnOptionsDto }
+        : { ok: false, error: networkFailure() };
+    },
+    async confirmWithPasskey(credential) {
+      const result = await request("/api/v1/auth/passkeys/confirm", {
+        method: "POST",
+        csrf: true,
+        operation: "passkey",
+        body: { credential },
+      });
+      return result.ok ? { ok: true, data: null } : result;
+    },
+    async enableTwoFactor() {
+      const result = await request(
+        "/api/v1/auth/user/two-factor-authentication",
+        {
+          method: "POST",
+          csrf: true,
+          operation: "two-factor-management",
+        },
+      );
+      return result.ok ? { ok: true, data: null } : result;
+    },
+    async getTwoFactorSetup() {
+      const [qr, secret] = await Promise.all([
+        request<LaravelPayload>("/api/v1/auth/user/two-factor-qr-code", {
+          operation: "two-factor-management",
+        }),
+        request<LaravelPayload>("/api/v1/auth/user/two-factor-secret-key", {
+          operation: "two-factor-management",
+        }),
+      ]);
+      if (!qr.ok) return qr;
+      if (!secret.ok) return secret;
+      const svg = typeof qr.data.svg === "string" ? qr.data.svg : undefined;
+      const secretKey =
+        typeof secret.data.secretKey === "string"
+          ? secret.data.secretKey
+          : typeof secret.data.secret_key === "string"
+            ? secret.data.secret_key
+            : undefined;
+      if (!svg || !secretKey) return { ok: false, error: networkFailure() };
+      const setup: TwoFactorSetupDto = {
+        svg,
+        secretKey,
+        ...(typeof qr.data.url === "string" ? { url: qr.data.url } : {}),
+      };
+      return { ok: true, data: setup };
+    },
+    async confirmTwoFactor(code) {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/user/confirmed-two-factor-authentication",
+        {
+          method: "POST",
+          csrf: true,
+          operation: "two-factor-management",
+          body: { code },
+        },
+      );
+      if (!result.ok) return result;
+      const codes = await request<LaravelPayload>(
+        "/api/v1/auth/user/two-factor-recovery-codes",
+        { operation: "two-factor-management" },
+      );
+      return codes.ok
+        ? { ok: true, data: recoveryCodes(codes.data) }
+        : codes;
+    },
+    async getRecoveryCodes() {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/user/two-factor-recovery-codes",
+        { operation: "two-factor-management" },
+      );
+      return result.ok
+        ? { ok: true, data: recoveryCodes(result.data) }
+        : result;
+    },
+    async regenerateRecoveryCodes() {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/user/two-factor-recovery-codes",
+        {
+          method: "POST",
+          csrf: true,
+          operation: "two-factor-management",
+        },
+      );
+      if (!result.ok) return result;
+      const codes = await request<LaravelPayload>(
+        "/api/v1/auth/user/two-factor-recovery-codes",
+        { operation: "two-factor-management" },
+      );
+      return codes.ok
+        ? { ok: true, data: recoveryCodes(codes.data) }
+        : codes;
+    },
+    async disableTwoFactor() {
+      const result = await request(
+        "/api/v1/auth/user/two-factor-authentication",
+        {
+          method: "DELETE",
+          csrf: true,
+          operation: "two-factor-management",
+        },
+      );
+      return result.ok ? { ok: true, data: null } : result;
+    },
+    async completeTwoFactorChallenge(input) {
+      const result = await request("/api/v1/auth/two-factor-challenge", {
+        method: "POST",
+        csrf: true,
+        operation: "two-factor-challenge",
+        body: input.recoveryCode
+          ? { recovery_code: input.recoveryCode }
+          : { code: input.code },
+      });
+      if (!result.ok) return result;
+      return destinationAfterLogin(input.invitationToken, input.continueTo);
+    },
+    async getPasskeys() {
+      const result = await request<LaravelPayload>("/api/v1/auth/passkeys", {
+        operation: "passkey",
+      });
+      if (!result.ok) return result;
+      const values = Array.isArray(result.data.data) ? result.data.data : [];
+      return {
+        ok: true,
+        data: values
+          .map(normalizePasskey)
+          .filter((passkey): passkey is PasskeyDto => Boolean(passkey)),
+      };
+    },
+    async getPasskeyRegistrationOptions() {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/user/passkeys/options",
+        { operation: "passkey" },
+      );
+      if (!result.ok) return result;
+      const options = result.data.options;
+      return options && typeof options === "object"
+        ? { ok: true, data: options as WebAuthnOptionsDto }
+        : { ok: false, error: networkFailure() };
+    },
+    async registerPasskey(name, credential) {
+      const result = await request("/api/v1/auth/user/passkeys", {
+        method: "POST",
+        csrf: true,
+        operation: "passkey",
+        body: { name, credential },
+      });
+      return result.ok ? { ok: true, data: null } : result;
+    },
+    async deletePasskey(id) {
+      const result = await request(
+        `/api/v1/auth/user/passkeys/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          csrf: true,
+          operation: "passkey",
+        },
+      );
+      return result.ok ? { ok: true, data: null } : result;
+    },
+    async getPasskeyLoginOptions() {
+      const result = await request<LaravelPayload>(
+        "/api/v1/auth/passkeys/login/options",
+        { operation: "passkey" },
+      );
+      if (!result.ok) return result;
+      const options = result.data.options;
+      return options && typeof options === "object"
+        ? { ok: true, data: options as WebAuthnOptionsDto }
+        : { ok: false, error: networkFailure() };
+    },
+    async loginWithPasskey(credential, remember, invitationToken, continueTo) {
+      const result = await request("/api/v1/auth/passkeys/login", {
+        method: "POST",
+        csrf: true,
+        operation: "passkey",
+        body: { credential, remember },
+      });
+      if (!result.ok) return result;
+      return destinationAfterLogin(invitationToken, continueTo);
+    },
+    async getSessions() {
+      const result = await request<LaravelPayload>("/api/v1/auth/sessions", {
+        operation: "sessions",
+      });
+      if (!result.ok) return result;
+      const values = Array.isArray(result.data.data) ? result.data.data : [];
+      return {
+        ok: true,
+        data: values
+          .map(normalizeSession)
+          .filter((session): session is BrowserSessionDto => Boolean(session)),
+      };
+    },
+    async revokeSession(id) {
+      const sessions = await request(
+        `/api/v1/auth/sessions/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          csrf: true,
+          operation: "sessions",
+        },
+      );
+      if (!sessions.ok) return sessions;
+      return { ok: true, data: null };
+    },
+    async revokeOtherSessions() {
+      const result = await request("/api/v1/auth/sessions/others", {
+        method: "DELETE",
+        csrf: true,
+        operation: "sessions",
+      });
+      return result.ok ? { ok: true, data: null } : result;
     },
   };
 }

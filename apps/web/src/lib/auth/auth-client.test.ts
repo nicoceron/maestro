@@ -34,7 +34,13 @@ describe("auth client boundary", () => {
     expect(
       readAuthQuery({
         email: "x".repeat(513),
+        returnTo: "https://attacker.example/steal",
       }),
     ).toEqual({ email: undefined });
+
+    expect(readAuthQuery({ returnTo: "/account/security" })).toEqual({
+      email: undefined,
+      returnTo: "/account/security",
+    });
   });
 });

@@ -5,6 +5,9 @@ export type AuthErrorCode =
   | "invite_invalid"
   | "token_expired"
   | "csrf_expired"
+  | "recent_password_required"
+  | "challenge_invalid"
+  | "feature_unavailable"
   | "validation_failed"
   | "rate_limited"
   | "service_unavailable";
@@ -14,6 +17,9 @@ export type AuthFieldName =
   | "email"
   | "password"
   | "passwordConfirmation"
+  | "code"
+  | "recoveryCode"
+  | "passkeyName"
   | "studioName"
   | "studioSlug"
   | "workspaceMode"
@@ -35,6 +41,7 @@ export type AuthResult<T> =
 export type SessionResult = {
   sessionEstablished: boolean;
   redirectTo: string;
+  requiresTwoFactor?: boolean;
 };
 
 export type GenericDeliveryResult = {
@@ -46,7 +53,43 @@ export type CurrentUserDto = {
   name: string;
   email: string;
   emailVerifiedAt: string | null;
+  twoFactorEnabled: boolean;
+  passkeysCount: number;
 };
+
+export type PasswordConfirmationStatusDto = {
+  confirmed: boolean;
+};
+
+export type TwoFactorSetupDto = {
+  svg: string;
+  url?: string;
+  secretKey: string;
+};
+
+export type RecoveryCodesDto = {
+  recoveryCodes: string[];
+};
+
+export type PasskeyDto = {
+  id: string;
+  name: string;
+  authenticator?: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+};
+
+export type BrowserSessionDto = {
+  id: string;
+  current: boolean;
+  device: string;
+  approximateLocation: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+};
+
+export type WebAuthnOptionsDto = Record<string, unknown>;
+export type WebAuthnCredentialDto = Record<string, unknown>;
 
 export type StudioMembershipRole =
   | "owner"
@@ -75,6 +118,7 @@ export type LoginInput = {
   password: string;
   remember: boolean;
   invitationToken?: string;
+  continueTo?: string;
 };
 
 export type RegisterInput = {
@@ -127,6 +171,43 @@ export interface AuthClient {
   completeOnboarding(
     input: OnboardingInput,
   ): Promise<AuthResult<SessionResult>>;
+  getPasswordConfirmationStatus(): Promise<
+    AuthResult<PasswordConfirmationStatusDto>
+  >;
+  confirmPassword(password: string): Promise<AuthResult<null>>;
+  getPasskeyConfirmationOptions(): Promise<AuthResult<WebAuthnOptionsDto>>;
+  confirmWithPasskey(
+    credential: WebAuthnCredentialDto,
+  ): Promise<AuthResult<null>>;
+  enableTwoFactor(): Promise<AuthResult<null>>;
+  getTwoFactorSetup(): Promise<AuthResult<TwoFactorSetupDto>>;
+  confirmTwoFactor(code: string): Promise<AuthResult<RecoveryCodesDto>>;
+  getRecoveryCodes(): Promise<AuthResult<RecoveryCodesDto>>;
+  regenerateRecoveryCodes(): Promise<AuthResult<RecoveryCodesDto>>;
+  disableTwoFactor(): Promise<AuthResult<null>>;
+  completeTwoFactorChallenge(input: {
+    code?: string;
+    recoveryCode?: string;
+    invitationToken?: string;
+    continueTo?: string;
+  }): Promise<AuthResult<SessionResult>>;
+  getPasskeys(): Promise<AuthResult<PasskeyDto[]>>;
+  getPasskeyRegistrationOptions(): Promise<AuthResult<WebAuthnOptionsDto>>;
+  registerPasskey(
+    name: string,
+    credential: WebAuthnCredentialDto,
+  ): Promise<AuthResult<null>>;
+  deletePasskey(id: string): Promise<AuthResult<null>>;
+  getPasskeyLoginOptions(): Promise<AuthResult<WebAuthnOptionsDto>>;
+  loginWithPasskey(
+    credential: WebAuthnCredentialDto,
+    remember: boolean,
+    invitationToken?: string,
+    continueTo?: string,
+  ): Promise<AuthResult<SessionResult>>;
+  getSessions(): Promise<AuthResult<BrowserSessionDto[]>>;
+  revokeSession(id: string): Promise<AuthResult<null>>;
+  revokeOtherSessions(): Promise<AuthResult<null>>;
 }
 
 export type FixtureAuthClientOptions = {
@@ -204,7 +285,7 @@ export function createFixtureAuthClient(
         ok: true,
         data: {
           sessionEstablished: true,
-          redirectTo: "/studio/sonora-house/home",
+          redirectTo: input.continueTo ?? "/studio/sonora-house/home",
         },
       };
     },
@@ -278,6 +359,8 @@ export function createFixtureAuthClient(
           name: "Maya Ortiz",
           email: "maya@studio.test",
           emailVerifiedAt: "2026-08-10T00:00:00Z",
+          twoFactorEnabled: false,
+          passkeysCount: 0,
         },
       };
     },
@@ -317,6 +400,159 @@ export function createFixtureAuthClient(
           redirectTo: `/studio/${input.studioSlug || "sonora-house"}/home`,
         },
       };
+    },
+    async getPasswordConfirmationStatus() {
+      await wait();
+      return { ok: true, data: { confirmed: true } };
+    },
+    async confirmPassword(password) {
+      await wait();
+      return password === "wrong-password"
+        ? {
+            ok: false,
+            error: {
+              code: "invalid_credentials",
+              message: "That password was not recognized.",
+              fieldErrors: { password: "That password was not recognized." },
+            },
+          }
+        : { ok: true, data: null };
+    },
+    async getPasskeyConfirmationOptions() {
+      await wait();
+      return { ok: true, data: {} };
+    },
+    async confirmWithPasskey() {
+      await wait();
+      return { ok: true, data: null };
+    },
+    async enableTwoFactor() {
+      await wait();
+      return { ok: true, data: null };
+    },
+    async getTwoFactorSetup() {
+      await wait();
+      return {
+        ok: true,
+        data: {
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path d="M0 0h1v1H0z"/></svg>',
+          url: "otpauth://totp/Maestro:maya%40studio.test",
+          secretKey: "MAESTROFIXTUREKEY",
+        },
+      };
+    },
+    async confirmTwoFactor(code) {
+      await wait();
+      return code === "000000"
+        ? {
+            ok: false,
+            error: {
+              code: "challenge_invalid",
+              message: "That verification code was not accepted.",
+              fieldErrors: { code: "Enter a current 6-digit code." },
+            },
+          }
+        : {
+            ok: true,
+            data: { recoveryCodes: ["fixture-recovery-one", "fixture-recovery-two"] },
+          };
+    },
+    async getRecoveryCodes() {
+      await wait();
+      return {
+        ok: true,
+        data: { recoveryCodes: ["fixture-recovery-one", "fixture-recovery-two"] },
+      };
+    },
+    async regenerateRecoveryCodes() {
+      await wait();
+      return {
+        ok: true,
+        data: { recoveryCodes: ["new-fixture-one", "new-fixture-two"] },
+      };
+    },
+    async disableTwoFactor() {
+      await wait();
+      return { ok: true, data: null };
+    },
+    async completeTwoFactorChallenge(input) {
+      await wait();
+      if (input.code === "000000" || input.recoveryCode === "wrong-code") {
+        return {
+          ok: false,
+          error: {
+            code: "challenge_invalid",
+            message: "That verification code was not accepted.",
+          },
+        };
+      }
+      return {
+        ok: true,
+        data: {
+          sessionEstablished: true,
+          redirectTo: input.invitationToken
+            ? "/onboarding"
+            : input.continueTo ?? "/studio/sonora-house/home",
+        },
+      };
+    },
+    async getPasskeys() {
+      await wait();
+      return { ok: true, data: [] };
+    },
+    async getPasskeyRegistrationOptions() {
+      await wait();
+      return { ok: true, data: {} };
+    },
+    async registerPasskey(name) {
+      await wait();
+      void name;
+      return { ok: true, data: null };
+    },
+    async deletePasskey() {
+      await wait();
+      return { ok: true, data: null };
+    },
+    async getPasskeyLoginOptions() {
+      await wait();
+      return { ok: true, data: {} };
+    },
+    async loginWithPasskey(_credential, _remember, invitationToken, continueTo) {
+      await wait();
+      return {
+        ok: true,
+        data: {
+          sessionEstablished: true,
+          redirectTo: invitationToken
+            ? "/onboarding"
+            : continueTo ?? "/studio/sonora-house/home",
+        },
+      };
+    },
+    async getSessions() {
+      await wait();
+      return {
+        ok: true,
+        data: [
+          {
+            id: "fixture-session",
+            current: true,
+            device: "Fixture browser",
+            approximateLocation: "127.0.0.0/24 (approximate)",
+            createdAt: "2026-08-10T00:00:00Z",
+            lastSeenAt: "2026-08-10T00:00:00Z",
+          },
+        ],
+      };
+    },
+    async revokeSession(id) {
+      await wait();
+      void id;
+      return { ok: true, data: null };
+    },
+    async revokeOtherSessions() {
+      await wait();
+      return { ok: true, data: null };
     },
   };
 }

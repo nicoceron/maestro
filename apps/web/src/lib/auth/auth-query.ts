@@ -1,5 +1,6 @@
 export type AuthQuery = {
   email?: string;
+  returnTo?: "/account/security";
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -20,15 +21,23 @@ export function readAuthQuery(searchParams: SearchParams): AuthQuery {
     emailCandidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCandidate)
       ? emailCandidate.toLowerCase()
       : undefined;
+  const returnToCandidate = safeValue(first(searchParams.returnTo), 128);
+  const returnTo =
+    returnToCandidate === "/account/security" ? returnToCandidate : undefined;
 
   return {
     email,
+    ...(returnTo ? { returnTo } : {}),
   };
 }
 
-export function authHref(path: string, query: Pick<AuthQuery, "email">) {
+export function authHref(
+  path: string,
+  query: Pick<AuthQuery, "email" | "returnTo">,
+) {
   const search = new URLSearchParams();
   if (query.email) search.set("email", query.email);
+  if (query.returnTo) search.set("returnTo", query.returnTo);
   const suffix = search.toString();
   return suffix ? `${path}?${suffix}` : path;
 }

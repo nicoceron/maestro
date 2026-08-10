@@ -18,6 +18,7 @@ import {
   useInvitationSession,
   useResetCredentialSession,
 } from "@/components/auth/identity-credential-session";
+import { PasskeyLoginButton } from "@/components/security/auth-challenges";
 import type {
   AuthClient,
   AuthFailure,
@@ -138,14 +139,17 @@ function InviteSessionFailure({
 
 export function LoginForm({
   initialEmail,
+  continueTo,
 }: {
   initialEmail?: string;
+  continueTo?: string;
 }) {
   const router = useRouter();
   const { client } = useAuthClient();
   const { token: invitationToken } = useInvitationSession();
   const inviteSession = useInviteSessionGate(client, invitationToken);
   const [pending, setPending] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [formError, setFormError] = useState<AuthFailure | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const formRef = useFocusFirstInvalid(fieldErrors, loginFieldOrder);
@@ -173,8 +177,9 @@ export function LoginForm({
     const result = await client.login({
       email,
       password,
-      remember: formData.get("remember") === "on",
+      remember,
       invitationToken,
+      continueTo,
     });
 
     setPending(false);
@@ -184,7 +189,7 @@ export function LoginForm({
       return;
     }
 
-    if (result.data.sessionEstablished) {
+    if (result.data.sessionEstablished || result.data.requiresTwoFactor) {
       router.replace(result.data.redirectTo);
     }
   }
@@ -245,6 +250,8 @@ export function LoginForm({
         <input
           type="checkbox"
           name="remember"
+          checked={remember}
+          onChange={(event) => setRemember(event.currentTarget.checked)}
           className="mt-0.5 size-4 rounded border-[#c8c1cc] accent-[#7457d2]"
         />
         <span>
@@ -260,6 +267,8 @@ export function LoginForm({
         idleLabel="Sign in"
         pendingLabel="Signing in…"
       />
+
+      <PasskeyLoginButton remember={remember} continueTo={continueTo} />
     </form>
   );
 }

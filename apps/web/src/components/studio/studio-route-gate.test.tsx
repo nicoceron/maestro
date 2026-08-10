@@ -21,6 +21,8 @@ const currentUser = {
   name: "Ari Bennett",
   email: "ari@studio.test",
   emailVerifiedAt: "2026-08-10T00:00:00Z",
+  twoFactorEnabled: false,
+  passkeysCount: 0,
 };
 
 function studio(

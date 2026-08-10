@@ -34,7 +34,7 @@ export default async function LoginPage({
         </>
       }
     >
-      <LoginForm initialEmail={query.email} />
+      <LoginForm initialEmail={query.email} continueTo={query.returnTo} />
     </AuthCard>
   );
 }

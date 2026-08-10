@@ -242,8 +242,8 @@ function UserCard({ shell }: { shell: StudioShellDto }) {
         <p className="truncate text-[9px] text-white/45">{shell.user.role}</p>
       </div>
       <Link
-        href={`/studio/${shell.currentStudio.slug}/settings`}
-        aria-label={`Open settings for ${shell.user.name}`}
+        href="/account/security"
+        aria-label={`Open account security for ${shell.user.name}`}
         className="flex size-8 items-center justify-center rounded-lg text-white/42 transition-colors hover:bg-white/[0.07] hover:text-white"
       >
         <Settings aria-hidden="true" className="size-3.5" />

@@ -416,4 +416,161 @@ describe("Sanctum auth client contract", () => {
       }),
     });
   });
+
+  it("returns the Fortify two-factor challenge without probing an authenticated user", async () => {
+    csrfReady();
+    fetchMock.mockResolvedValueOnce(json({ two_factor: true }));
+
+    const result = await createSanctumAuthClient().login({
+      email: "maya@studio.test",
+      password: "Correct-Horse-42!",
+      remember: true,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        sessionEstablished: false,
+        requiresTwoFactor: true,
+        redirectTo: "/two-factor-challenge",
+      },
+    });
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      "/sanctum/csrf-cookie",
+      "/api/v1/auth/login",
+    ]);
+  });
+
+  it("preserves only the allowlisted security-center continuation", async () => {
+    csrfReady();
+    fetchMock
+      .mockResolvedValueOnce(json({ two_factor: false }))
+      .mockResolvedValueOnce(verifiedUser());
+
+    const result = await createSanctumAuthClient().login({
+      email: "maya@studio.test",
+      password: "Correct-Horse-42!",
+      remember: false,
+      continueTo: "/account/security",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        sessionEstablished: true,
+        redirectTo: "/account/security",
+      },
+    });
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      "/sanctum/csrf-cookie",
+      "/api/v1/auth/login",
+      "/api/v1/auth/user",
+    ]);
+  });
+
+  it("maps stale recent-password middleware and confirms through Fortify", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ message: "Password confirmation required." }, 423),
+    );
+    const client = createSanctumAuthClient();
+
+    const status = await client.getPasswordConfirmationStatus();
+    expect(status).toMatchObject({
+      ok: false,
+      error: { code: "recent_password_required" },
+    });
+
+    fetchMock.mockReset();
+    csrfReady();
+    fetchMock.mockResolvedValueOnce(json({}, 201));
+    const confirmed = await client.confirmPassword("Correct-Horse-42!");
+    expect(confirmed).toEqual({ ok: true, data: null });
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "/api/v1/auth/user/confirm-password",
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      password: "Correct-Horse-42!",
+    });
+  });
+
+  it("uses official TOTP routes and refetches raw recovery-code arrays", async () => {
+    csrfReady();
+    fetchMock
+      .mockResolvedValueOnce(json({}, 200))
+      .mockResolvedValueOnce(json(["code-one", "code-two"]));
+    const client = createSanctumAuthClient();
+
+    const confirmation = await client.confirmTwoFactor("123456");
+
+    expect(confirmation).toEqual({
+      ok: true,
+      data: { recoveryCodes: ["code-one", "code-two"] },
+    });
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      "/sanctum/csrf-cookie",
+      "/api/v1/auth/user/confirmed-two-factor-authentication",
+      "/api/v1/auth/user/two-factor-recovery-codes",
+    ]);
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      code: "123456",
+    });
+
+    fetchMock.mockReset();
+    csrfReady();
+    fetchMock
+      .mockResolvedValueOnce(json({}, 200))
+      .mockResolvedValueOnce(json(["fresh-one", "fresh-two"]));
+    const regenerated = await createSanctumAuthClient().regenerateRecoveryCodes();
+    expect(regenerated).toEqual({
+      ok: true,
+      data: { recoveryCodes: ["fresh-one", "fresh-two"] },
+    });
+  });
+
+  it("maps passkey ceremonies and session revocation without token persistence", async () => {
+    const storageWrite = vi.spyOn(Storage.prototype, "setItem");
+    fetchMock.mockResolvedValueOnce(json({ options: { challenge: "YQ" } }));
+    const client = createSanctumAuthClient();
+    expect(await client.getPasskeyRegistrationOptions()).toEqual({
+      ok: true,
+      data: { challenge: "YQ" },
+    });
+
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(json({ options: { challenge: "Yg" } }));
+    expect(await client.getPasskeyConfirmationOptions()).toEqual({
+      ok: true,
+      data: { challenge: "Yg" },
+    });
+
+    fetchMock.mockReset();
+    csrfReady();
+    fetchMock.mockResolvedValueOnce(json({ status: "passkey-created" }));
+    const credential = { id: "credential", response: { signature: "abc" } };
+    await client.registerPasskey("Studio Mac", credential);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/v1/auth/user/passkeys");
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      name: "Studio Mac",
+      credential,
+    });
+
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(json({ status: "confirmed" }));
+    await client.confirmWithPasskey(credential);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/auth/passkeys/confirm");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      credential,
+    });
+
+    fetchMock.mockReset();
+    csrfReady();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await createSanctumAuthClient().revokeSession("01JSESSION");
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "/api/v1/auth/sessions/01JSESSION",
+    );
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "DELETE" });
+    expect(storageWrite).not.toHaveBeenCalled();
+    storageWrite.mockRestore();
+  });
 });

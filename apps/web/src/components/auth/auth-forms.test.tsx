@@ -115,6 +115,31 @@ describe("identity forms", () => {
     });
   });
 
+  it("routes a Fortify two-factor response to the second-step challenge", async () => {
+    const fixture = createFixtureAuthClient();
+    const client: AuthClient = {
+      ...fixture,
+      login: async () => ({
+        ok: true,
+        data: {
+          sessionEstablished: false,
+          requiresTwoFactor: true,
+          redirectTo: "/two-factor-challenge",
+        },
+      }),
+    };
+    renderAuth(<LoginForm initialEmail="maya@studio.test" />, client);
+
+    fireEvent.change(await screen.findByLabelText("Password"), {
+      target: { value: "Strong-Password-42!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => {
+      expect(navigation.replace).toHaveBeenCalledWith("/two-factor-challenge");
+    });
+  });
+
   it("uses an enumeration-safe recovery confirmation", async () => {
     renderAuth(<ForgotPasswordForm />);
 
@@ -253,6 +278,8 @@ describe("identity forms", () => {
           name: "Maya Ortiz",
           email: "maya@studio.test",
           emailVerifiedAt: null,
+          twoFactorEnabled: false,
+          passkeysCount: 0,
         },
       }),
     };

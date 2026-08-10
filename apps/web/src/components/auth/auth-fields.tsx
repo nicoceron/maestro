@@ -103,12 +103,14 @@ export function PasswordField({
   autoComplete,
   error,
   onValueChange,
+  autoFocus,
 }: {
   label?: string;
   name?: string;
   autoComplete: "current-password" | "new-password";
   error?: string;
   onValueChange?: (value: string) => void;
+  autoFocus?: boolean;
 }) {
   const id = useId();
   const [visible, setVisible] = useState(false);
@@ -134,6 +136,7 @@ export function PasswordField({
           name={name}
           type={visible ? "text" : "password"}
           autoComplete={autoComplete}
+          autoFocus={autoFocus}
           required
           minLength={12}
           aria-invalid={error ? "true" : undefined}
