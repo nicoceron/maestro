@@ -1,0 +1,219 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Laravel / PHP 8.5
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: maestro_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d maestro_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_URL: http://localhost
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: maestro_test
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_RUNTIME_USERNAME: maestro_runtime
+      DB_RUNTIME_PASSWORD: maestro_runtime
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      MAIL_MAILER: array
+      FILESYSTEM_DISK: local
+      BROADCAST_CONNECTION: log
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify backend manifest
+        run: test -f composer.json -a -f composer.lock
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.5"
+          coverage: none
+          extensions: dom, fileinfo, intl, mbstring, pcntl, pdo_pgsql, redis
+          tools: composer:v2
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php-8.5-${{ hashFiles('apps/api/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php-8.5-
+
+      - name: Validate Composer metadata
+        run: composer validate --strict --no-check-publish
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Audit PHP dependencies
+        run: composer audit --locked --no-interaction
+
+      - name: Check PHP formatting
+        run: vendor/bin/pint --test
+
+      - name: Run database migrations
+        run: php artisan migrate --force --no-interaction
+
+      - name: Provision restricted RLS test role
+        run: >-
+          PGPASSWORD="$DB_PASSWORD" psql
+          --host="$DB_HOST"
+          --port="$DB_PORT"
+          --username="$DB_USERNAME"
+          --dbname="$DB_DATABASE"
+          --set=ON_ERROR_STOP=1
+          --file="$GITHUB_WORKSPACE/infra/postgres/init/001-runtime-role.sql"
+
+      - name: Run Laravel tests
+        run: php artisan test --colors=always
+
+  frontend:
+    name: Next.js / Node 24
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify frontend manifest
+        run: test -f package.json -a -f pnpm-lock.yaml
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          package_json_file: apps/web/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit JavaScript dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Lint Next.js
+        run: pnpm lint
+
+      - name: Run Vitest
+        run: pnpm test:run
+
+      - name: Build Next.js
+        run: pnpm build
+
+  contracts:
+    name: OpenAPI contracts / Node 24
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: packages/contracts
+
+    env:
+      CI: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify contracts manifest
+        run: test -f package.json -a -f pnpm-lock.yaml -a -f openapi.yaml
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          package_json_file: packages/contracts/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: packages/contracts/pnpm-lock.yaml
+
+      - name: Install contract dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit contract dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Validate OpenAPI and generated types
+        run: pnpm check

@@ -38,18 +38,15 @@ pnpm dev
 
 The web app runs at [http://localhost:3000](http://localhost:3000), the API at [http://localhost:8000](http://localhost:8000), and Mailpit at [http://localhost:8025](http://localhost:8025).
 
+Compose creates a restricted `maestro_runtime` PostgreSQL role for exercising row-level security. Run migrations as the `maestro` owner, then run long-lived web and worker processes with the restricted role in production. The test suite uses `DB_RUNTIME_USERNAME` and `DB_RUNTIME_PASSWORD` to prove default-deny and cross-studio write rejection against that role.
+
 ## Quality gates
 
 ```bash
-cd apps/api
-./vendor/bin/pint --test
-php artisan test
-
-cd ../web
-pnpm lint
-pnpm test:run
-pnpm build
+./scripts/quality/all.sh
 ```
+
+The combined gate scans new product paths for secrets, validates/audits the Laravel and Next applications, runs their tests and production build, and validates/regenerates the OpenAPI contract. CI repeats the database suite on PostgreSQL 18 with Redis 8.
 
 Behavioral coverage—not a line-coverage percentage—is the release gate for tenancy, authorization, recurrence, money, and side effects. See [the parity matrix](docs/product/parity-matrix.md).
 

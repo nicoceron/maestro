@@ -8,14 +8,14 @@ This is the release ledger. A feature is `done` only when its acceptance behavio
 | FND-02 | Studio onboarding, regional defaults, trial state | P0 | scaffolded | Validated create API, owner membership, onboarding E2E |
 | FND-03 | Roles, granular permissions, invitations, suspension | P0 | planned | Complete role matrix across API, Filament, Next, jobs |
 | FND-04 | Password reset, verification, session security, MFA/passkeys | P0 | planned | Throttle, fixation, reset invalidation, MFA recovery tests |
-| FND-05 | Tenant context across HTTP, queues, scheduler, cache, files | P0 | planned | Cross-tenant denial matrix for every execution surface |
-| FND-06 | PostgreSQL RLS and composite tenant constraints | P0 | planned | Direct-SQL default-deny integration suite |
+| FND-05 | Tenant context across HTTP, queues, scheduler, cache, files | P0 | scaffolded | Cross-tenant denial matrix for every execution surface |
+| FND-06 | PostgreSQL RLS and composite tenant constraints | P0 | scaffolded | Direct-SQL default-deny integration suite |
 | FND-07 | Audit log, impersonation controls, support access | P0 | planned | Immutable security-event assertions and admin E2E |
 | FND-08 | Locale, IANA timezone, currency, accessible design tokens | P0 | scaffolded | DST, formatting, keyboard, contrast, responsive tests |
 | FND-09 | Outbox, idempotency, retries, observability | P0 | planned | Duplicate delivery/replay and failed-job tests |
 | FND-10 | Full tenant export, retention, deletion, restore | P0 | planned | Export/import round trip and restore drill |
-| CRM-01 | People, households, guardians, adult students | P1 | planned | Relationship/privacy matrix and household E2E |
-| CRM-02 | Students, statuses, leads, trials, waiting list | P1 | planned | Lifecycle transition and permission tests |
+| CRM-01 | People, households, guardians, adult students | P1 | scaffolded | Relationship/privacy matrix and household E2E |
+| CRM-02 | Students, statuses, leads, trials, waiting list | P1 | scaffolded | Lifecycle transition and permission tests |
 | CRM-03 | Teachers, office staff, substitutes, profiles | P1 | planned | Role/profile/availability tests |
 | CRM-04 | Instruments, tags, custom fields, assignments | P1 | planned | Scoped uniqueness, bulk actions, export assertions |
 | CRM-05 | Duplicate-safe CSV import and full export | P1 | planned | Partial failure, resume, idempotency, round-trip tests |
@@ -74,11 +74,12 @@ This is the release ledger. A feature is `done` only when its acceptance behavio
 | QUA-01 | WCAG 2.2 AA and keyboard release gate | P0 | scaffolded | Automated axe plus manual journey audits |
 | QUA-02 | Desktop/tablet/mobile visual regression | P0 | scaffolded | Playwright snapshots for critical surfaces |
 | QUA-03 | Performance budgets and large-tenant load tests | P0 | planned | p95 budgets and production-size fixtures |
-| QUA-04 | Dependency, secret, SAST, and authorization CI | P0 | planned | Required checks on every change |
+| QUA-04 | Dependency, secret, SAST, and authorization CI | P0 | scaffolded | Required checks on every change |
 | QUA-05 | Backup, PITR, disaster restore, incident drills | P0 | planned | Recorded restore and reconciliation exercises |
 
 ## Current verification
 
-- Laravel: 10 passing tests / 37 assertions covering studio creation, membership visibility, Filament tenant access, suspension, reserved slugs, and cross-tenant denial.
-- Next.js: 2 passing component/accessibility-structure tests; ESLint and production build pass.
-- Visual smoke: 1440×1000 and 390×844 browser review, no horizontal overflow or console errors.
+- Laravel: 24 passing PostgreSQL tests / 109 assertions covering studio creation, credentialed CORS, People aggregates, guardian portal scopes and billing-data redaction, role restrictions, tenant search/IDOR denial, Filament resource isolation, composite constraints, and restricted-role RLS.
+- Next.js: 9 passing tests for the landing page plus fixture-backed Studio Home shell/dashboard; ESLint and production build pass.
+- API contract: strict OpenAPI lint, deterministic TypeScript generation, and declaration typecheck.
+- Visual smoke: landing and Studio Home reviewed at desktop and 390px mobile widths with no horizontal overflow or application console errors.
