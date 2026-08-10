@@ -1,23 +1,17 @@
 import type { Metadata } from "next";
 
-import { StudioHomeDashboard } from "@/components/studio/studio-home-dashboard";
-import { getStudioHomeFixture, getStudioShellFixture } from "@/lib/studio-fixtures";
-
-export function generateStaticParams() {
-  return [{ studio: "sonora-house" }, { studio: "northline-conservatory" }];
-}
+import { StudioHomeScaffold } from "@/components/studio/studio-home-scaffold";
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ studio: string }>;
 }): Promise<Metadata> {
-  const { studio } = await params;
-  const shell = getStudioShellFixture(studio);
+  await params;
 
   return {
-    title: `Studio home · ${shell.currentStudio.shortName} · Maestro`,
-    description: `Daily schedule, revenue, teaching team, and studio activity for ${shell.currentStudio.name}.`,
+    title: "Studio home · Maestro",
+    description: "Your authenticated Maestro studio workspace.",
   };
 }
 
@@ -26,8 +20,7 @@ export default async function StudioHomePage({
 }: {
   params: Promise<{ studio: string }>;
 }) {
-  const { studio } = await params;
-  const data = getStudioHomeFixture(studio);
+  await params;
 
-  return <StudioHomeDashboard data={data} />;
+  return <StudioHomeScaffold />;
 }

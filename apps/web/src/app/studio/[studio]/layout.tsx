@@ -1,5 +1,5 @@
-import { StudioAppShell } from "@/components/studio/studio-app-shell";
-import { getStudioShellFixture } from "@/lib/studio-fixtures";
+import { AuthClientProvider } from "@/components/auth/auth-client-provider";
+import { StudioRouteGate } from "@/components/studio/studio-route-gate";
 
 export default async function StudioLayout({
   children,
@@ -9,7 +9,9 @@ export default async function StudioLayout({
   params: Promise<{ studio: string }>;
 }) {
   const { studio } = await params;
-  const shell = getStudioShellFixture(studio);
-
-  return <StudioAppShell shell={shell}>{children}</StudioAppShell>;
+  return (
+    <AuthClientProvider>
+      <StudioRouteGate requestedSlug={studio}>{children}</StudioRouteGate>
+    </AuthClientProvider>
+  );
 }

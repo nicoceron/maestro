@@ -32,7 +32,7 @@ import type {
   StudioNavigationIcon,
   StudioNavigationItemDto,
   StudioShellDto,
-} from "@/lib/studio-fixtures";
+} from "@/lib/studio";
 
 const navigationIcons: Record<StudioNavigationIcon, LucideIcon> = {
   home: Home,
@@ -130,7 +130,9 @@ function TenantSwitcher({
           ))}
         </select>
         {!compact && (
-          <p className="truncate text-[10px] font-medium text-white/48">Owner workspace</p>
+          <p className="truncate text-[10px] font-medium text-white/48">
+            {shell.user.role} workspace
+          </p>
         )}
       </div>
       <ChevronDown

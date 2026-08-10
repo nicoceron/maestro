@@ -1,39 +1,15 @@
-export type StudioNavigationIcon =
-  | "home"
-  | "calendar"
-  | "people"
-  | "messages"
-  | "billing"
-  | "learning"
-  | "reports"
-  | "website"
-  | "settings";
+import type {
+  StudioNavigationItemDto,
+  StudioShellDto,
+  StudioWorkspaceDto,
+} from "@/lib/studio";
 
-export interface StudioNavigationItemDto {
-  label: string;
-  segment: string;
-  icon: StudioNavigationIcon;
-  badge?: string;
-}
-
-export interface StudioWorkspaceDto {
-  slug: string;
-  name: string;
-  shortName: string;
-  accent: "violet" | "teal";
-}
-
-export interface StudioShellDto {
-  currentStudio: StudioWorkspaceDto;
-  workspaces: StudioWorkspaceDto[];
-  primaryNavigation: StudioNavigationItemDto[];
-  secondaryNavigation: StudioNavigationItemDto[];
-  user: {
-    name: string;
-    initials: string;
-    role: string;
-  };
-}
+export type {
+  StudioNavigationIcon,
+  StudioNavigationItemDto,
+  StudioShellDto,
+  StudioWorkspaceDto,
+} from "@/lib/studio";
 
 export interface StudioHomeMetricDto {
   id: "lessons" | "revenue" | "attendance" | "practice";
