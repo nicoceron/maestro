@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Http\Middleware\EnsureActiveStudioMembership;
+use App\Http\Middleware\SetDatabaseUserContext;
 use App\Models\Studio;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -59,6 +60,7 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
+                SetDatabaseUserContext::class,
                 Authenticate::class,
             ])
             ->tenantMiddleware([

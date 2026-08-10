@@ -2,6 +2,14 @@
 
 return [
 
+    'frontend' => [
+        'url' => env('FRONTEND_URL', 'http://localhost:3000'),
+    ],
+
+    'invitations' => [
+        'expires_days' => (int) env('INVITATION_EXPIRES_DAYS', 7),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

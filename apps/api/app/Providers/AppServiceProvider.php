@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\Tenancy\RequestDatabaseContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -18,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(
             TenantContext::class,
             fn (): TenantContext => new TenantContext($this->app['db']->connection()),
+        );
+        $this->app->scoped(
+            RequestDatabaseContext::class,
+            fn (): RequestDatabaseContext => new RequestDatabaseContext($this->app['db']),
         );
     }
 

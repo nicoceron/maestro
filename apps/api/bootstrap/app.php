@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Middleware\AddSecurityHeaders;
+use App\Http\Middleware\EnsureTrustedRequestOrigin;
 use App\Http\Middleware\ResolveStudioTenant;
+use App\Http\Middleware\SetDatabaseUserContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,8 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->trustHosts(
+            at: fn (): array => config('security.trusted_hosts'),
+            subdomains: false,
+        );
+        $middleware->append([
+            EnsureTrustedRequestOrigin::class,
+            AddSecurityHeaders::class,
+        ]);
 
         $middleware->alias([
+            'database.user-context' => SetDatabaseUserContext::class,
             'studio.member' => ResolveStudioTenant::class,
         ]);
     })

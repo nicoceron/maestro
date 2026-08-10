@@ -1,0 +1,19 @@
+<?php
+
+namespace App\Notifications;
+
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
+use Illuminate\Contracts\Queue\ShouldQueue;
+
+final class QueuedResetPasswordNotification extends ResetPassword implements ShouldBeEncrypted, ShouldQueue
+{
+    use Queueable;
+
+    public function __construct(#[\SensitiveParameter] string $token)
+    {
+        parent::__construct($token);
+        $this->afterCommit();
+    }
+}

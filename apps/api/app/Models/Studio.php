@@ -43,6 +43,12 @@ class Studio extends Model
         return $this->hasMany(Household::class);
     }
 
+    /** @return HasMany<StudioInvitation, $this> */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(StudioInvitation::class);
+    }
+
     /** @return HasMany<Person, $this> */
     public function people(): HasMany
     {

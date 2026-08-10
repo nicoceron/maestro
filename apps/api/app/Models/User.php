@@ -4,11 +4,13 @@ namespace App\Models;
 
 use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
+use App\Notifications\QueuedResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
 use Filament\Models\Contracts\HasTenants;
 use Filament\Panel;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,14 +19,34 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use Normalizer;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements FilamentUser, HasName, HasTenants
+class User extends Authenticatable implements FilamentUser, HasName, HasTenants, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
+
+    public static function normalizeEmail(string $email): string
+    {
+        $trimmed = preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', $email) ?? $email;
+        $normalized = Normalizer::normalize($trimmed, Normalizer::FORM_KC);
+
+        return Str::lower($normalized === false ? $trimmed : $normalized);
+    }
+
+    public function setEmailAttribute(string $email): void
+    {
+        $this->attributes['email'] = self::normalizeEmail($email);
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new QueuedResetPasswordNotification($token));
+    }
 
     /** @return BelongsToMany<Studio, $this> */
     public function studios(): BelongsToMany
