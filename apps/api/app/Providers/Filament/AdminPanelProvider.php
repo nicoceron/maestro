@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Http\Middleware\EnforceBrowserSessionLifetime;
 use App\Http\Middleware\EnsureActiveStudioMembership;
 use App\Http\Middleware\SetDatabaseUserContext;
 use App\Models\Studio;
@@ -52,6 +53,7 @@ class AdminPanelProvider extends PanelProvider
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,
+                EnforceBrowserSessionLifetime::class,
                 AuthenticateSession::class,
                 ShareErrorsFromSession::class,
                 PreventRequestForgery::class,

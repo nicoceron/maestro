@@ -3,6 +3,7 @@
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use App\Support\Tenancy\RequestDatabaseContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +14,8 @@ use Laravel\Fortify\Contracts\ResetsUserPasswords;
 final class ResetUserPassword implements ResetsUserPasswords
 {
     use PasswordValidationRules;
+
+    public function __construct(private readonly RequestDatabaseContext $databaseContext) {}
 
     /**
      * @param  array<string, mixed>  $input
@@ -25,20 +28,29 @@ final class ResetUserPassword implements ResetsUserPasswords
             'password' => $this->passwordRules(),
         ])->validate();
 
-        DB::transaction(function () use ($user, $input): void {
-            $user->forceFill([
-                'password' => Hash::make((string) $input['password']),
-                'remember_token' => Str::random(60),
-            ])->save();
+        $this->databaseContext->activateUser($user);
 
-            $user->tokens()->delete();
+        try {
+            DB::transaction(function () use ($user, $input): void {
+                $user->forceFill([
+                    'password' => Hash::make((string) $input['password']),
+                    'remember_token' => Str::random(60),
+                ])->save();
 
-            if (config('session.driver') === 'database') {
-                DB::connection(config('session.connection'))
-                    ->table((string) config('session.table', 'sessions'))
-                    ->where('user_id', $user->getKey())
-                    ->delete();
-            }
-        });
+                $user->tokens()->delete();
+
+                if (config('session.driver') === 'database') {
+                    DB::table('user_sessions')
+                        ->where('user_id', $user->getKey())
+                        ->delete();
+                    DB::connection(config('session.connection'))
+                        ->table((string) config('session.table', 'sessions'))
+                        ->where('user_id', $user->getKey())
+                        ->delete();
+                }
+            });
+        } finally {
+            $this->databaseContext->clearUser();
+        }
     }
 }

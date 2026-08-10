@@ -4,9 +4,11 @@ namespace Tests\Feature\Auth;
 
 use App\Actions\Fortify\ResetUserPassword;
 use App\Models\User;
+use App\Models\UserSession;
 use App\Notifications\QueuedResetPasswordNotification;
 use App\Support\Auth\LoginRateLimitKey;
 use App\Support\Auth\PasswordResetRateLimitKey;
+use App\Support\Tenancy\RequestDatabaseContext;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\QueryException;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Sleep;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BrowserAuthenticationTest extends TestCase
@@ -24,6 +27,14 @@ class BrowserAuthenticationTest extends TestCase
     use RefreshDatabase;
 
     private const PASSWORD = 'Correct-Horse-42!';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['session.driver' => 'array']);
+        app('session')->forgetDrivers();
+    }
 
     public function test_browser_can_initialize_csrf_protection(): void
     {
@@ -421,6 +432,41 @@ class BrowserAuthenticationTest extends TestCase
             [...$sessionDefaults, 'id' => 'target-two', 'user_id' => $user->getKey()],
             [...$sessionDefaults, 'id' => 'other-user', 'user_id' => $otherUser->getKey()],
         ]);
+        $databaseContext = app(RequestDatabaseContext::class);
+        $databaseContext->activateUser($user);
+        UserSession::query()->insert([
+            [
+                'id' => (string) Str::ulid(),
+                'session_id' => 'target-one',
+                'user_id' => $user->getKey(),
+                'ip_address' => '203.0.113.8',
+                'user_agent' => 'PHPUnit',
+                'created_at' => now(),
+                'last_seen_at' => now(),
+            ],
+            [
+                'id' => (string) Str::ulid(),
+                'session_id' => 'target-two',
+                'user_id' => $user->getKey(),
+                'ip_address' => '203.0.113.8',
+                'user_agent' => 'PHPUnit',
+                'created_at' => now(),
+                'last_seen_at' => now(),
+            ],
+        ]);
+        $databaseContext->clearUser();
+        $databaseContext->activateUser($otherUser);
+        $otherRegistryId = (string) Str::ulid();
+        UserSession::query()->create([
+            'id' => $otherRegistryId,
+            'session_id' => 'other-user',
+            'user_id' => $otherUser->getKey(),
+            'ip_address' => '203.0.113.9',
+            'user_agent' => 'PHPUnit',
+            'created_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+        $databaseContext->clearUser();
 
         app(ResetUserPassword::class)->reset($user, [
             'password' => 'Replacement-Password-84!',
@@ -432,6 +478,13 @@ class BrowserAuthenticationTest extends TestCase
         $this->assertDatabaseMissing('sessions', ['id' => 'target-one']);
         $this->assertDatabaseMissing('sessions', ['id' => 'target-two']);
         $this->assertDatabaseHas('sessions', ['id' => 'other-user', 'user_id' => $otherUser->getKey()]);
+        $databaseContext->activateUser($user);
+        $this->assertDatabaseMissing('user_sessions', ['session_id' => 'target-one']);
+        $this->assertDatabaseMissing('user_sessions', ['session_id' => 'target-two']);
+        $databaseContext->clearUser();
+        $databaseContext->activateUser($otherUser);
+        $this->assertDatabaseHas('user_sessions', ['id' => $otherRegistryId]);
+        $databaseContext->clearUser();
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $targetToken->getKey()]);
         $this->assertDatabaseHas('personal_access_tokens', ['id' => $otherToken->getKey()]);
     }

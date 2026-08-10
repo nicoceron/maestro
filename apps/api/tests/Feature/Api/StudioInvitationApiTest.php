@@ -22,6 +22,14 @@ class StudioInvitationApiTest extends TestCase
 
     private const PASSWORD = 'Correct-Horse-42!';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withHeader('Origin', 'http://localhost:3000')
+            ->withSession(['auth.password_confirmed_at' => now()->timestamp]);
+    }
+
     public function test_owner_can_create_list_and_revoke_a_normalized_invitation_without_exposing_token(): void
     {
         Notification::fake();
@@ -229,7 +237,7 @@ class StudioInvitationApiTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('invitation_token');
         $this->assertDatabaseMissing('users', ['email' => 'wrong.invitee@example.com']);
 
-        $this->postJson('/api/v1/auth/register', [
+        $registration = $this->postJson('/api/v1/auth/register', [
             'name' => 'New User',
             'email' => 'NEW.USER@example.com',
             'password' => self::PASSWORD,
@@ -246,6 +254,11 @@ class StudioInvitationApiTest extends TestCase
         ]);
         $this->assertNull(StudioInvitation::query()->sole()->accepted_at);
 
+        $sessionCookie = $registration->getCookie((string) config('session.cookie'));
+        $this->assertNotNull($sessionCookie);
+        $this->withCredentials()->withCookie((string) config('session.cookie'), $sessionCookie->getValue());
+        Auth::forgetGuards();
+
         $this->postJson('/api/v1/onboarding', ['invitation_token' => $token])
             ->assertOk()
             ->assertJsonPath('data.membership.role', MembershipRole::Teacher->value);
@@ -259,6 +272,7 @@ class StudioInvitationApiTest extends TestCase
 
         Auth::guard('web')->logout();
         Auth::forgetGuards();
+        $this->defaultCookies = [];
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Replay User',
             'email' => 'replay@example.com',

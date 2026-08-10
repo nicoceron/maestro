@@ -9,6 +9,7 @@ use App\Models\Studio;
 use App\Models\StudioInvitation;
 use App\Models\StudioMembership;
 use App\Models\User;
+use App\Models\UserSession;
 use App\Notifications\StudioInvitationNotification;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -295,8 +296,21 @@ class PostgresRowLevelSecurityTest extends TestCase
                 ->where('id', $registrationInvitation->getKey())
                 ->value('accepted_at'));
             Auth::forgetGuards();
+            session()->invalidate();
+            $this->defaultCookies = [];
+            $login = $this->postJson('/api/v1/auth/login', [
+                'email' => $owner->email,
+                'password' => 'password',
+            ])->assertOk()->assertJsonPath('two_factor', false);
+            $sessionCookie = $login->getCookie((string) config('session.cookie'));
+            $this->assertNotNull($sessionCookie);
+            $this->withCredentials()->withCookie((string) config('session.cookie'), $sessionCookie->getValue());
+            Auth::forgetGuards();
 
-            Sanctum::actingAs($owner);
+            $this->withHeader('Origin', 'http://localhost:3000')
+                ->postJson('/api/v1/auth/user/confirm-password', [
+                    'password' => 'password',
+                ])->assertCreated();
             $this->getJson('/api/v1/studios')
                 ->assertOk()
                 ->assertJsonPath('data.0.slug', $studio->slug);
@@ -309,11 +323,12 @@ class PostgresRowLevelSecurityTest extends TestCase
             ])->assertCreated();
 
             Auth::forgetGuards();
-            $this->actingAs($owner, 'web')
-                ->get("/manage/studio/{$studio->slug}")
-                ->assertOk();
+            $this->get("/manage/studio/{$studio->slug}")->assertOk();
 
+            Auth::guard('web')->logout();
+            session()->invalidate();
             Auth::forgetGuards();
+            $this->defaultCookies = [];
             Sanctum::actingAs($invitee);
             $this->postJson('/api/v1/invitations/accept', ['invitation_token' => $token])
                 ->assertOk()
@@ -342,6 +357,71 @@ class PostgresRowLevelSecurityTest extends TestCase
                 'security-runtime-onboarding-studio',
             ])->each(fn (Studio $cleanupStudio) => $cleanupStudio->forceDelete());
             User::query()->where('email', 'like', 'security-runtime-%')->delete();
+        }
+    }
+
+    public function test_user_session_registry_is_default_deny_and_user_scoped_for_the_restricted_runtime(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL is required for the RLS integration test.');
+        }
+
+        [$runtime, $runtimeConnectionName] = $this->runtimeConnection();
+        $firstUser = User::factory()->create();
+        $secondUser = User::factory()->create();
+        $firstId = (string) Str::ulid();
+        $secondId = (string) Str::ulid();
+        $attributes = [
+            'ip_address' => '203.0.113.10',
+            'user_agent' => 'RLS test',
+            'created_at' => now(),
+            'last_seen_at' => now(),
+        ];
+        DB::table('user_sessions')->insert([
+            [...$attributes, 'id' => $firstId, 'session_id' => 'rls-first', 'user_id' => $firstUser->getKey()],
+            [...$attributes, 'id' => $secondId, 'session_id' => 'rls-second', 'user_id' => $secondUser->getKey()],
+        ]);
+
+        try {
+            $this->assertSame(0, $runtime->table('user_sessions')->count());
+            $this->setContext($runtime, 'app.current_user_id', (string) $firstUser->getKey());
+            $this->assertSame([$firstId], $runtime->table('user_sessions')->pluck('id')->all());
+
+            $crossUserInsertDenied = false;
+
+            try {
+                $runtime->table('user_sessions')->insert([
+                    ...$attributes,
+                    'id' => (string) Str::ulid(),
+                    'session_id' => 'rls-cross-user',
+                    'user_id' => $secondUser->getKey(),
+                ]);
+            } catch (QueryException) {
+                $crossUserInsertDenied = true;
+            }
+
+            $this->assertTrue($crossUserInsertDenied);
+            $crossUserUpdateDenied = false;
+
+            try {
+                $runtime->table('user_sessions')
+                    ->where('id', $firstId)
+                    ->update(['user_id' => $secondUser->getKey()]);
+            } catch (QueryException) {
+                $crossUserUpdateDenied = true;
+            }
+
+            $this->assertTrue($crossUserUpdateDenied);
+            $this->assertSame(0, $runtime->table('user_sessions')
+                ->where('id', $secondId)
+                ->delete());
+            $this->setContext($runtime, 'app.current_user_id', (string) $secondUser->getKey());
+            $this->assertSame([$secondId], $runtime->table('user_sessions')->pluck('id')->all());
+        } finally {
+            DB::purge($runtimeConnectionName);
+            UserSession::query()->whereIn('id', [$firstId, $secondId])->delete();
+            $firstUser->delete();
+            $secondUser->delete();
         }
     }
 

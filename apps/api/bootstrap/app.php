@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\AddSecurityHeaders;
+use App\Http\Middleware\EnforceBrowserSessionLifetime;
+use App\Http\Middleware\EnsureRecentPasswordConfirmation;
 use App\Http\Middleware\EnsureTrustedRequestOrigin;
 use App\Http\Middleware\ResolveStudioTenant;
 use App\Http\Middleware\SetDatabaseUserContext;
@@ -29,6 +31,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'database.user-context' => SetDatabaseUserContext::class,
+            'password.confirm' => EnsureRecentPasswordConfirmation::class,
+            'password.recent' => EnsureRecentPasswordConfirmation::class,
+            'session.lifetime' => EnforceBrowserSessionLifetime::class,
             'studio.member' => ResolveStudioTenant::class,
         ]);
     })

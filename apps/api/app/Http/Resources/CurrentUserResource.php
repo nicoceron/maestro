@@ -15,6 +15,8 @@ final class CurrentUserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
+            'two_factor_enabled' => $this->hasEnabledTwoFactorAuthentication(),
+            'passkeys_count' => $this->passkeys()->count(),
         ];
     }
 }
