@@ -2,7 +2,7 @@
 
 Maestro is a multi-tenant operating system for music studios. It brings scheduling, teaching, family communication, learning, billing, payroll, and business operations into one calm product while keeping every studio strictly isolated.
 
-This repository is a clean-room implementation. The legacy scrape/recon material at the repository root is reference evidence only; no captured code, credentials, personal data, or third-party assets may be used by the application.
+This repository is a clean-room implementation. Scrape captures, copied application code, credentials, personal data, and unlicensed third-party assets must never be committed or used by the product.
 
 ## Monorepo
 
@@ -52,4 +52,4 @@ Behavioral coverage—not a line-coverage percentage—is the release gate for t
 
 ## Repository safety
 
-The original local recon commit contains captured credentials and personal fields. This repository has no remote and must not be pushed until those credentials are revoked and the original history is sanitized. New product commits intentionally exclude all pre-existing recon changes.
+Keep behavioral research outside this repository. The committed history contains only Maestro product code, tests, contracts, and documentation; CI scans every product change for secrets before it can merge.
