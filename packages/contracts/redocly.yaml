@@ -1,0 +1,12 @@
+apis:
+  maestro@v1:
+    root: ./openapi.yaml
+    x-openapi-ts:
+      output: ./generated/schema.d.ts
+
+extends:
+  - recommended-strict
+
+rules:
+  operation-4xx-response: error
+  security-defined: error
