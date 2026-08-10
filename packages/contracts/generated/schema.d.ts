@@ -81,8 +81,9 @@ export interface paths {
          * Log in with email and password
          * @description Authenticates a normalized email against the global user identity and rotates
          *     the Laravel session. Unknown-email and wrong-password attempts use the same
-         *     Laravel validation response. TOTP is not enabled in the implemented slice, so
-         *     a successful response currently reports `two_factor: false`.
+         *     Laravel validation response. A confirmed-TOTP account returns
+         *     `two_factor: true` after the first factor and remains unauthenticated until the
+         *     session-bound two-factor challenge succeeds.
          */
         readonly post: operations["login"];
         readonly delete?: never;
@@ -111,6 +112,106 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/auth/passkeys": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List the current user's passkeys
+         * @description Returns safe passkey metadata only; credential IDs and WebAuthn public-key material are never serialized.
+         */
+        readonly get: operations["listPasskeys"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/passkeys/confirm": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Confirm the session with a passkey
+         * @description Verifies a single-use assertion and marks only this browser session recently confirmed.
+         */
+        readonly post: operations["confirmWithPasskey"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/passkeys/confirm/options": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Begin passkey confirmation
+         * @description Creates single-use WebAuthn request options for the current authenticated user.
+         */
+        readonly get: operations["getPasskeyConfirmationOptions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/passkeys/login": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Log in with a passkey
+         * @description Verifies a single-use WebAuthn assertion and regenerates the authenticated browser session.
+         */
+        readonly post: operations["loginWithPasskey"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/passkeys/login/options": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Begin usernameless passkey login
+         * @description Creates single-use WebAuthn request options bound to the current browser session.
+         */
+        readonly get: operations["getPasskeyLoginOptions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/auth/register": {
         readonly parameters: {
             readonly query?: never;
@@ -127,8 +228,11 @@ export interface paths {
          *     bound to the submitted normalized email but does not verify the user, accept the
          *     invitation, or create a membership. Explicit onboarding or invitation acceptance
          *     performs that later transition. Without a token the user remains unverified until
-         *     completing email verification. Public registration is the currently implemented
-         *     behavior; invitation-first gating remains a documented security follow-up.
+         *     completing email verification. Public verified-email owner onboarding is an
+         *     intentional product path; registration alone never grants tenant authority.
+         *     The current `201` for a new email versus field-level `422` for an existing email
+         *     is a known enumeration blocker and will be replaced by a uniform unauthenticated
+         *     `202`; this operation documents the implemented interim transport only.
          */
         readonly post: operations["register"];
         readonly delete?: never;
@@ -154,6 +258,92 @@ export interface paths {
          *     access tokens without affecting other users.
          */
         readonly post: operations["resetPassword"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/sessions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List the current user's browser sessions
+         * @description Returns safe device/activity metadata with opaque public session identifiers and
+         *     marks the current session. Standard browser sessions expire after at most eight
+         *     idle hours or 30 absolute days; deployments may configure shorter limits.
+         */
+        readonly get: operations["listSessions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/sessions/{userSession}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Revoke one browser session
+         * @description Revokes a session owned by the current user after recent password or passkey
+         *     confirmation. Revoking the current session also logs out the browser, invalidates
+         *     that server session, and regenerates its CSRF token.
+         */
+        readonly delete: operations["revokeSession"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/sessions/others": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Revoke every other browser session
+         * @description Deletes the current user's other sessions after recent password confirmation and preserves the current session.
+         */
+        readonly delete: operations["revokeOtherSessions"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/two-factor-challenge": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Complete a TOTP login challenge
+         * @description Completes the session-bound second factor created by a successful password
+         *     login. Exactly one current TOTP `code` or unused `recovery_code` is accepted.
+         *     A recovery code is rotated after successful use.
+         */
+        readonly post: operations["completeTwoFactorChallenge"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -212,6 +402,176 @@ export interface paths {
          * @description Returns whether this session's password confirmation remains within the server's configured timeout.
          */
         readonly get: operations["getPasswordConfirmationStatus"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/confirmed-two-factor-authentication": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Confirm pending TOTP setup
+         * @description Confirms and activates the pending encrypted TOTP secret using a current six-digit code.
+         */
+        readonly post: operations["confirmTwoFactorAuthentication"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/passkeys": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Register a passkey
+         * @description Stores a verified WebAuthn credential for the current user after recent password confirmation.
+         */
+        readonly post: operations["registerPasskey"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/passkeys/{passkey}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Delete a passkey
+         * @description Deletes only a passkey owned by the current user after recent password confirmation.
+         */
+        readonly delete: operations["deletePasskey"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/passkeys/options": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Begin passkey registration
+         * @description Creates single-use WebAuthn creation options after recent password confirmation.
+         */
+        readonly get: operations["getPasskeyRegistrationOptions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/two-factor-authentication": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Begin TOTP setup
+         * @description Creates an encrypted pending TOTP secret and recovery-code set. TOTP does not
+         *     protect login until the separate confirmation operation accepts a valid code.
+         *     A recent password confirmation is required.
+         */
+        readonly post: operations["enableTwoFactorAuthentication"];
+        /**
+         * Disable TOTP
+         * @description Deletes the encrypted TOTP secret and recovery codes after recent password confirmation.
+         */
+        readonly delete: operations["disableTwoFactorAuthentication"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/two-factor-qr-code": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read the pending TOTP QR code
+         * @description Returns sensitive setup material only after recent password confirmation.
+         */
+        readonly get: operations["getTwoFactorQrCode"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/two-factor-recovery-codes": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read TOTP recovery codes
+         * @description Returns the current recovery-code set only after TOTP activation and recent password confirmation.
+         */
+        readonly get: operations["getTwoFactorRecoveryCodes"];
+        readonly put?: never;
+        /**
+         * Regenerate TOTP recovery codes
+         * @description Replaces every previous recovery code only after TOTP activation and recent password confirmation.
+         */
+        readonly post: operations["regenerateTwoFactorRecoveryCodes"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/auth/user/two-factor-secret-key": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read the pending TOTP secret key
+         * @description Returns the sensitive manual-entry key only after recent password confirmation.
+         */
+        readonly get: operations["getTwoFactorSecretKey"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -444,6 +804,7 @@ export interface paths {
          *     limited to administrator, office, billing, or teacher. Owners may invite any
          *     of those roles; administrators may invite only office, billing, or teacher.
          *     The route studio, inviter, status, and token are always server-controlled.
+         *     A password or passkey confirmation no older than ten minutes is required.
          */
         readonly post: operations["createStudioInvitation"];
         readonly delete?: never;
@@ -457,10 +818,7 @@ export interface paths {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /**
-                 * @description Studio invitation ULID, constrained to the route studio before policy evaluation.
-                 * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
-                 */
+                /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
                 readonly invitation: components["parameters"]["InvitationId"];
                 /**
                  * @description Unique studio slug used by Laravel route-model binding.
@@ -477,7 +835,8 @@ export interface paths {
          * Revoke a studio invitation
          * @description Idempotently revokes a non-accepted invitation in the route studio. Owners
          *     may revoke invitations for any implemented management role; administrators
-         *     may revoke only office, billing, and teacher invitations.
+         *     may revoke only office, billing, and teacher invitations. A password or
+         *     passkey confirmation no older than ten minutes is required.
          */
         readonly delete: operations["revokeStudioInvitation"];
         readonly options?: never;
@@ -512,6 +871,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        readonly BrowserSession: {
+            /** @description Coarsened network prefix for display, never the full observed source address. */
+            readonly approximate_location: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly current: boolean;
+            /** @description Server-derived, display-only browser and platform label; not a trusted device identity. */
+            readonly device: string;
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly last_seen_at: string;
+        };
         readonly ConfirmPasswordInput: {
             /** Format: password */
             readonly password: string;
@@ -602,6 +973,8 @@ export interface components {
              */
             readonly id: number;
             readonly name: string;
+            readonly passkeys_count: number;
+            readonly two_factor_enabled: boolean;
         };
         readonly CurrentUserEnvelope: {
             readonly data: components["schemas"]["CurrentUser"];
@@ -767,10 +1140,10 @@ export interface components {
         };
         readonly LoginResult: {
             /**
-             * @description TOTP is not enabled in the implemented identity slice.
-             * @constant
+             * @description `true` means the first factor succeeded but the browser must complete the
+             *     session-bound TOTP challenge before it is authenticated.
              */
-            readonly two_factor: false;
+            readonly two_factor: boolean;
         };
         /** @enum {string} */
         readonly MembershipRole: "owner" | "administrator" | "office" | "billing" | "teacher";
@@ -823,6 +1196,43 @@ export interface components {
             /** @default 1 */
             readonly week_starts_on?: number;
         };
+        readonly Passkey: {
+            /** @description Safe best-effort authenticator label derived from the AAGUID. */
+            readonly authenticator: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly id: string;
+            /** Format: date-time */
+            readonly last_used_at: string | null;
+            readonly name: string;
+        };
+        readonly PasskeyCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["Passkey"][];
+        };
+        readonly PasskeyDeletedResult: {
+            /** @constant */
+            readonly status: "passkey-deleted";
+        };
+        readonly PasskeyRedirectResult: {
+            /** Format: uri-reference */
+            readonly redirect: string;
+        };
+        readonly PasskeyRegistrationInput: {
+            readonly credential: components["schemas"]["WebAuthnCredential"];
+            /** @description User-visible label for this authenticator; control characters are rejected. */
+            readonly name: string;
+        };
+        readonly PasskeyRegistrationResult: {
+            readonly id: string;
+            readonly name: string;
+            /** @constant */
+            readonly status: "passkey-registered";
+        };
+        readonly PasskeyVerificationInput: {
+            readonly credential: components["schemas"]["WebAuthnCredential"];
+            /** @default false */
+            readonly remember?: boolean;
+        };
         readonly PasswordConfirmationStatus: {
             readonly confirmed: boolean;
         };
@@ -854,6 +1264,9 @@ export interface components {
             readonly password_confirmation: components["schemas"]["StrongPassword"];
             /** @description Single-use Laravel password-broker token received in a URL fragment, scrubbed by the browser, and submitted only in this JSON body. */
             readonly token: string;
+        };
+        readonly SessionCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["BrowserSession"][];
         };
         /**
          * Format: password
@@ -935,6 +1348,30 @@ export interface components {
         readonly StudioSlug: string;
         /** @enum {string} */
         readonly StudioStatus: "trial" | "active" | "past_due" | "suspended" | "closed";
+        readonly TwoFactorChallengeInput: {
+            readonly code?: components["schemas"]["TwoFactorCode"];
+            /** @description Single-use TOTP recovery code. */
+            readonly recovery_code?: string;
+        } & (unknown | unknown);
+        /** @description Current six-digit TOTP code; never log or persist the submitted value. */
+        readonly TwoFactorCode: string;
+        readonly TwoFactorCodeInput: {
+            readonly code: components["schemas"]["TwoFactorCode"];
+        };
+        readonly TwoFactorQrCode: {
+            /** @description SVG QR markup containing the pending OTPAuth setup URI; treat as secret setup material. */
+            readonly svg: string;
+            /** @description Pending OTPAuth setup URI. */
+            readonly url: string;
+        };
+        /** @description Fortify returns an empty JSON array when no pending TOTP secret exists. */
+        readonly TwoFactorQrCodeResponse: components["schemas"]["TwoFactorQrCode"] | readonly unknown[];
+        /** @description Raw nonempty Fortify recovery-code array returned only after TOTP activation and recent confirmation. */
+        readonly TwoFactorRecoveryCodes: readonly string[];
+        readonly TwoFactorSecretKey: {
+            /** @description Decrypted manual-entry TOTP secret returned only during recently confirmed setup. */
+            readonly secretKey: string;
+        };
         /**
          * @description Canonical 26-character Crockford Base32 ULID.
          * @example 01KZN5W3P3507MV3FBN2BG5WKF
@@ -946,6 +1383,28 @@ export interface components {
                 readonly [key: string]: readonly string[];
             };
         };
+        readonly WebAuthnCredential: {
+            readonly clientExtensionResults?: {
+                readonly [key: string]: unknown;
+            };
+            readonly id: string;
+            /** @description Base64url-encoded credential ID produced by the browser ceremony. */
+            readonly rawId: string;
+            /** @description Browser WebAuthn authenticator response; its exact members depend on the ceremony. */
+            readonly response: {
+                readonly [key: string]: unknown;
+            };
+            /** @constant */
+            readonly type: "public-key";
+        } & {
+            readonly [key: string]: unknown;
+        };
+        readonly WebAuthnOptionsEnvelope: {
+            /** @description Session-bound WebAuthn PublicKeyCredential request or creation options for `navigator.credentials`. */
+            readonly options: {
+                readonly [key: string]: unknown;
+            };
+        };
         /**
          * @description Onboarding UX preference used to personalize the first workspace. It never
          *     selects or changes the authorization role; new studios create an owner and
@@ -955,6 +1414,20 @@ export interface components {
         readonly WorkspaceMode: "owner" | "administrator" | "teacher";
     };
     responses: {
+        /** @description Session management requires the configured database session driver. */
+        readonly Conflict: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "Session management requires the database session driver."
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
         /** @description The Sanctum CSRF cookie/header pair is absent or invalid. */
         readonly CsrfTokenMismatch: {
             headers: {
@@ -1053,7 +1526,7 @@ export interface components {
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
-        /** @description The requested studio or tenant-scoped resource does not exist. */
+        /** @description The requested resource does not exist, is outside the caller's scope, or protected setup material is unavailable. */
         readonly NotFound: {
             headers: {
                 readonly [name: string]: unknown;
@@ -1062,6 +1535,20 @@ export interface components {
                 /**
                  * @example {
                  *       "message": "Resource not found."
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description This sensitive operation requires a fresh password or passkey confirmation in the current session. */
+        readonly RecentPasswordRequired: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "Password confirmation required."
                  *     }
                  */
                 readonly "application/json": components["schemas"]["Problem"];
@@ -1084,17 +1571,12 @@ export interface components {
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
-        /** @description A valid Sanctum session was not supplied. */
+        /** @description A valid Sanctum session was not supplied, or its idle/absolute server lifetime expired. */
         readonly Unauthenticated: {
             headers: {
                 readonly [name: string]: unknown;
             };
             content: {
-                /**
-                 * @example {
-                 *       "message": "Unauthenticated."
-                 *     }
-                 */
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
@@ -1132,21 +1614,25 @@ export interface components {
          * @example rivera
          */
         readonly HouseholdSearch: string | null;
-        /**
-         * @description Studio invitation ULID, constrained to the route studio before policy evaluation.
-         * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
-         */
+        /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
         readonly InvitationId: components["schemas"]["Ulid"];
         /**
          * @description One-based Laravel paginator page number.
          * @example 1
          */
         readonly Page: number;
+        /** @description Laravel passkey database identifier; ownership is checked against the current user. */
+        readonly PasskeyId: string;
         /**
          * @description Number of households per page. Defaults to `25`.
          * @example 25
          */
         readonly PerPage: number | null;
+        /**
+         * @description Opaque public identifier for a browser session; it is not the session cookie value or storage key.
+         * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
+         */
+        readonly SessionId: components["schemas"]["Ulid"];
         /**
          * @description Unique studio slug used by Laravel route-model binding.
          * @example sonora-house
@@ -1155,6 +1641,12 @@ export interface components {
     };
     requestBodies: never;
     headers: {
+        /** @description Compatibility directive marking sensitive identity material immediately stale. */
+        readonly ExpiresImmediately: "0";
+        /** @description Sensitive identity material must not be stored by a browser or intermediary cache. */
+        readonly NoStore: "no-store, private";
+        /** @description Compatibility directive preventing storage of sensitive identity material. */
+        readonly PragmaNoCache: "no-cache";
         /** @description Maximum requests allowed in the current rate-limit window. */
         readonly RateLimitLimit: number;
         /** @description Requests remaining in the current rate-limit window. */
@@ -1184,6 +1676,9 @@ export interface operations {
             /** @description Verification notification accepted for delivery; response has no body. */
             readonly 202: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content?: never;
@@ -1191,6 +1686,9 @@ export interface operations {
             /** @description The current user was already verified; no notification was required and the response has no body. */
             readonly 204: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content?: never;
@@ -1219,6 +1717,9 @@ export interface operations {
             /** @description Email verified, or already verified; response has no body. */
             readonly 204: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content?: never;
@@ -1226,7 +1727,10 @@ export interface operations {
             /** @description Browser navigation redirected to onboarding after verification. */
             readonly 302: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
                     readonly Location?: string;
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content?: never;
@@ -1252,6 +1756,9 @@ export interface operations {
             /** @description Generic anti-enumeration response, independent of account existence. */
             readonly 202: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
@@ -1279,6 +1786,9 @@ export interface operations {
             /** @description Password authentication completed and session rotated. */
             readonly 200: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
@@ -1302,12 +1812,150 @@ export interface operations {
             /** @description Current browser session invalidated; response has no body. */
             readonly 204: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content?: never;
             };
             readonly 401: components["responses"]["Unauthenticated"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listPasskeys: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current user's passkey metadata. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PasskeyCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly confirmWithPasskey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PasskeyVerificationInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Session confirmation completed. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PasskeyRedirectResult"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getPasskeyConfirmationOptions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Browser WebAuthn request options restricted to the current user's passkeys. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["WebAuthnOptionsEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly loginWithPasskey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PasskeyVerificationInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Passkey login completed. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PasskeyRedirectResult"];
+                };
+            };
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getPasskeyLoginOptions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Browser WebAuthn request options. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["WebAuthnOptionsEnvelope"];
+                };
+            };
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -1327,6 +1975,9 @@ export interface operations {
             /** @description User registered and authenticated. Fortify returns an empty JSON string rather than a user resource. */
             readonly 201: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
@@ -1355,11 +2006,127 @@ export interface operations {
             /** @description Password reset completed. */
             readonly 200: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
                     readonly "application/json": components["schemas"]["Message"];
                 };
+            };
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listSessions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current user's active browser sessions. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SessionCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly revokeSession: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Opaque public identifier for a browser session; it is not the session cookie value or storage key.
+                 * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
+                 */
+                readonly userSession: components["parameters"]["SessionId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Target browser session revoked; the current browser is logged out when it revoked itself; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly revokeOtherSessions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Other browser sessions revoked; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly completeTwoFactorChallenge: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["TwoFactorChallengeInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Second factor accepted and the authenticated session regenerated; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
             };
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["ValidationFailed"];
@@ -1378,6 +2145,9 @@ export interface operations {
             /** @description Current authenticated global identity. */
             readonly 200: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
@@ -1404,6 +2174,9 @@ export interface operations {
             /** @description Password confirmed; response body is an empty JSON string. */
             readonly 201: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
@@ -1428,6 +2201,9 @@ export interface operations {
             /** @description Current session password-confirmation status. */
             readonly 200: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
                     readonly [name: string]: unknown;
                 };
                 content: {
@@ -1435,6 +2211,292 @@ export interface operations {
                 };
             };
             readonly 401: components["responses"]["Unauthenticated"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly confirmTwoFactorAuthentication: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["TwoFactorCodeInput"];
+            };
+        };
+        readonly responses: {
+            /** @description TOTP confirmed; response body is an empty JSON string. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": "";
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly registerPasskey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PasskeyRegistrationInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Passkey registered. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PasskeyRegistrationResult"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly deletePasskey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Laravel passkey database identifier; ownership is checked against the current user. */
+                readonly passkey: components["parameters"]["PasskeyId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Passkey deleted. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PasskeyDeletedResult"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getPasskeyRegistrationOptions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Browser WebAuthn creation options for the current user. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["WebAuthnOptionsEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly enableTwoFactorAuthentication: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Pending TOTP setup created; response body is an empty JSON string. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": "";
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly disableTwoFactorAuthentication: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description TOTP disabled; response body is an empty JSON string. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": "";
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getTwoFactorQrCode: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description QR SVG and equivalent OTPAuth URL for the pending TOTP secret. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TwoFactorQrCodeResponse"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getTwoFactorRecoveryCodes: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current recovery codes. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TwoFactorRecoveryCodes"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly regenerateTwoFactorRecoveryCodes: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Recovery codes regenerated; response body is an empty JSON string. Read the replacement set with the separate GET operation. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": "";
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getTwoFactorSecretKey: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Manual-entry secret for the pending setup. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly Expires: components["headers"]["ExpiresImmediately"];
+                    readonly Pragma: components["headers"]["PragmaNoCache"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TwoFactorSecretKey"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -1793,6 +2855,7 @@ export interface operations {
             readonly 404: components["responses"]["NotFound"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -1801,10 +2864,7 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /**
-                 * @description Studio invitation ULID, constrained to the route studio before policy evaluation.
-                 * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
-                 */
+                /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
                 readonly invitation: components["parameters"]["InvitationId"];
                 /**
                  * @description Unique studio slug used by Laravel route-model binding.
@@ -1828,6 +2888,7 @@ export interface operations {
             readonly 404: components["responses"]["NotFound"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["InvitationCannotBeRevoked"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };

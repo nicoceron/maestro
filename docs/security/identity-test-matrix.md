@@ -44,14 +44,16 @@ Expected `problem` means the shared `application/problem+json` shape with safe t
 | AUTH-E009 | Reuse TOTP in same step, invalid TOTP, expired challenge | `422` generic; no authentication; limits increment |
 | AUTH-E010 | Valid recovery code then replay | first `204` plus notification/audit; replay `422`; stored code no longer usable |
 | AUTH-E011 | `POST /api/v1/auth/logout` with valid CSRF | `204`; session invalid; CSRF token regenerated; protected route `401` |
-| AUTH-E012 | `DELETE /api/v1/account/sessions/{session}` (M), other device | current user only; target session revoked; opaque ID not enumerable |
-| AUTH-E013 | `DELETE /api/v1/account/sessions` (M) | recent auth required; other sessions and PATs revoked; current may remain rotated |
-| AUTH-E014 | Standard session at 8h idle/30d absolute; platform at 30m/8h | next request `401`; server record invalidated even if cookie remains |
+| AUTH-E012 | `DELETE /api/v1/auth/sessions/{userSession}` (M), other device | current user only; target session revoked; opaque public ID does not expose the cookie/storage key and is not enumerable |
+| AUTH-E013 | `DELETE /api/v1/auth/sessions/others` (M) | recent auth required; other sessions revoked; current remains usable; PAT mass revocation remains a separate explicit action |
+| AUTH-E014 | Standard session at 8h idle/30d absolute; remembered at 30d absolute; platform at 30m/8h | next request `401`; server record invalidated even if cookie remains |
 | AUTH-E015 | Suspended active studio while user has another studio | suspended studio `403`, other studio remains usable, stale tenant cache cannot authorize |
 | AUTH-E016 | Global lock/deactivation during session | all sessions/PATs rejected on next use |
-| REGISTER-E001 | `POST /api/v1/auth/register` without invitation in initial release | route disabled (`404`/`405`) with no account; Fortify registration feature cannot expose public signup |
+| AUTH-E017 | `GET /api/v1/auth/sessions` | only the current user's opaque ULIDs, server-derived device label, coarse network prefix, created/last-seen metadata, and current marker; expired/orphaned registry rows are pruned; no raw IP/user-agent, session cookie/storage ID, or other user row |
+| AUTH-E018 | `DELETE /api/v1/auth/sessions/{userSession}` for current session | recent confirmation required; `204`, logout, server session invalidation, CSRF regeneration, and next protected request `401` |
+| REGISTER-E001 | `POST /api/v1/auth/register` without invitation, new vs existing normalized email | identical unauthenticated generic `202`, headers, cookies, redirect behavior, and bounded timing; only a new address creates an unverified user/verification delivery; neither creates studio authority before verified onboarding |
 | REGISTER-E002 | `POST /api/v1/auth/register` with valid `invitation_token` | token-bound invited email, password policy, pending-verification user only; no membership before verification/acceptance |
-| REGISTER-E003 | Same with changed email, invalid/terminal token, existing normalized email | safe validation/account-login transition; no duplicate user, membership, or account-existence disclosure |
+| REGISTER-E003 | Invitation-bound request with changed email, invalid/terminal token, or existing normalized email | safe generic verification/login guidance that does not disclose account existence; no duplicate user or membership and no automatic invite consumption |
 | RESET-E001 | `POST /api/v1/auth/forgot-password` for existing/unknown/locked/passkey-only email | same `202`; only eligible existing account gets queued notification |
 | RESET-E002 | Reset request limits | one address issuance/60s, 5/hour email hash, 20/hour IP; no raw email key |
 | RESET-E003 | `POST /api/v1/auth/reset-password` valid token | password/remember token change; reset tokens, all sessions and PATs revoked; event + notification |
@@ -65,12 +67,13 @@ Expected `problem` means the shared `application/problem+json` shape with safe t
 | ACCOUNT-E002 | Confirm email change | normalized uniqueness enforced; other sessions/reset tokens revoked; invitation emails unchanged |
 | ACCOUNT-E003 | Password change | current password/passkey + MFA; policy and uncompromised check; other sessions/PATs revoked |
 | ACCOUNT-E004 | `POST /api/v1/auth/user/confirm-password` and confirmation-status route | valid current password marks only this session recent for 10m; wrong password/throttle safe; expiry deterministic |
-| ACCOUNT-E005 | `GET /api/v1/auth/user` | global self fields plus policy-filtered active studios; no auth secrets, other users, suspended/foreign membership, or client-selected role |
+| ACCOUNT-E005 | `GET /api/v1/auth/user` | global self fields plus `two_factor_enabled`/`passkeys_count`; no memberships, auth secrets, other users, or client-selected role; studios come only from the separate studio collection |
 | MFA-E001 | `POST /api/v1/auth/user/two-factor-authentication` | recent auth; pending encrypted secret only; no enabled MFA before confirmation |
-| MFA-E002 | `POST /api/v1/auth/user/confirmed-two-factor-authentication` valid/invalid/after 10m | valid enables and reveals recovery codes once; invalid/expired has no partial enablement |
+| MFA-E002 | `POST /api/v1/auth/user/confirmed-two-factor-authentication` valid/invalid/after 10m | valid enables TOTP and permits the post-confirmation recovery-code reveal; invalid/expired has no partial enablement or recovery-code disclosure |
 | MFA-E003 | `GET/POST /api/v1/auth/user/two-factor-recovery-codes` | recent auth; GET never cached/logged; POST invalidates all former codes |
 | MFA-E004 | `DELETE /api/v1/auth/user/two-factor-authentication` | recent auth + existing MFA; notification/audit; cannot bypass mandatory-role policy without safe downgrade/recovery |
 | MFA-E005 | Promoted admin/owner grace period | warning during 7d, sensitive operations denied; after 7d only setup/recovery allowed |
+| MFA-E006 | `GET /api/v1/auth/user/two-factor-qr-code` and `/two-factor-secret-key` | recent confirmation; QR `{svg,url}` or stock empty array before setup, secret `404` before setup; every response `Cache-Control: no-store, private`, `Pragma: no-cache`; no secret in logs |
 | PASS-E001 | `GET /api/v1/auth/passkeys/login/options` | usernameless random 60s challenge; exact RP/origin; no account oracle |
 | PASS-E002 | `POST /api/v1/auth/passkeys/login` valid assertion | challenge single-use, UV required, session regenerated; audit contains credential reference not payload |
 | PASS-E003 | Wrong origin/RP, expired/replayed challenge, invalid signature | generic `422`; no login; limiter increments |
@@ -78,21 +81,22 @@ Expected `problem` means the shared `application/problem+json` shape with safe t
 | PASS-E005 | `GET /api/v1/auth/user/passkeys/options` then `POST /api/v1/auth/user/passkeys` | recent auth + MFA; unique credential; escaped label max 80; no credential payload in logs |
 | PASS-E006 | `DELETE /api/v1/auth/user/passkeys/{passkey}` | own credential only, recent auth + MFA; cannot delete last usable method |
 | PASS-E007 | Eleventh ceremony in 5m / 51st IP ceremony in hour | `429` with shared dedicated limiter across login/confirm/register |
-| INV-E001 | `POST /api/v1/studios/{studio}/invitations` (M) allowed role | `202`; route studio wins; digest only stored; pending audit/outbox after commit |
-| INV-E002 | Same body for nonexistent/existing/other-studio user/current member | same public queued shape; no global ID/account/member disclosure |
+| PASS-E008 | `GET /api/v1/auth/passkeys` | safe current-user metadata only (`id`, label, authenticator, last-used/created timestamps); no credential ID, public key, user handle, assertion, or other user's passkey |
+| INV-E001 | `POST /api/v1/studios/{studio}/invitations` (M) allowed role | `201`; route studio wins; digest only stored; pending audit/outbox after commit |
+| INV-E002 | Same body for nonexistent/existing/other-studio user/current route-studio member | new invite `201`; authorized tenant-local pending/member conflicts may be `422`; no global ID, account existence, or other-studio membership disclosure |
 | INV-E003 | Body attempts `studio_id`, inviter, status, accepted user, role escalation | ignored/validation error; no cross-tenant or elevated record |
 | INV-E004 | `GET /api/v1/studios/{studio}/invitations` (M) | only authorized tenant records/safe fields; no tokens/global state; counts exclude other studio |
 | INV-E005 | `POST .../invitations/{invitation}/resend` (M) | `202`; old row/token superseded, new digest and 7d expiry; old token `410` |
 | INV-E006 | `DELETE .../invitations/{invitation}` (M) | idempotent `204`; pending job cannot deliver/use revoked token |
 | INV-E007 | `POST /api/v1/invitations/preview` with JSON `invitation_token` | minimum consent context only, no people/member/billing/count data; fragment scrubbed before transport and page `no-referrer` |
 | INV-E008 | Inspect random/expired/revoked/superseded/accepted token | same generic invalid family and bounded timing |
-| INV-E009 | `POST /api/v1/invitations/accept` with JSON `invitation_token`, matching existing verified user | `201`; exact studio/role from locked invite; one membership and accepted audit |
+| INV-E009 | `POST /api/v1/invitations/accept` with JSON `invitation_token`, matching existing verified user | `200`; exact studio/role from locked invite; one membership and accepted audit |
 | INV-E010 | Same for new user before/after verification | before: no membership; after verified token-bound account: acceptance succeeds |
 | INV-E011 | Logged-in different verified email | generic account mismatch; no email/studio cross-account details; no membership |
 | INV-E012 | Client overrides studio/role/email/person/inviter | fields rejected/ignored; server-bound values used; no partial link |
-| INV-E013 | Accepted/expired/revoked token replay | generic `410`; no second membership/event; digest not logged |
-| INV-E014 | Two concurrent accepts | exactly one `201`, other safe conflict/gone; one membership/event/outbox |
-| INV-E015 | Retry identical request with same `Idempotency-Key` in 24h | exact saved safe response; changed payload/key reuse `409`; no duplicate effect |
+| INV-E013 | Accepted token replay by same active member; expired/revoked/superseded/mismatched replay | same member receives idempotent `200` Studio resource; all other unusable states share a generic failure family; no second membership/event and digest not logged |
+| INV-E014 | Two concurrent accepts | one transition wins; the same authenticated user receives the same safe `200` joined-studio result from either completion path; one membership/event/outbox |
+| INV-E015 | Retryable security write using `Idempotency-Key` | identical actor/route/request returns the saved safe response; changed payload/key reuse `409`; no duplicate effect; invitation acceptance may instead derive its idempotent `200` from terminal membership state |
 | INV-E016 | Pending invite where membership is suspended/removed | no reactivation; safe rejection; authorized restore/reinvite required |
 | INV-E017 | Same email invited to two studios | accepts independently; no auto-switch; two isolated memberships |
 | INV-E018 | Create/resend quota exceeded | `429`; no notification/job; tenant/user enumeration unchanged |
@@ -152,7 +156,7 @@ Serializer assertions:
 | DB-001 | Migration | Unique normalized global email; unique `(studio_id,user_id)` membership; unique pending `(studio_id,normalized_email)` invite |
 | DB-002 | Constraint | Tenant child/parent composite foreign keys reject a cross-studio person, invitation-person link, membership, and audit target |
 | DB-003 | RLS | Restricted runtime role with no `app.current_studio_id` reads zero tenant rows and cannot insert/update/delete |
-| DB-004 | RLS | With Allegro context, direct SQL cannot read/write Nocturne memberships, invitations, people, sessions scoped to tenant, or audit rows |
+| DB-004 | RLS | With Allegro context, direct SQL cannot read/write Nocturne memberships, invitations, people, or future tenant-scoped audit rows |
 | DB-005 | RLS | Clearing/reusing pooled connection cannot retain previous tenant; transaction-local setting resets on commit/rollback |
 | DB-006 | Ownership | Deferred/transactional invariant plus locked transfer prevents zero or multiple active owners under concurrency |
 | DB-007 | Invitation | Two transactions accepting one token produce exactly one active membership and one terminal accepted invitation |
@@ -161,6 +165,7 @@ Serializer assertions:
 | DB-010 | Token storage | Password reset broker and SHA-256 invite/PAT digests contain no recoverable plaintext; database/log scans reject seeded plaintext markers |
 | DB-011 | Email change | Two concurrent normalized-equivalent email claims yield one success, one safe conflict; invitations do not retarget |
 | DB-012 | Person link | Global user may link to separate people in separate studios; no duplicate link in one studio; RLS hides other link |
+| DB-013 | User-session RLS | Restricted runtime role with one `app.current_user_id` cannot read/write another user's `user_sessions`; hidden backend session IDs never serialize |
 
 ## 5. Job and scheduler matrix
 
@@ -207,7 +212,7 @@ Serializer assertions:
 |---|---|---|
 | CFG-001 | Production config test | insecure/non-HttpOnly session cookie, wildcard credentialed CORS, non-HTTPS origin, wrong parent cookie domain, or missing `statefulApi()` |
 | CFG-002 | Trusted host/proxy test | attacker-controlled Host/forwarded headers influence reset, verify, invite, passkey origin, secure-cookie, or redirect URLs |
-| CFG-003 | Fortify feature test | registration unintentionally public; reset/verification/TOTP/passkeys/confirmation route or limiter differs from this contract |
+| CFG-003 | Fortify feature test | public registration can grant tenant authority before verification/onboarding, or reset/verification/TOTP/passkeys/confirmation route or limiter differs from this contract |
 | CFG-004 | Secret test | app/passkey derivation secrets default/reused in unsafe way, secrets committed, or generated links/tokens appear in logs/source maps/analytics |
 | ADV-001 | IDOR fuzz | any ULID/slug substitution returns foreign data or a distinguishable object state |
 | ADV-002 | Mass assignment fuzz | identity/tenant/role/status/accepted/audit fields can be client-assigned |

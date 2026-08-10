@@ -58,8 +58,9 @@ paths:
       description: |-
         Authenticates a normalized email against the global user identity and rotates
         the Laravel session. Unknown-email and wrong-password attempts use the same
-        Laravel validation response. TOTP is not enabled in the implemented slice, so
-        a successful response currently reports `two_factor: false`.
+        Laravel validation response. A confirmed-TOTP account returns
+        `two_factor: true` after the first factor and remains unauthenticated until the
+        session-bound two-factor challenge succeeds.
       operationId: login
       security:
         - csrfToken: []
@@ -75,6 +76,13 @@ paths:
       responses:
         '200':
           description: Password authentication completed and session rotated.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
@@ -100,8 +108,11 @@ paths:
         bound to the submitted normalized email but does not verify the user, accept the
         invitation, or create a membership. Explicit onboarding or invitation acceptance
         performs that later transition. Without a token the user remains unverified until
-        completing email verification. Public registration is the currently implemented
-        behavior; invitation-first gating remains a documented security follow-up.
+        completing email verification. Public verified-email owner onboarding is an
+        intentional product path; registration alone never grants tenant authority.
+        The current `201` for a new email versus field-level `422` for an existing email
+        is a known enumeration blocker and will be replaced by a uniform unauthenticated
+        `202`; this operation documents the implemented interim transport only.
       operationId: register
       security:
         - csrfToken: []
@@ -123,6 +134,13 @@ paths:
       responses:
         '201':
           description: User registered and authenticated. Fortify returns an empty JSON string rather than a user resource.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
@@ -148,6 +166,13 @@ paths:
       responses:
         '204':
           description: Current browser session invalidated; response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '419':
@@ -179,6 +204,13 @@ paths:
       responses:
         '202':
           description: Generic anti-enumeration response, independent of account existence.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
@@ -222,6 +254,13 @@ paths:
       responses:
         '200':
           description: Password reset completed.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
@@ -249,8 +288,22 @@ paths:
       responses:
         '202':
           description: Verification notification accepted for delivery; response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
         '204':
           description: The current user was already verified; no notification was required and the response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '419':
@@ -298,6 +351,13 @@ paths:
       responses:
         '204':
           description: Email verified, or already verified; response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
         '302':
           description: Browser navigation redirected to onboarding after verification.
           headers:
@@ -305,6 +365,12 @@ paths:
               schema:
                 type: string
                 format: uri
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -321,6 +387,13 @@ paths:
       responses:
         '200':
           description: Current authenticated global identity.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
@@ -339,6 +412,7 @@ paths:
       summary: Confirm the current password
       description: Confirms the authenticated user's password and records Laravel's recent-confirmation timestamp in this session.
       operationId: confirmPassword
+      x-acceptance-ids: [IDA-STEPUP-001, ACCOUNT-E004]
       security:
         - sanctumSession: []
           csrfToken: []
@@ -351,6 +425,13 @@ paths:
       responses:
         '201':
           description: Password confirmed; response body is an empty JSON string.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
@@ -371,15 +452,657 @@ paths:
       summary: Read the current password-confirmation status
       description: Returns whether this session's password confirmation remains within the server's configured timeout.
       operationId: getPasswordConfirmationStatus
+      x-acceptance-ids: [IDA-STEPUP-001, ACCOUNT-E004]
       responses:
         '200':
           description: Current session password-confirmation status.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PasswordConfirmationStatus'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/two-factor-challenge:
+    post:
+      tags:
+        - Authentication
+      summary: Complete a TOTP login challenge
+      description: |-
+        Completes the session-bound second factor created by a successful password
+        login. Exactly one current TOTP `code` or unused `recovery_code` is accepted.
+        A recovery code is rotated after successful use.
+      operationId: completeTwoFactorChallenge
+      x-acceptance-ids: [IDA-MFA-002, AUTH-E008, AUTH-E009, AUTH-E010]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoFactorChallengeInput'
+      responses:
+        '204':
+          description: Second factor accepted and the authenticated session regenerated; response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/two-factor-authentication:
+    post:
+      tags:
+        - Authentication
+      summary: Begin TOTP setup
+      description: |-
+        Creates an encrypted pending TOTP secret and recovery-code set. TOTP does not
+        protect login until the separate confirmation operation accepts a valid code.
+        A recent password confirmation is required.
+      operationId: enableTwoFactorAuthentication
+      x-acceptance-ids: [IDA-MFA-001, MFA-E001]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Pending TOTP setup created; response body is an empty JSON string.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                type: string
+                const: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    delete:
+      tags:
+        - Authentication
+      summary: Disable TOTP
+      description: Deletes the encrypted TOTP secret and recovery codes after recent password confirmation.
+      operationId: disableTwoFactorAuthentication
+      x-acceptance-ids: [IDA-MFA-003, MFA-E004]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '200':
+          description: TOTP disabled; response body is an empty JSON string.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                type: string
+                const: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/two-factor-qr-code:
+    get:
+      tags:
+        - Authentication
+      summary: Read the pending TOTP QR code
+      description: Returns sensitive setup material only after recent password confirmation.
+      operationId: getTwoFactorQrCode
+      x-acceptance-ids: [IDA-MFA-001, MFA-E006]
+      responses:
+        '200':
+          description: QR SVG and equivalent OTPAuth URL for the pending TOTP secret.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoFactorQrCodeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/two-factor-secret-key:
+    get:
+      tags:
+        - Authentication
+      summary: Read the pending TOTP secret key
+      description: Returns the sensitive manual-entry key only after recent password confirmation.
+      operationId: getTwoFactorSecretKey
+      x-acceptance-ids: [IDA-MFA-001, MFA-E006]
+      responses:
+        '200':
+          description: Manual-entry secret for the pending setup.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoFactorSecretKey'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/confirmed-two-factor-authentication:
+    post:
+      tags:
+        - Authentication
+      summary: Confirm pending TOTP setup
+      description: Confirms and activates the pending encrypted TOTP secret using a current six-digit code.
+      operationId: confirmTwoFactorAuthentication
+      x-acceptance-ids: [IDA-MFA-001, MFA-E002]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoFactorCodeInput'
+      responses:
+        '200':
+          description: TOTP confirmed; response body is an empty JSON string.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                type: string
+                const: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/two-factor-recovery-codes:
+    get:
+      tags:
+        - Authentication
+      summary: Read TOTP recovery codes
+      description: Returns the current recovery-code set only after TOTP activation and recent password confirmation.
+      operationId: getTwoFactorRecoveryCodes
+      x-acceptance-ids: [IDA-MFA-001, MFA-E003]
+      responses:
+        '200':
+          description: Current recovery codes.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoFactorRecoveryCodes'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      tags:
+        - Authentication
+      summary: Regenerate TOTP recovery codes
+      description: Replaces every previous recovery code only after TOTP activation and recent password confirmation.
+      operationId: regenerateTwoFactorRecoveryCodes
+      x-acceptance-ids: [IDA-MFA-001, MFA-E003]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Recovery codes regenerated; response body is an empty JSON string. Read the replacement set with the separate GET operation.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                type: string
+                const: ''
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/passkeys/login/options:
+    get:
+      tags:
+        - Authentication
+      summary: Begin usernameless passkey login
+      description: Creates single-use WebAuthn request options bound to the current browser session.
+      operationId: getPasskeyLoginOptions
+      x-acceptance-ids: [IDA-PASSKEY-001, PASS-E001]
+      security: []
+      responses:
+        '200':
+          description: Browser WebAuthn request options.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnOptionsEnvelope'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/passkeys/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in with a passkey
+      description: Verifies a single-use WebAuthn assertion and regenerates the authenticated browser session.
+      operationId: loginWithPasskey
+      x-acceptance-ids: [IDA-PASSKEY-001, PASS-E002, PASS-E003]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyVerificationInput'
+      responses:
+        '200':
+          description: Passkey login completed.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyRedirectResult'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/passkeys/confirm/options:
+    get:
+      tags:
+        - Authentication
+      summary: Begin passkey confirmation
+      description: Creates single-use WebAuthn request options for the current authenticated user.
+      operationId: getPasskeyConfirmationOptions
+      x-acceptance-ids: [IDA-PASSKEY-001, PASS-E004]
+      responses:
+        '200':
+          description: Browser WebAuthn request options restricted to the current user's passkeys.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnOptionsEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/passkeys/confirm:
+    post:
+      tags:
+        - Authentication
+      summary: Confirm the session with a passkey
+      description: Verifies a single-use assertion and marks only this browser session recently confirmed.
+      operationId: confirmWithPasskey
+      x-acceptance-ids: [IDA-PASSKEY-001, PASS-E004]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyVerificationInput'
+      responses:
+        '200':
+          description: Session confirmation completed.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyRedirectResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/passkeys/options:
+    get:
+      tags:
+        - Authentication
+      summary: Begin passkey registration
+      description: Creates single-use WebAuthn creation options after recent password confirmation.
+      operationId: getPasskeyRegistrationOptions
+      x-acceptance-ids: [IDA-PASSKEY-002, PASS-E005]
+      responses:
+        '200':
+          description: Browser WebAuthn creation options for the current user.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnOptionsEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/passkeys:
+    post:
+      tags:
+        - Authentication
+      summary: Register a passkey
+      description: Stores a verified WebAuthn credential for the current user after recent password confirmation.
+      operationId: registerPasskey
+      x-acceptance-ids: [IDA-PASSKEY-002, PASS-E005]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyRegistrationInput'
+      responses:
+        '200':
+          description: Passkey registered.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyRegistrationResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/user/passkeys/{passkey}:
+    delete:
+      tags:
+        - Authentication
+      summary: Delete a passkey
+      description: Deletes only a passkey owned by the current user after recent password confirmation.
+      operationId: deletePasskey
+      x-acceptance-ids: [IDA-PASSKEY-002, PASS-E006]
+      parameters:
+        - $ref: '#/components/parameters/PasskeyId'
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '200':
+          description: Passkey deleted.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyDeletedResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/passkeys:
+    get:
+      tags:
+        - Authentication
+      summary: List the current user's passkeys
+      description: Returns safe passkey metadata only; credential IDs and WebAuthn public-key material are never serialized.
+      operationId: listPasskeys
+      x-acceptance-ids: [IDA-PASSKEY-002, PASS-E008]
+      responses:
+        '200':
+          description: Current user's passkey metadata.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyCollectionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/sessions:
+    get:
+      tags:
+        - Authentication
+      summary: List the current user's browser sessions
+      description: |-
+        Returns safe device/activity metadata with opaque public session identifiers and
+        marks the current session. Standard browser sessions expire after at most eight
+        idle hours or 30 absolute days; deployments may configure shorter limits.
+      operationId: listSessions
+      x-acceptance-ids: [IDA-SESSION-001, IDA-SESSION-002, AUTH-E014, AUTH-E017]
+      responses:
+        '200':
+          description: Current user's active browser sessions.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionCollectionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/sessions/others:
+    delete:
+      tags:
+        - Authentication
+      summary: Revoke every other browser session
+      description: Deletes the current user's other sessions after recent password confirmation and preserves the current session.
+      operationId: revokeOtherSessions
+      x-acceptance-ids: [IDA-STEPUP-001, IDA-SESSION-001, AUTH-E013]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Other browser sessions revoked; response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/auth/sessions/{userSession}:
+    delete:
+      tags:
+        - Authentication
+      summary: Revoke one browser session
+      description: |-
+        Revokes a session owned by the current user after recent password or passkey
+        confirmation. Revoking the current session also logs out the browser, invalidates
+        that server session, and regenerates its CSRF token.
+      operationId: revokeSession
+      x-acceptance-ids: [IDA-STEPUP-001, IDA-SESSION-001, AUTH-E012, AUTH-E018]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Target browser session revoked; the current browser is logged out when it revoked itself; response has no body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Pragma:
+              $ref: '#/components/headers/PragmaNoCache'
+            Expires:
+              $ref: '#/components/headers/ExpiresImmediately'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /api/v1/invitations/preview:
@@ -437,6 +1160,7 @@ paths:
         normalized email. The studio and role come only from the locked invitation.
         Successful replay by the same active member is idempotent.
       operationId: acceptInvitation
+      x-acceptance-ids: [IDA-INVITE-002, INV-E009, INV-E013]
       security:
         - sanctumSession: []
           csrfToken: []
@@ -688,7 +1412,9 @@ paths:
         limited to administrator, office, billing, or teacher. Owners may invite any
         of those roles; administrators may invite only office, billing, or teacher.
         The route studio, inviter, status, and token are always server-controlled.
+        A password or passkey confirmation no older than ten minutes is required.
       operationId: createStudioInvitation
+      x-acceptance-ids: [IDA-STEPUP-001, IDA-INVITE-001, INV-E001, INV-E002]
       security:
         - sanctumSession: []
           csrfToken: []
@@ -721,6 +1447,8 @@ paths:
           $ref: '#/components/responses/CsrfTokenMismatch'
         '422':
           $ref: '#/components/responses/ValidationFailed'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /api/v1/studios/{studio}/invitations/{invitation}:
@@ -734,8 +1462,10 @@ paths:
       description: |-
         Idempotently revokes a non-accepted invitation in the route studio. Owners
         may revoke invitations for any implemented management role; administrators
-        may revoke only office, billing, and teacher invitations.
+        may revoke only office, billing, and teacher invitations. A password or
+        passkey confirmation no older than ten minutes is required.
       operationId: revokeStudioInvitation
+      x-acceptance-ids: [IDA-STEPUP-001, IDA-INVITE-001, INV-E006]
       security:
         - sanctumSession: []
           csrfToken: []
@@ -752,6 +1482,8 @@ paths:
           $ref: '#/components/responses/CsrfTokenMismatch'
         '422':
           $ref: '#/components/responses/InvitationCannotBeRevoked'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /api/v1/studios/{studio}/households:
@@ -897,6 +1629,21 @@ components:
       description: Studio invitation ULID, constrained to the route studio before policy evaluation.
       schema:
         $ref: '#/components/schemas/Ulid'
+    PasskeyId:
+      name: passkey
+      in: path
+      required: true
+      description: Laravel passkey database identifier; ownership is checked against the current user.
+      schema:
+        type: string
+        pattern: '^[1-9][0-9]*$'
+    SessionId:
+      name: userSession
+      in: path
+      required: true
+      description: Opaque public identifier for a browser session; it is not the session cookie value or storage key.
+      schema:
+        $ref: '#/components/schemas/Ulid'
       example: 01KZN7C5V3EVQW9G2FN8X6MP4R
     HouseholdSearch:
       name: q
@@ -955,6 +1702,21 @@ components:
       schema:
         type: integer
         minimum: 0
+    NoStore:
+      description: Sensitive identity material must not be stored by a browser or intermediary cache.
+      schema:
+        type: string
+        const: no-store, private
+    PragmaNoCache:
+      description: Compatibility directive preventing storage of sensitive identity material.
+      schema:
+        type: string
+        const: no-cache
+    ExpiresImmediately:
+      description: Compatibility directive marking sensitive identity material immediately stale.
+      schema:
+        type: string
+        const: '0'
   examples:
     Login:
       summary: Normalized global identity login
@@ -978,6 +1740,8 @@ components:
           name: Ada Lovelace
           email: ada@example.com
           email_verified_at: '2026-08-10T18:45:00+00:00'
+          two_factor_enabled: true
+          passkeys_count: 2
     InvitationPreview:
       summary: Minimal public preview
       value:
@@ -1141,13 +1905,18 @@ components:
               - billing
   responses:
     Unauthenticated:
-      description: A valid Sanctum session was not supplied.
+      description: A valid Sanctum session was not supplied, or its idle/absolute server lifetime expired.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Problem'
-          example:
-            message: Unauthenticated.
+          examples:
+            missing:
+              value:
+                message: Unauthenticated.
+            expired:
+              value:
+                message: Your session has expired. Please sign in again.
     Forbidden:
       description: The authenticated user cannot access the requested studio or resource.
       content:
@@ -1165,7 +1934,7 @@ components:
           example:
             message: Your email address is not verified.
     NotFound:
-      description: The requested studio or tenant-scoped resource does not exist.
+      description: The requested resource does not exist, is outside the caller's scope, or protected setup material is unavailable.
       content:
         application/json:
           schema:
@@ -1180,6 +1949,22 @@ components:
             $ref: '#/components/schemas/Problem'
           example:
             message: CSRF token mismatch.
+    RecentPasswordRequired:
+      description: This sensitive operation requires a fresh password or passkey confirmation in the current session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            message: Password confirmation required.
+    Conflict:
+      description: Session management requires the configured database session driver.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            message: Session management requires the database session driver.
     ValidationFailed:
       description: One or more request fields failed validation.
       content:
@@ -1302,8 +2087,9 @@ components:
       properties:
         two_factor:
           type: boolean
-          const: false
-          description: TOTP is not enabled in the implemented identity slice.
+          description: |-
+            `true` means the first factor succeeded but the browser must complete the
+            session-bound TOTP challenge before it is authenticated.
     RegisterInput:
       type: object
       additionalProperties: false
@@ -1387,6 +2173,270 @@ components:
       properties:
         confirmed:
           type: boolean
+    TwoFactorCode:
+      type: string
+      pattern: '^[0-9]{6}$'
+      minLength: 6
+      maxLength: 6
+      writeOnly: true
+      description: Current six-digit TOTP code; never log or persist the submitted value.
+    TwoFactorCodeInput:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          $ref: '#/components/schemas/TwoFactorCode'
+    TwoFactorChallengeInput:
+      type: object
+      additionalProperties: false
+      oneOf:
+        - title: TOTP challenge
+          required:
+            - code
+          not:
+            properties:
+              recovery_code: {}
+            required:
+              - recovery_code
+        - title: Recovery-code challenge
+          required:
+            - recovery_code
+          not:
+            properties:
+              code: {}
+            required:
+              - code
+      properties:
+        code:
+          $ref: '#/components/schemas/TwoFactorCode'
+        recovery_code:
+          type: string
+          minLength: 1
+          maxLength: 64
+          writeOnly: true
+          description: Single-use TOTP recovery code.
+    TwoFactorQrCode:
+      type: object
+      additionalProperties: false
+      required:
+        - svg
+        - url
+      properties:
+        svg:
+          type: string
+          minLength: 1
+          description: SVG QR markup containing the pending OTPAuth setup URI; treat as secret setup material.
+        url:
+          type: string
+          minLength: 1
+          pattern: '^otpauth://totp/'
+          description: Pending OTPAuth setup URI.
+    TwoFactorQrCodeResponse:
+      description: Fortify returns an empty JSON array when no pending TOTP secret exists.
+      oneOf:
+        - $ref: '#/components/schemas/TwoFactorQrCode'
+        - type: array
+          maxItems: 0
+    TwoFactorSecretKey:
+      type: object
+      additionalProperties: false
+      required:
+        - secretKey
+      properties:
+        secretKey:
+          type: string
+          minLength: 16
+          description: Decrypted manual-entry TOTP secret returned only during recently confirmed setup.
+    TwoFactorRecoveryCodes:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      description: Raw nonempty Fortify recovery-code array returned only after TOTP activation and recent confirmation.
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+    WebAuthnCredential:
+      type: object
+      additionalProperties: true
+      required:
+        - id
+        - rawId
+        - type
+        - response
+      properties:
+        id:
+          type: string
+          minLength: 1
+        rawId:
+          type: string
+          minLength: 1
+          description: Base64url-encoded credential ID produced by the browser ceremony.
+        type:
+          type: string
+          const: public-key
+        response:
+          type: object
+          additionalProperties: true
+          description: Browser WebAuthn authenticator response; its exact members depend on the ceremony.
+        clientExtensionResults:
+          type: object
+          additionalProperties: true
+    WebAuthnOptionsEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - options
+      properties:
+        options:
+          type: object
+          additionalProperties: true
+          description: Session-bound WebAuthn PublicKeyCredential request or creation options for `navigator.credentials`.
+    PasskeyVerificationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - credential
+      properties:
+        credential:
+          $ref: '#/components/schemas/WebAuthnCredential'
+        remember:
+          type: boolean
+          default: false
+    PasskeyRegistrationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - credential
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: User-visible label for this authenticator; control characters are rejected.
+        credential:
+          $ref: '#/components/schemas/WebAuthnCredential'
+    PasskeyRedirectResult:
+      type: object
+      additionalProperties: false
+      required:
+        - redirect
+      properties:
+        redirect:
+          type: string
+          format: uri-reference
+    PasskeyRegistrationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - id
+        - name
+      properties:
+        status:
+          type: string
+          const: passkey-registered
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+    PasskeyDeletedResult:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: passkey-deleted
+    Passkey:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - authenticator
+        - last_used_at
+        - created_at
+      properties:
+        id:
+          type: string
+          pattern: '^[1-9][0-9]*$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        authenticator:
+          type:
+            - string
+            - 'null'
+          description: Safe best-effort authenticator label derived from the AAGUID.
+        last_used_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    PasskeyCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Passkey'
+    BrowserSession:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - device
+        - approximate_location
+        - created_at
+        - last_seen_at
+        - current
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        device:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Server-derived, display-only browser and platform label; not a trusted device identity.
+        approximate_location:
+          type:
+            - string
+            - 'null'
+          maxLength: 64
+          description: Coarsened network prefix for display, never the full observed source address.
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+    SessionCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowserSession'
     ForgotPasswordResult:
       type: object
       additionalProperties: false
@@ -1404,6 +2454,8 @@ components:
         - name
         - email
         - email_verified_at
+        - two_factor_enabled
+        - passkeys_count
       properties:
         id:
           type: integer
@@ -1421,6 +2473,11 @@ components:
             - string
             - 'null'
           format: date-time
+        two_factor_enabled:
+          type: boolean
+        passkeys_count:
+          type: integer
+          minimum: 0
     CurrentUserEnvelope:
       type: object
       additionalProperties: false

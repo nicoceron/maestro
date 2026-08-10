@@ -19,6 +19,10 @@ pnpm check
 
 Browser clients first call `GET /sanctum/csrf-cookie`. Public Fortify mutations require the XSRF cookie/header pair; authenticated mutations require both that pair and the Sanctum session. Never interpret the UI-only onboarding `workspace_mode` as a membership role.
 
+The identity contract follows the installed Laravel 13 behavior exactly: TOTP QR setup returns `{svg,url}` (or Fortify's empty array before setup), recovery-code GET returns the raw string array while regeneration returns an empty JSON string, and WebAuthn options/credentials follow the official passkey package. Sensitive identity responses are `no-store`; TOTP/passkey management, session revocation, and invitation create/revoke expose `423` when the current session needs recent confirmation.
+
+Session inventory uses opaque public ULIDs, derived device labels, and coarse network prefixes rather than raw IP/user-agent values, cookies, or backend storage identifiers. The current session can revoke itself (which logs out that browser), or the user can revoke one other/all other database-backed sessions.
+
 Invitation preview and acceptance are JSON-body POST operations at `/api/v1/invitations/preview` and `/api/v1/invitations/accept`; no bearer token appears in an API path. Invite and reset links deliver credentials in URL fragments, which the browser scrubs before submitting the credential in a CSRF-protected JSON body.
 
 `GET /api/v1/studios` uses Laravel's unpaginated resource collection envelope (`{ "data": [...] }`), while invitation and household lists use Laravel 13's full length-aware paginator (`data`, `links`, and `meta`, including each meta link's `page`). API authentication, envelope, error, authorization, and pagination conventions are documented in [`../../docs/api/README.md`](../../docs/api/README.md).

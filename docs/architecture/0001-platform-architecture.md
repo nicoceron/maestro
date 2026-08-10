@@ -23,13 +23,13 @@ Tenant safety has three layers:
 2. Composite database constraints that make cross-studio relationships invalid.
 3. PostgreSQL row-level security using a restricted runtime role that cannot bypass RLS.
 
-The People module is the first concrete implementation of all three layers: API and persistent Filament middleware initialize `TenantContext`, composite foreign keys reject cross-studio relationships, and forced PostgreSQL policies compare every tenant row with `app.current_studio_id`. Memberships and invitations now apply the same forced-RLS boundary, with authenticated-user and digest-scoped invitation contexts for their non-route workflows. The Compose bootstrap creates a non-owner, non-superuser, non-`BYPASSRLS` role, and the integration suite probes default-deny reads and cross-tenant writes through that role. Each new tenant table must adopt the same migration and direct-SQL test pattern.
+The People module is the first concrete implementation of all three layers: API and persistent Filament middleware initialize `TenantContext`, composite foreign keys reject cross-studio relationships, and forced PostgreSQL policies compare every tenant row with `app.current_studio_id`. Memberships and invitations now apply the same forced-RLS boundary, with authenticated-user and digest-scoped invitation contexts for their non-route workflows. Global browser-session metadata uses a separate forced-RLS policy keyed by `app.current_user_id`; it is never treated as tenant-owned data. The Compose bootstrap creates a non-owner, non-superuser, non-`BYPASSRLS` role, and the integration suite probes default-deny reads and cross-tenant writes through that role. Each new tenant or user-security table must adopt the corresponding direct-SQL test pattern.
 
 Queues, scheduled commands, imports, exports, cache keys, search documents, files, notifications, realtime channels, and webhooks all carry explicit studio identity. Platform support access is separate, MFA-protected, time-bound, and audited.
 
 ## Authentication
 
-Browser applications use Sanctum stateful session authentication and CSRF protection across sibling subdomains. Personal access tokens are reserved for native clients and integrations. Laravel remains the authorization boundary; Next.js proxy logic is only an optimistic navigation aid.
+Browser applications use Sanctum stateful session authentication and CSRF protection across sibling subdomains. Fortify owns password/TOTP flows and Laravel's official WebAuthn passkey ceremonies. Browser sessions are database-backed, have server-enforced idle and absolute limits, expose only opaque user-scoped inventory IDs, and require recent password/passkey confirmation for revocation and sensitive identity changes. Personal access tokens are reserved for native clients and integrations. Laravel remains the authorization boundary; Next.js proxy logic is only an optimistic navigation aid.
 
 Production hostnames are expected to share a top-level domain:
 
