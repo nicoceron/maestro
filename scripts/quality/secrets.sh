@@ -16,12 +16,10 @@ trap cleanup EXIT
 mkdir -p "$scan_root"
 cd "$repo_root"
 
-# Scan only staged, unstaged, and untracked product files. This intentionally
-# avoids the known secret-bearing historical base commit and the legacy scrape
-# corpus while still blocking new leaks in code, documentation, and automation.
+# Build a clean scan tree from every tracked and untracked product file so
+# ignored dependencies and local runtime data never enter the directory scan.
 {
-  git diff --cached --name-only --diff-filter=ACMR -z
-  git diff --name-only --diff-filter=ACMR -z
+  git ls-files -z
   git ls-files --others --exclude-standard -z
 } | while IFS= read -r -d '' path; do
   case "$path" in
@@ -39,16 +37,21 @@ cd "$repo_root"
 done
 
 if [[ -z $(find "$scan_root" -type f -print -quit) ]]; then
-  echo "No staged, unstaged, or untracked product files to scan."
+  echo "No product files to scan."
   exit 0
 fi
 
 if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git "$repo_root" --redact --no-banner
   gitleaks dir "$scan_root" --redact --no-banner
   exit 0
 fi
 
 if command -v docker >/dev/null 2>&1; then
+  docker run --rm \
+    --volume "$repo_root:/repo:ro" \
+    ghcr.io/gitleaks/gitleaks:v8.30.0 \
+    git /repo --redact --no-banner
   docker run --rm \
     --volume "$scan_root:/work:ro" \
     ghcr.io/gitleaks/gitleaks:v8.30.0 \
@@ -56,5 +59,5 @@ if command -v docker >/dev/null 2>&1; then
   exit 0
 fi
 
-echo "Install Gitleaks or Docker to run the working-tree secret scan." >&2
+echo "Install Gitleaks or Docker to run the repository secret scan." >&2
 exit 127
