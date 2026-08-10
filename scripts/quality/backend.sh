@@ -12,6 +12,13 @@ fi
 
 cd "$api_dir"
 
+# A clean clone intentionally has no local `.env`. Give the test application a
+# deterministic, non-production key without overriding a developer's own file.
+if [[ ! -f .env ]]; then
+  export APP_ENV=testing
+  export APP_KEY='base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+fi
+
 if command -v composer >/dev/null 2>&1; then
   composer validate --strict --no-check-publish
   composer audit --locked --no-interaction
