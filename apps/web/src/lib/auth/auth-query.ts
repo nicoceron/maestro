@@ -1,6 +1,10 @@
+export type SafeAuthReturnPath =
+  | "/account/security"
+  | `/studio/${string}/settings/team`;
+
 export type AuthQuery = {
   email?: string;
-  returnTo?: "/account/security";
+  returnTo?: SafeAuthReturnPath;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -21,14 +25,23 @@ export function readAuthQuery(searchParams: SearchParams): AuthQuery {
     emailCandidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCandidate)
       ? emailCandidate.toLowerCase()
       : undefined;
-  const returnToCandidate = safeValue(first(searchParams.returnTo), 128);
-  const returnTo =
-    returnToCandidate === "/account/security" ? returnToCandidate : undefined;
+  const returnTo = safeAuthReturnPath(first(searchParams.returnTo));
 
   return {
     email,
     ...(returnTo ? { returnTo } : {}),
   };
+}
+
+export function safeAuthReturnPath(
+  value?: string,
+): SafeAuthReturnPath | undefined {
+  const candidate = safeValue(value, 180);
+  if (candidate === "/account/security") return candidate;
+  if (/^\/studio\/[A-Za-z0-9_-]{1,140}\/settings\/team$/.test(candidate ?? "")) {
+    return candidate as SafeAuthReturnPath;
+  }
+  return undefined;
 }
 
 export function authHref(

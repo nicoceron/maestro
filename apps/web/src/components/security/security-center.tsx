@@ -9,7 +9,6 @@ import {
   KeyRound,
   Laptop,
   LoaderCircle,
-  LockKeyhole,
   LogOut,
   MonitorSmartphone,
   RefreshCcw,
@@ -17,12 +16,13 @@ import {
   ShieldCheck,
   Smartphone,
   Trash2,
-  X,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
-import { FormAlert, PasswordField } from "@/components/auth/auth-fields";
+import { FormAlert } from "@/components/auth/auth-fields";
 import { useAuthClient } from "@/components/auth/auth-client-provider";
+import { useRecentIdentityConfirmation } from "@/components/security/recent-identity-confirmation";
+import { useDialogFocus } from "@/components/security/use-dialog-focus";
 import type {
   AuthFailure,
   AuthResult,
@@ -38,216 +38,13 @@ import {
   webAuthnErrorMessage,
 } from "@/lib/auth/webauthn";
 
-type RetryAction = () => Promise<void>;
 type ConfirmationRequest = {
   title: string;
   description: string;
   label: string;
-  action: RetryAction;
+  action: () => Promise<void>;
   returnFocus?: HTMLElement | null;
 };
-
-function useDialogFocus(
-  open: boolean,
-  onClose: () => void,
-  returnFocus?: HTMLElement | null,
-) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const firstRef = useRef<HTMLInputElement | HTMLButtonElement>(null);
-  const onCloseRef = useRef(onClose);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return;
-    firstRef.current?.focus();
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), [href]',
-      );
-      if (!focusable?.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      if (returnFocus) {
-        window.setTimeout(() => {
-          if (returnFocus.isConnected) returnFocus.focus();
-        }, 0);
-      }
-    };
-  }, [open, returnFocus]);
-
-  return { dialogRef, firstRef };
-}
-
-function RecentPasswordDialog({
-  open,
-  onClose,
-  onConfirmed,
-  ceremony,
-  returnFocus,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirmed: () => Promise<void>;
-  ceremony: WebAuthnCeremony;
-  returnFocus?: HTMLElement | null;
-}) {
-  const { client } = useAuthClient();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<AuthFailure>();
-  const close = useCallback(() => {
-    if (!pending) {
-      setError(undefined);
-      onClose();
-    }
-  }, [onClose, pending]);
-  const { dialogRef } = useDialogFocus(open, close, returnFocus);
-
-  if (!open) return null;
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const password = String(new FormData(event.currentTarget).get("password") ?? "");
-    if (!password) {
-      setError({
-        code: "validation_failed",
-        message: "Enter your current password.",
-        fieldErrors: { password: "Enter your current password." },
-      });
-      return;
-    }
-    setPending(true);
-    setError(undefined);
-    const result = await client.confirmPassword(password);
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    onClose();
-    await onConfirmed();
-  }
-
-  async function confirmUsingPasskey() {
-    setPending(true);
-    setError(undefined);
-    const options = await client.getPasskeyConfirmationOptions();
-    if (!options.ok) {
-      setPending(false);
-      setError(options.error);
-      return;
-    }
-    try {
-      const credential = await ceremony.get(options.data);
-      const result = await client.confirmWithPasskey(credential);
-      setPending(false);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      onClose();
-      await onConfirmed();
-    } catch (passkeyError) {
-      setPending(false);
-      setError({
-        code: "service_unavailable",
-        message: webAuthnErrorMessage(passkeyError),
-      });
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#1d1729]/55 px-4 py-8 backdrop-blur-sm">
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recent-password-title"
-        className="w-full max-w-md rounded-[1.5rem] border border-white/20 bg-white p-5 shadow-2xl sm:p-7"
-      >
-        <div className="flex items-start gap-4">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#f0ebfb] text-[#684db7]">
-            <LockKeyhole className="size-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 id="recent-password-title" className="text-xl font-semibold tracking-[-0.035em] text-[#292230]">
-              Confirm it’s you
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-[#716a76]">
-              Security changes require a recent identity confirmation. Use your password or a passkey; confirmation remains valid for up to 10 minutes.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close password confirmation"
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-[#817985] hover:bg-[#f2eff4]"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-        <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
-          {error ? <FormAlert>{error.message}</FormAlert> : null}
-          <PasswordField
-            label="Current password"
-            name="password"
-            autoComplete="current-password"
-            autoFocus
-            error={error?.fieldErrors?.password}
-          />
-          {ceremony.isSupported() ? (
-            <button
-              type="button"
-              onClick={confirmUsingPasskey}
-              disabled={pending}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#d8d2dc] text-sm font-semibold text-[#55475f] hover:bg-[#faf8fc] disabled:bg-[#f3f0f4]"
-            >
-              <KeyRound className="size-4" aria-hidden="true" />
-              Confirm with a passkey instead
-            </button>
-          ) : null}
-          <div className="grid gap-2 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={close}
-              disabled={pending}
-              className="h-11 rounded-xl border border-[#d8d2dc] text-sm font-semibold text-[#55475f] hover:bg-[#faf8fc]"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#7457d2] text-sm font-semibold text-white disabled:bg-[#a99bd4]"
-            >
-              {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : null}
-              {pending ? "Confirming…" : "Confirm password"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function ConfirmDialog({
   title,
@@ -406,12 +203,16 @@ export function SecurityCenter({
   const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetupDto>();
   const [recovery, setRecovery] = useState<RecoveryCodesDto>();
   const [notice, setNotice] = useState<string>();
-  const [actionFailure, setActionFailure] = useState<AuthFailure>();
-  const [pendingAction, setPendingAction] = useState<string>();
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [retryAction, setRetryAction] = useState<RetryAction>();
   const [confirmDialog, setConfirmDialog] = useState<ConfirmationRequest>();
-  const [recentReturnFocus, setRecentReturnFocus] = useState<HTMLElement | null>(null);
+  const [directPendingAction, setDirectPendingAction] = useState<string>();
+  const {
+    runProtected: runConfirmedAction,
+    pendingAction: protectedPendingAction,
+    failure: actionFailure,
+    setFailure: setActionFailure,
+    confirmationDialog,
+  } = useRecentIdentityConfirmation({ ceremony });
+  const pendingAction = protectedPendingAction ?? directPendingAction;
   const passkeyNameId = useId();
   const totpCodeId = useId();
 
@@ -443,15 +244,6 @@ export function SecurityCenter({
     };
   }, [client, loadAttempt]);
 
-  function recoverRecentPassword(
-    action: RetryAction,
-    returnFocus?: HTMLElement | null,
-  ) {
-    setRecentReturnFocus(returnFocus ?? null);
-    setRetryAction(() => action);
-    setPasswordDialogOpen(true);
-  }
-
   function openConfirmDialog(dialog: ConfirmationRequest) {
     setConfirmDialog({
       ...dialog,
@@ -467,31 +259,8 @@ export function SecurityCenter({
     request: () => Promise<AuthResult<T>>,
     onSuccess: (data: T) => void | Promise<void>,
   ) {
-    const actionTrigger =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    setPendingAction(key);
-    setActionFailure(undefined);
     setNotice(undefined);
-    const result = await request();
-    setPendingAction(undefined);
-    if (!result.ok) {
-      if (result.error.code === "recent_password_required") {
-        recoverRecentPassword(
-          () => runProtected(key, request, onSuccess),
-          actionTrigger?.isConnected
-            ? actionTrigger
-            : document.activeElement instanceof HTMLElement
-              ? document.activeElement
-              : null,
-        );
-      } else {
-        setActionFailure(result.error);
-      }
-      return;
-    }
-    await onSuccess(result.data);
+    await runConfirmedAction(key, request, onSuccess);
   }
 
   async function refreshPasskeys() {
@@ -533,10 +302,10 @@ export function SecurityCenter({
       });
       return;
     }
-    setPendingAction("confirm-totp");
+    setDirectPendingAction("confirm-totp");
     setActionFailure(undefined);
     const result = await client.confirmTwoFactor(code);
-    setPendingAction(undefined);
+    setDirectPendingAction(undefined);
     if (!result.ok) {
       setActionFailure(result.error);
       return;
@@ -809,17 +578,7 @@ export function SecurityCenter({
         </div>
       </div>
 
-      <RecentPasswordDialog
-        open={passwordDialogOpen}
-        onClose={() => setPasswordDialogOpen(false)}
-        ceremony={ceremony}
-        returnFocus={recentReturnFocus}
-        onConfirmed={async () => {
-          const retry = retryAction;
-          setRetryAction(undefined);
-          if (retry) await retry();
-        }}
-      />
+      {confirmationDialog}
       {confirmDialog ? (
         <ConfirmDialog
           title={confirmDialog.title}

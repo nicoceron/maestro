@@ -1,3 +1,8 @@
+import {
+  safeAuthReturnPath,
+  type SafeAuthReturnPath,
+} from "@/lib/auth/auth-query";
+
 export type AuthErrorCode =
   | "invalid_credentials"
   | "authentication_required"
@@ -122,7 +127,7 @@ export type LoginInput = {
   password: string;
   remember: boolean;
   invitationToken?: string;
-  continueTo?: string;
+  continueTo?: SafeAuthReturnPath;
 };
 
 export type RegisterInput = {
@@ -193,7 +198,7 @@ export interface AuthClient {
     code?: string;
     recoveryCode?: string;
     invitationToken?: string;
-    continueTo?: string;
+    continueTo?: SafeAuthReturnPath;
   }): Promise<AuthResult<SessionResult>>;
   getPasskeys(): Promise<AuthResult<PasskeyDto[]>>;
   getPasskeyRegistrationOptions(): Promise<AuthResult<WebAuthnOptionsDto>>;
@@ -207,7 +212,7 @@ export interface AuthClient {
     credential: WebAuthnCredentialDto,
     remember: boolean,
     invitationToken?: string,
-    continueTo?: string,
+    continueTo?: SafeAuthReturnPath,
   ): Promise<AuthResult<SessionResult>>;
   getSessions(): Promise<AuthResult<BrowserSessionDto[]>>;
   revokeSession(id: string): Promise<AuthResult<null>>;
@@ -289,7 +294,8 @@ export function createFixtureAuthClient(
         ok: true,
         data: {
           sessionEstablished: true,
-          redirectTo: input.continueTo ?? "/studio/sonora-house/home",
+          redirectTo:
+            safeAuthReturnPath(input.continueTo) ?? "/studio/sonora-house/home",
         },
       };
     },
@@ -495,7 +501,8 @@ export function createFixtureAuthClient(
           sessionEstablished: true,
           redirectTo: input.invitationToken
             ? "/onboarding"
-            : input.continueTo ?? "/studio/sonora-house/home",
+            : safeAuthReturnPath(input.continueTo) ??
+              "/studio/sonora-house/home",
         },
       };
     },
@@ -528,7 +535,7 @@ export function createFixtureAuthClient(
           sessionEstablished: true,
           redirectTo: invitationToken
             ? "/onboarding"
-            : continueTo ?? "/studio/sonora-house/home",
+            : safeAuthReturnPath(continueTo) ?? "/studio/sonora-house/home",
         },
       };
     },

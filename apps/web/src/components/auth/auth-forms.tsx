@@ -25,6 +25,7 @@ import type {
   AuthFieldName,
   CurrentUserDto,
 } from "@/lib/auth/auth-client";
+import type { SafeAuthReturnPath } from "@/lib/auth/auth-query";
 
 type FormFieldName = AuthFieldName | "terms";
 type FieldErrors = Partial<Record<FormFieldName, string>>;
@@ -134,7 +135,7 @@ export function LoginForm({
   continueTo,
 }: {
   initialEmail?: string;
-  continueTo?: string;
+  continueTo?: SafeAuthReturnPath;
 }) {
   const router = useRouter();
   const { client } = useAuthClient();

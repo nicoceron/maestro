@@ -453,7 +453,29 @@ describe("Sanctum auth client contract", () => {
     ]);
   });
 
-  it("preserves only the allowlisted security-center continuation", async () => {
+  it("carries an exact tenant-team continuation through the two-factor challenge", async () => {
+    csrfReady();
+    fetchMock.mockResolvedValueOnce(json({ two_factor: true }));
+
+    const result = await createSanctumAuthClient().login({
+      email: "maya@studio.test",
+      password: "Correct-Horse-42!",
+      remember: true,
+      continueTo: "/studio/sonora-house/settings/team",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        sessionEstablished: false,
+        requiresTwoFactor: true,
+        redirectTo:
+          "/two-factor-challenge?returnTo=%2Fstudio%2Fsonora-house%2Fsettings%2Fteam",
+      },
+    });
+  });
+
+  it("preserves the allowlisted security-center continuation", async () => {
     csrfReady();
     fetchMock
       .mockResolvedValueOnce(json({ two_factor: false }))

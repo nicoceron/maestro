@@ -150,7 +150,7 @@ describe("account security center", () => {
     fireEvent.click(trigger);
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Close password confirmation",
+        name: "Close identity confirmation",
       }),
     );
 

@@ -8,6 +8,7 @@ import { useId, useState } from "react";
 import { FormAlert } from "@/components/auth/auth-fields";
 import { useAuthClient } from "@/components/auth/auth-client-provider";
 import { useInvitationSession } from "@/components/auth/identity-credential-session";
+import type { SafeAuthReturnPath } from "@/lib/auth/auth-query";
 import {
   browserWebAuthnCeremony,
   type WebAuthnCeremony,
@@ -20,7 +21,7 @@ export function PasskeyLoginButton({
   ceremony = browserWebAuthnCeremony,
 }: {
   remember: boolean;
-  continueTo?: string;
+  continueTo?: SafeAuthReturnPath;
   ceremony?: WebAuthnCeremony;
 }) {
   const router = useRouter();
@@ -93,7 +94,11 @@ export function PasskeyLoginButton({
   );
 }
 
-export function TwoFactorChallengeForm({ continueTo }: { continueTo?: string }) {
+export function TwoFactorChallengeForm({
+  continueTo,
+}: {
+  continueTo?: SafeAuthReturnPath;
+}) {
   const router = useRouter();
   const { client } = useAuthClient();
   const { token: invitationToken } = useInvitationSession();

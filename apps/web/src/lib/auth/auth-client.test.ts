@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { createFixtureAuthClient } from "@/lib/auth/auth-client";
-import { readAuthQuery } from "@/lib/auth/auth-query";
+import {
+  authHref,
+  readAuthQuery,
+  safeAuthReturnPath,
+} from "@/lib/auth/auth-query";
 
 describe("auth client boundary", () => {
   it("keeps the fixture adapter injectable without changing the transport contract", async () => {
@@ -59,5 +63,37 @@ describe("auth client boundary", () => {
       email: undefined,
       returnTo: "/account/security",
     });
+
+    expect(
+      readAuthQuery({ returnTo: "/studio/sonora-house/settings/team" }),
+    ).toEqual({
+      email: undefined,
+      returnTo: "/studio/sonora-house/settings/team",
+    });
+  });
+
+  it("allows only exact authenticated return destinations", () => {
+    expect(safeAuthReturnPath("/account/security")).toBe("/account/security");
+    expect(safeAuthReturnPath("/studio/Sonora_2/settings/team")).toBe(
+      "/studio/Sonora_2/settings/team",
+    );
+    expect(
+      authHref("/login", {
+        returnTo: "/studio/sonora-house/settings/team",
+      }),
+    ).toBe("/login?returnTo=%2Fstudio%2Fsonora-house%2Fsettings%2Fteam");
+
+    for (const unsafe of [
+      "https://attacker.example/studio/x/settings/team",
+      "//attacker.example/studio/x/settings/team",
+      "/studio/../settings/team",
+      "/studio/%2Faccount/settings/team",
+      "/studio/sonora/settings/team?next=https://attacker.example",
+      "/studio/sonora/settings/team#fragment",
+      "/studio/sonora/settings/team/extra",
+      `/studio/${"a".repeat(141)}/settings/team`,
+    ]) {
+      expect(safeAuthReturnPath(unsafe), unsafe).toBeUndefined();
+    }
   });
 });

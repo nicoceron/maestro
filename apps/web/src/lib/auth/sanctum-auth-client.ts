@@ -15,6 +15,7 @@ import type {
   TwoFactorSetupDto,
   WebAuthnOptionsDto,
 } from "@/lib/auth/auth-client";
+import { safeAuthReturnPath } from "@/lib/auth/auth-query";
 
 type Operation =
   | "login"
@@ -196,10 +197,6 @@ function networkFailure(): AuthFailure {
     code: "service_unavailable",
     message: "We could not reach Maestro. Check your connection and try again.",
   };
-}
-
-function safeContinueTo(value?: string) {
-  return value === "/account/security" ? value : undefined;
 }
 
 function normalizeUser(payload: LaravelPayload): CurrentUserDto | null {
@@ -473,7 +470,7 @@ export function createSanctumAuthClient(): AuthClient {
         },
       };
     }
-    const destination = safeContinueTo(continueTo);
+    const destination = safeAuthReturnPath(continueTo);
     if (destination) {
       return {
         ok: true,
@@ -506,13 +503,14 @@ export function createSanctumAuthClient(): AuthClient {
     });
     if (!login.ok) return login;
     if (login.data.two_factor === true) {
+      const destination = safeAuthReturnPath(input.continueTo);
       return {
         ok: true,
         data: {
           sessionEstablished: false,
           requiresTwoFactor: true,
-          redirectTo: safeContinueTo(input.continueTo)
-            ? "/two-factor-challenge?returnTo=%2Faccount%2Fsecurity"
+          redirectTo: destination
+            ? `/two-factor-challenge?returnTo=${encodeURIComponent(destination)}`
             : "/two-factor-challenge",
         },
       };
