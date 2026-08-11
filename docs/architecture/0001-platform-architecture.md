@@ -29,13 +29,15 @@ Queues, scheduled commands, imports, exports, cache keys, search documents, file
 
 ## Authentication
 
-The authenticated browser application is Laravel/Filament and uses Laravel's database-backed session guard and CSRF middleware directly. Fortify owns password/TOTP flows and Laravel's official WebAuthn passkey ceremonies. Browser sessions have server-enforced idle and absolute limits, expose only opaque user-scoped inventory IDs, and require recent password/passkey confirmation for revocation and sensitive identity changes. Personal access tokens are reserved for native clients and integrations. Public Next.js pages never become an authorization boundary or duplicate authenticated application state.
+The authenticated browser application is Laravel/Filament and uses Laravel's database-backed session guard and CSRF middleware directly. Fortify owns password/TOTP flows and Laravel's official WebAuthn passkey ceremonies. Browser sessions have server-enforced idle and absolute limits, expose only opaque user-scoped inventory IDs, and require recent password/passkey confirmation for revocation and sensitive identity changes. Personal access tokens are reserved for native clients and integrations. Public Next.js pages never become an authorization boundary or duplicate authenticated application state. During the transition, legacy `/studio/{studio}/*` links issue temporary redirects to Filament `/manage/studio/{studio}` and contain no Next.js studio shell, tenant gate, or dashboard implementation.
 
 Production hostnames are expected to share a top-level domain:
 
 - `www.example.com` — public Next.js marketing/content
 - `app.example.com` — Laravel/Filament authenticated application
 - `api.example.com` — Laravel JSON API
+
+While transitional Next.js credential/onboarding pages still establish Laravel sessions across these hosts, production must use a secure shared parent-domain session cookie (for example `SESSION_DOMAIN=.example.com` and `SESSION_SECURE_COOKIE=true`) plus exact `SANCTUM_STATEFUL_DOMAINS` and credentialed CORS origins. Otherwise the temporary studio redirect reaches Filament without the authenticated session. This cross-host bridge is removed with the transitional identity pages; it is not permission to keep authenticated Next.js product state.
 
 ## Domain modules
 

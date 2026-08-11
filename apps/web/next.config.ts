@@ -33,6 +33,15 @@ export function securityHeaders(environment = process.env.NODE_ENV) {
 }
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/studio/:studio/:path*",
+        destination: `${apiOrigin}/manage/studio/:studio`,
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

@@ -2,7 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import nextConfig, { securityHeaders } from "./next.config";
 
+const expectedApiOrigin = (process.env.API_ORIGIN ?? "http://localhost:8000").replace(
+  /\/+$/,
+  "",
+);
+
 describe("Next security headers", () => {
+  it("hands legacy studio routes to the Filament application", async () => {
+    const rules = await nextConfig.redirects?.();
+
+    expect(rules).toEqual([
+      {
+        source: "/studio/:studio/:path*",
+        destination: `${expectedApiOrigin}/manage/studio/:studio`,
+        permanent: false,
+      },
+    ]);
+  });
+
   it("applies a token-safe baseline to every route", async () => {
     const rules = await nextConfig.headers?.();
     expect(rules).toHaveLength(1);
