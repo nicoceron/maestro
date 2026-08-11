@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
 use App\Notifications\QueuedResetPasswordNotification;
 use App\Notifications\QueuedVerifyEmailNotification;
@@ -68,19 +67,19 @@ class User extends Authenticatable implements FilamentUser, HasName, HasTenants,
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $panel->getId() === 'admin' && $this->managedStudiosQuery()->exists();
+        return $panel->getId() === 'admin' && $this->activeStudiosQuery()->exists();
     }
 
     /** @return Collection<int, Studio> */
     public function getTenants(Panel $panel): Collection
     {
-        return $this->managedStudiosQuery()->get();
+        return $this->activeStudiosQuery()->get();
     }
 
     public function canAccessTenant(Model $tenant): bool
     {
         return $tenant instanceof Studio
-            && $this->managedStudiosQuery()->whereKey($tenant->getKey())->exists();
+            && $this->activeStudiosQuery()->whereKey($tenant->getKey())->exists();
     }
 
     public function getFilamentName(): string
@@ -89,11 +88,10 @@ class User extends Authenticatable implements FilamentUser, HasName, HasTenants,
     }
 
     /** @return BelongsToMany<Studio, $this> */
-    private function managedStudiosQuery(): BelongsToMany
+    private function activeStudiosQuery(): BelongsToMany
     {
         return $this->studios()
             ->wherePivot('status', MembershipStatus::Active->value)
-            ->wherePivotIn('role', MembershipRole::managementValues())
             ->orderBy('studios.name');
     }
 

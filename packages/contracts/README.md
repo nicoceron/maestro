@@ -25,6 +25,8 @@ The identity contract follows the installed Laravel 13 behavior exactly: TOTP QR
 
 Session inventory uses opaque public ULIDs, derived device labels, and coarse network prefixes rather than raw IP/user-agent values, cookies, or backend storage identifiers. The current session can revoke itself (which logs out that browser), or the user can revoke one other/all other database-backed sessions.
 
+Invitation create returns a safe `201` queued resource. Resend is a bodyless, recently-confirmed `POST` to the tenant invitation's `/resend` child route and returns the fresh replacement resource with `202`; pending or expired invitations may be replaced after cooldown. List resources expose server-derived filters, collection capabilities, action permissions, delivery state, cooldown, and terminal supersession state, while internal lineage/version IDs, bearer/token digests, queue/outbox IDs, and global-account state remain absent. Delivery jobs are keyed only by invitation ULID and internal version and derive bearer material at execution.
+
 Invitation preview and acceptance are JSON-body POST operations at `/api/v1/invitations/preview` and `/api/v1/invitations/accept`; no bearer token appears in an API path. Invite and reset links deliver credentials in URL fragments, which the browser scrubs before submitting the credential in a CSRF-protected JSON body.
 
 `GET /api/v1/studios` uses Laravel's unpaginated resource collection envelope (`{ "data": [...] }`), while invitation and household lists use Laravel 13's full length-aware paginator (`data`, `links`, and `meta`, including each meta link's `page`). API authentication, envelope, error, authorization, and pagination conventions are documented in [`../../docs/api/README.md`](../../docs/api/README.md).

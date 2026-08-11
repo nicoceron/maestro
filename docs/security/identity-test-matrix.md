@@ -88,8 +88,8 @@ Expected `problem` means the shared `application/problem+json` shape with safe t
 | INV-E002 | Same body for nonexistent/existing/other-studio user/current route-studio member | new invite `201`; authorized tenant-local pending/member conflicts may be `422`; no global ID, account existence, or other-studio membership disclosure |
 | INV-E003 | Body attempts `studio_id`, inviter, status, accepted user, role escalation | ignored/validation error; no cross-tenant or elevated record |
 | INV-E004 | `GET /api/v1/studios/{studio}/invitations` (M) | only authorized tenant records/safe fields; no tokens/global state; counts exclude other studio |
-| INV-E005 | `POST .../invitations/{invitation}/resend` (M) | `202`; old row/token superseded, new digest and 7d expiry; old token `410` |
-| INV-E006 | `DELETE .../invitations/{invitation}` (M) | idempotent `204`; pending job cannot deliver/use revoked token |
+| INV-E005 | `POST .../invitations/{invitation}/resend` (M) | pending or expired predecessor after cooldown returns exact `202` replacement envelope; old row/digest superseded, new digest and 7d expiry; old preview `404` and old authenticated accept `422` |
+| INV-E006 | `DELETE .../invitations/{invitation}` (M) | pending becomes revoked; already revoked is idempotent `204`; accepted/expired/superseded is tenant-local `422 invitation`; pending job cannot deliver/use revoked token |
 | INV-E007 | `POST /api/v1/invitations/preview` with JSON `invitation_token` | minimum consent context only, no people/member/billing/count data; fragment scrubbed before transport and page `no-referrer` |
 | INV-E008 | Inspect random/expired/revoked/superseded/accepted token | same generic invalid family and bounded timing |
 | INV-E009 | `POST /api/v1/invitations/accept` with JSON `invitation_token`, matching existing verified user | `200`; exact studio/role from locked invite; one membership and accepted audit |
@@ -101,7 +101,7 @@ Expected `problem` means the shared `application/problem+json` shape with safe t
 | INV-E015 | Retryable security write using `Idempotency-Key` | identical actor/route/request returns the saved safe response; changed payload/key reuse `409`; no duplicate effect; invitation acceptance may instead derive its idempotent `200` from terminal membership state |
 | INV-E016 | Pending invite where membership is suspended/removed | no reactivation; safe rejection; authorized restore/reinvite required |
 | INV-E017 | Same email invited to two studios | accepts independently; no auto-switch; two isolated memberships |
-| INV-E018 | Create/resend quota exceeded | `429`; no notification/job; tenant/user enumeration unchanged |
+| INV-E018 | Create attempt 21/hour per inviter or 101/day per studio; resend cooldown or three-per-lineage/day quota exceeded; non-member, role-policy-denied, and stale-confirmation requests precede sensitive quota consumption | `429` with `Retry-After`; rejected membership/role/confirmation attempts leave limiter counts unchanged; quota rejection causes no invitation/delivery/audit/job change and no tenant/user enumeration change |
 | MEMBER-E001 | `GET /api/v1/studios` | active current-user memberships only; correct role per studio; no suspended/foreign rows |
 | MEMBER-E002 | `PATCH /api/v1/studios/{studio}/memberships/{membership}` (M), role | policy matrix; recent auth/MFA as required; route tenant immutable; caches/tokens/jobs invalidated |
 | MEMBER-E003 | Suspend/restore/remove membership (M) | lifecycle matrix; immediate access effect; reason/audit; removed cannot raw-restore |
@@ -119,7 +119,7 @@ Expected `problem` means the shared `application/problem+json` shape with safe t
 
 ## 3. Policy and field-visibility matrix
 
-Implement a single data provider per action. It must exercise API policies, Filament `canAccessTenant`/resource actions, Next API-backed affordances, and direct serializer/export behavior. `A`, `S`, `R`, and `-` have the meanings in the main specification.
+Implement a single data provider per action. It must exercise API policies, Filament `canAccessTenant`/resource actions, any relevant unauthenticated Next.js landing, and direct serializer/export behavior. `A`, `S`, `R`, and `-` have the meanings in the main specification.
 
 | ID | Policy/action | Owner | Admin | Office | Billing | Teacher | Guardian | Student | Accountant | Platform grant |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -173,8 +173,8 @@ Serializer assertions:
 
 | ID | Job/command | Required assertions |
 |---|---|---|
-| JOB-001 | `SendStudioInvitation` (M) | serialized payload has invitation/version/studio IDs, not plaintext token; token material generated only at delivery boundary; revoked/superseded/expired invite does not send |
-| JOB-002 | Resend race | only newest invitation version sends; unique job/outbox prevents duplicate delivery; retries do not mint multiple valid tokens |
+| JOB-001 | `DeliverStudioInvitation` (M) | serialized job has exactly invitation ULID and internal delivery version; serialized notification/job omit studio/email/token/digest/URL/mail content; deterministic token material exists only at delivery boundary; revoked/superseded/expired/replaced-version work does not send |
+| JOB-002 | Resend/retry/outbox race | only current invitation/version sends; unique job plus unique delivery intent prevents duplicate delivery; retries do not mint multiple valid tokens; recoverable pending intents are redispatched by `invitations:dispatch-pending` |
 | JOB-003 | `SendPasswordResetLink` / verification notification | unknown user performs no send but caller response unchanged; URL trusted-host only; failed job/log has no token |
 | JOB-004 | `ExpireStudioInvitations` (M) | freezes time; marks only pending past expiry; one audit each; accepted/revoked untouched; idempotent rerun |
 | JOB-005 | `auth:clear-resets` | expired reset rows removed on schedule without affecting valid rows |
@@ -184,7 +184,16 @@ Serializer assertions:
 | JOB-009 | Support-grant work | grant checked before each irreversible unit; expiration mid-job stops remaining work; no unscoped fallback |
 | JOB-010 | Tenant context hygiene | success, exception, retry, timeout, and batch loop clear context; following job cannot see prior studio |
 | JOB-011 | Security notification | password/email/MFA/passkey/recovery/session/role/ownership events send after commit once and contain no secret/private tenant fields |
-| JOB-012 | Cleanup | invitation digests redacted after 30d; audit metadata retained; cleanup idempotent and tenant-safe |
+| JOB-012 | `invitations:redact-terminal-digests` | accepted/revoked/superseded/naturally expired digests are redacted after 30d; pending/recent rows and audit metadata remain; delivery intent is marked redacted; rerun is idempotent and tenant-safe |
+
+Audit event evidence uses these permanent IDs:
+
+| ID | Layer | Required assertions |
+|---|---|---|
+| AUDIT-E001 | Domain write | invitation create/resend/revoke/accept commits the required tenant event with safe actor, subject, and correlation fields; metadata is allowlisted to role, reason, version, and predecessor/replacement identifiers only where relevant |
+| AUDIT-E002 | Delivery outcome | current-version delivery or stale/terminal suppression appends a safe outcome event; no token, digest, email, URL, mail body, raw IP, or raw user agent |
+| AUDIT-E003 | PostgreSQL | audit rows are default-deny and tenant-isolated under forced RLS; owning application context cannot update or delete them |
+| AUDIT-E004 | Transaction/outbox | rolled-back domain work creates no success audit or delivery effect; committed delivery intent dispatches only after commit and is idempotent by invitation/version |
 
 ## 6. End-to-end browser journeys
 

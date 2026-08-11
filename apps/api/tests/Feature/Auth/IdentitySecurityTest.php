@@ -5,12 +5,14 @@ namespace Tests\Feature\Auth;
 use App\Actions\Invitations\CreateStudioInvitation;
 use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
+use App\Filament\Pages\Auth\Login as FilamentLogin;
 use App\Http\Middleware\EnforceBrowserSessionLifetime;
 use App\Models\Studio;
 use App\Models\StudioMembership;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Providers\AppServiceProvider;
+use App\Support\Auth\LoginRateLimitKey;
 use App\Support\Auth\SensitiveRateLimitKey;
 use App\Support\Tenancy\RequestDatabaseContext;
 use Closure;
@@ -25,6 +27,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Fortify;
+use Livewire\Livewire;
 use LogicException;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
@@ -270,7 +273,7 @@ class IdentitySecurityTest extends TestCase
             $user,
             'revoke@example.com',
             MembershipRole::Teacher,
-        )['invitation'];
+        );
         $passkey = $user->passkeys()->create([
             'name' => 'Step-up protected key',
             'credential_id' => Str::random(48),
@@ -446,6 +449,63 @@ class IdentitySecurityTest extends TestCase
         $this->assertTrue($lastSeenAt->gte(now()->subSecond()));
     }
 
+    public function test_filament_login_registers_the_new_database_session_before_the_first_authenticated_request(): void
+    {
+        $this->enableDatabaseSessions();
+        [$user, $studio] = $this->owner();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(FilamentLogin::class)
+            ->fillForm([
+                'email' => strtoupper($user->email),
+                'password' => self::PASSWORD,
+                'remember' => false,
+            ])
+            ->call('authenticate')
+            ->assertHasNoFormErrors()
+            ->assertRedirect();
+
+        $this->assertAuthenticatedAs($user);
+        $sessionId = session()->getId();
+        $this->asDatabaseUser($user, fn () => $this->assertDatabaseHas('user_sessions', [
+            'session_id' => $sessionId,
+            'user_id' => $user->getKey(),
+        ]));
+        $this->withCookie((string) config('session.cookie'), $sessionId)
+            ->get("/manage/studio/{$studio->slug}")
+            ->assertOk();
+    }
+
+    public function test_filament_login_uses_the_shared_keyed_account_and_ip_limits(): void
+    {
+        $user = User::factory()->create(['password' => self::PASSWORD]);
+        $studio = Studio::factory()->create();
+        StudioMembership::query()->create([
+            'studio_id' => $studio->getKey(),
+            'user_id' => $user->getKey(),
+            'role' => MembershipRole::Owner,
+            'status' => MembershipStatus::Active,
+            'joined_at' => now(),
+            'preferences' => [],
+        ]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $accountKey = app(LoginRateLimitKey::class)->for($user->email, '127.0.0.1');
+        $ipKey = 'login-ip|127.0.0.1';
+
+        Livewire::test(FilamentLogin::class)
+            ->fillForm([
+                'email' => strtoupper($user->email),
+                'password' => 'wrong-password',
+                'remember' => false,
+            ])
+            ->call('authenticate')
+            ->assertHasFormErrors(['email']);
+
+        $this->assertSame(1, RateLimiter::attempts($accountKey));
+        $this->assertSame(1, RateLimiter::attempts($ipKey));
+    }
+
     public function test_sensitive_limiter_windows_and_keys_do_not_contain_raw_session_user_or_ip_identifiers(): void
     {
         $request = Request::create(
@@ -477,7 +537,9 @@ class IdentitySecurityTest extends TestCase
         config([
             'auth.password_timeout' => 601,
             'session.driver' => 'database',
+            'mail.default' => 'array',
             'fortify.passkeys.user_handle_secret' => config('app.key'),
+            'services.invitations.token_secret' => str_repeat('i', 32),
             'fortify.passkeys.relying_party_id' => 'app.example.com',
             'fortify.passkeys.allowed_origins' => ['https://app.example.com'],
         ]);
@@ -500,6 +562,34 @@ class IdentitySecurityTest extends TestCase
         ]);
         $method->invoke(new AppServiceProvider($this->app));
         $this->addToAssertionCount(1);
+
+        foreach (['', (string) config('app.key'), 'too-short'] as $invalidSecret) {
+            config(['services.invitations.token_secret' => $invalidSecret]);
+
+            try {
+                $method->invoke(new AppServiceProvider($this->app));
+                $this->fail('An invalid invitation secret was accepted.');
+            } catch (\ReflectionException $exception) {
+                throw $exception;
+            } catch (\Throwable $exception) {
+                $this->assertInstanceOf(LogicException::class, $exception);
+                $this->assertStringContainsString('INVITATION_TOKEN_SECRET', $exception->getMessage());
+            }
+        }
+
+        config(['services.invitations.token_secret' => str_repeat('i', 32)]);
+
+        config(['mail.default' => 'log']);
+
+        try {
+            $method->invoke(new AppServiceProvider($this->app));
+            $this->fail('The log mailer was accepted for production invitation delivery.');
+        } catch (\ReflectionException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            $this->assertInstanceOf(LogicException::class, $exception);
+            $this->assertStringContainsString('MAIL_MAILER', $exception->getMessage());
+        }
     }
 
     /** @return array{User, string} */

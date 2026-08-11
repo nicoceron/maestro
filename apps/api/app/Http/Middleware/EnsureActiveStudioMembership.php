@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
 use App\Models\Studio;
 use App\Models\StudioMembership;
@@ -30,7 +29,6 @@ final class EnsureActiveStudioMembership
             ->where('studio_id', $tenant->getKey())
             ->where('user_id', $request->user()?->getAuthIdentifier())
             ->where('status', MembershipStatus::Active)
-            ->whereIn('role', MembershipRole::managementValues())
             ->first();
 
         abort_unless($membership !== null, Response::HTTP_FORBIDDEN);

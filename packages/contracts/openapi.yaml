@@ -1393,6 +1393,9 @@ paths:
         scoped to the route studio. Tokens and token hashes are never serialized.
       operationId: listStudioInvitations
       parameters:
+        - $ref: '#/components/parameters/InvitationSearch'
+        - $ref: '#/components/parameters/InvitationStatusFilter'
+        - $ref: '#/components/parameters/InvitationRoleFilter'
         - $ref: '#/components/parameters/Page'
       responses:
         '200':
@@ -1410,6 +1413,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
         '429':
           $ref: '#/components/responses/TooManyRequests'
     post:
@@ -1417,13 +1422,20 @@ paths:
         - Invitations
       summary: Invite a studio member
       description: |-
-        Normalizes the email and sends a seven-day invitation. The request role is
+        Normalizes the email and queues a seven-day invitation. The request role is
         limited to administrator, office, billing, or teacher. Owners may invite any
         of those roles; administrators may invite only office, billing, or teacher.
         The route studio, inviter, status, and token are always server-controlled.
-        A password or passkey confirmation no older than ten minutes is required.
+        After route binding, active-studio membership authorization, recent password or passkey
+        confirmation no older than ten minutes, and mutation role-policy authorization succeed,
+        create is limited to 20 attempts/hour per inviter and 100 attempts/day per route studio.
+        Rejected non-members, role-denied members, or unconfirmed callers do not consume these
+        sensitive quotas; quota rejection returns `429` before invitation, delivery, audit, or job
+        effects. The delivery job contains only
+        the invitation ULID and delivery version; bearer material is derived only at the delivery
+        boundary and never serialized.
       operationId: createStudioInvitation
-      x-acceptance-ids: [IDA-STEPUP-001, IDA-INVITE-001, INV-E001, INV-E002]
+      x-acceptance-ids: [IDA-STEPUP-001, IDA-INVITE-001, INV-E001, INV-E002, INV-E018]
       security:
         - sanctumSession: []
           csrfToken: []
@@ -1438,7 +1450,7 @@ paths:
                 $ref: '#/components/examples/CreateStudioInvitation'
       responses:
         '201':
-          description: Invitation created and queued for delivery.
+          description: Invitation created and queued for delivery; provider delivery is not claimed.
           content:
             application/json:
               schema:
@@ -1460,6 +1472,52 @@ paths:
           $ref: '#/components/responses/RecentPasswordRequired'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/invitations/{invitation}/resend:
+    parameters:
+      - $ref: '#/components/parameters/StudioSlug'
+      - $ref: '#/components/parameters/InvitationId'
+    post:
+      tags:
+        - Invitations
+      summary: Queue a replacement invitation
+      description: |-
+        Atomically supersedes a pending or expired route-studio invitation with a new
+        invitation ULID, incremented internal delivery version, fresh seven-day expiry, and fresh
+        derived bearer digest. The old bearer is invalid before this operation returns.
+        Accepted, revoked, already-superseded, and cooldown-bound invitations return the
+        same tenant-local `422` field error. The replacement keeps the locked email, role,
+        studio, and internal lineage. Delivery is queued by invitation ULID and version only and
+        the response does not claim provider delivery. A password or passkey confirmation
+        no older than ten minutes is required.
+      operationId: resendStudioInvitation
+      x-acceptance-ids: [IDA-STEPUP-001, IDA-INVITE-001, INV-E005, INV-E008, INV-E018, JOB-001, JOB-002]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      responses:
+        '202':
+          description: Fresh replacement invitation created and queued; the superseded bearer is unusable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioInvitationResentEnvelope'
+              examples:
+                queued:
+                  $ref: '#/components/examples/StudioInvitationResent'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/InvitationCannotBeResent'
+        '423':
+          $ref: '#/components/responses/RecentPasswordRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /api/v1/studios/{studio}/invitations/{invitation}:
     parameters:
       - $ref: '#/components/parameters/StudioSlug'
@@ -1469,7 +1527,9 @@ paths:
         - Invitations
       summary: Revoke a studio invitation
       description: |-
-        Idempotently revokes a non-accepted invitation in the route studio. Owners
+        Revokes a pending invitation in the route studio and treats an already-revoked
+        invitation as idempotent success. Accepted, expired, and superseded invitations
+        return the same tenant-local `422` field error. Owners
         may revoke invitations for any implemented management role; administrators
         may revoke only office, billing, and teacher invitations. A password or
         passkey confirmation no older than ten minutes is required.
@@ -1480,7 +1540,7 @@ paths:
           csrfToken: []
       responses:
         '204':
-          description: Invitation revoked or already revoked; response has no body.
+          description: Pending invitation revoked or already-revoked invitation left unchanged; response has no body.
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1638,6 +1698,29 @@ components:
       description: Studio invitation ULID, constrained to the route studio before policy evaluation.
       schema:
         $ref: '#/components/schemas/Ulid'
+    InvitationSearch:
+      name: q
+      in: query
+      required: false
+      description: Normalized, case-insensitive substring search of tenant-visible invitation email addresses.
+      schema:
+        type: string
+        maxLength: 100
+      example: teacher@example.com
+    InvitationStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Return only invitations in this server-derived lifecycle state.
+      schema:
+        $ref: '#/components/schemas/InvitationStatus'
+    InvitationRoleFilter:
+      name: role
+      in: query
+      required: false
+      description: Return only invitations for this locked studio membership role.
+      schema:
+        $ref: '#/components/schemas/InvitableMembershipRole'
     PasskeyId:
       name: passkey
       in: path
@@ -1782,8 +1865,37 @@ components:
           expires_at: '2026-08-17T18:45:00+00:00'
           accepted_at: null
           revoked_at: null
+          superseded_at: null
+          last_sent_at: null
+          send_count: 0
+          resend_available_at: '2026-08-10T18:46:00+00:00'
+          delivery_status: pending
+          permissions:
+            can_resend: false
+            can_revoke: true
           created_at: '2026-08-10T18:45:00+00:00'
-        message: Invitation sent.
+        message: Invitation queued.
+    StudioInvitationResent:
+      summary: Fresh replacement queued after superseding the old invitation
+      value:
+        data:
+          id: 01KZN7C5V3EVQW9G2FN8X6MP4S
+          email: new.teacher@example.com
+          role: teacher
+          status: pending
+          expires_at: '2026-08-17T19:45:00+00:00'
+          accepted_at: null
+          revoked_at: null
+          superseded_at: null
+          last_sent_at: null
+          send_count: 0
+          resend_available_at: '2026-08-10T19:46:00+00:00'
+          delivery_status: pending
+          permissions:
+            can_resend: false
+            can_revoke: true
+          created_at: '2026-08-10T19:45:00+00:00'
+        message: Invitation resend queued.
     InvitationAccepted:
       summary: Accepted invitation returns the joined studio
       value:
@@ -1814,7 +1926,22 @@ components:
             expires_at: '2026-08-17T18:45:00+00:00'
             accepted_at: null
             revoked_at: null
+            superseded_at: null
+            last_sent_at: '2026-08-10T18:45:03+00:00'
+            send_count: 1
+            resend_available_at: '2026-08-10T18:46:03+00:00'
+            delivery_status: sent
+            permissions:
+              can_resend: true
+              can_revoke: true
             created_at: '2026-08-10T18:45:00+00:00'
+        capabilities:
+          can_create: true
+          invitable_roles:
+            - administrator
+            - office
+            - billing
+            - teacher
         links:
           first: http://localhost/api/v1/studios/aria-academy/invitations?page=1
           last: http://localhost/api/v1/studios/aria-academy/invitations?page=1
@@ -2014,7 +2141,7 @@ components:
               invitation_token:
                 - This invitation cannot be accepted.
     InvitationCannotBeRevoked:
-      description: The invitation was already accepted and cannot be revoked.
+      description: The invitation is accepted, expired, or superseded and cannot be revoked.
       content:
         application/json:
           schema:
@@ -2023,7 +2150,18 @@ components:
             message: The invitation field is invalid.
             errors:
               invitation:
-                - An accepted invitation cannot be revoked.
+                - This invitation cannot be revoked.
+    InvitationCannotBeResent:
+      description: The tenant-visible invitation is accepted, revoked, superseded, or still inside its resend cooldown. Expired invitations are renewable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          example:
+            message: The invitation field is invalid.
+            errors:
+              invitation:
+                - This invitation cannot be resent yet.
     TooManyRequests:
       description: API rate limit exceeded.
       headers:
@@ -2624,6 +2762,14 @@ components:
         - accepted
         - revoked
         - expired
+        - superseded
+    InvitationDeliveryStatus:
+      type: string
+      description: Safe state of the latest invitation/version delivery intent; it does not prove human receipt.
+      enum:
+        - pending
+        - sent
+        - suppressed
     InvitableMembershipRole:
       type: string
       description: |-
@@ -2684,6 +2830,12 @@ components:
         - expires_at
         - accepted_at
         - revoked_at
+        - superseded_at
+        - last_sent_at
+        - send_count
+        - resend_available_at
+        - delivery_status
+        - permissions
         - created_at
       properties:
         id:
@@ -2707,9 +2859,60 @@ components:
             - string
             - 'null'
           format: date-time
+        superseded_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        last_sent_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        send_count:
+          type: integer
+          minimum: 0
+        resend_available_at:
+          type: string
+          format: date-time
+          description: Earliest server-derived instant at which cooldown permits another replacement; policy and state still apply.
+        delivery_status:
+          description: Latest delivery intent state, or `null` for a migrated invitation with no delivery row.
+          anyOf:
+            - $ref: '#/components/schemas/InvitationDeliveryStatus'
+            - type: 'null'
+        permissions:
+          $ref: '#/components/schemas/StudioInvitationPermissions'
         created_at:
           type: string
           format: date-time
+    StudioInvitationPermissions:
+      type: object
+      additionalProperties: false
+      required:
+        - can_resend
+        - can_revoke
+      properties:
+        can_resend:
+          type: boolean
+          description: Server-derived policy, lifecycle, expiry, and cooldown decision for the current user.
+        can_revoke:
+          type: boolean
+          description: Server-derived policy and lifecycle decision for the current user.
+    StudioInvitationCollectionCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        - can_create
+        - invitable_roles
+      properties:
+        can_create:
+          type: boolean
+        invitable_roles:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/InvitableMembershipRole'
     StudioInvitationCreatedEnvelope:
       type: object
       additionalProperties: false
@@ -2721,7 +2924,19 @@ components:
           $ref: '#/components/schemas/StudioInvitation'
         message:
           type: string
-          const: Invitation sent.
+          const: Invitation queued.
+    StudioInvitationResentEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - message
+      properties:
+        data:
+          $ref: '#/components/schemas/StudioInvitation'
+        message:
+          type: string
+          const: Invitation resend queued.
     InvitationAcceptedEnvelope:
       type: object
       additionalProperties: false
@@ -3451,6 +3666,7 @@ components:
       additionalProperties: false
       required:
         - data
+        - capabilities
         - links
         - meta
       properties:
@@ -3458,6 +3674,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StudioInvitation'
+        capabilities:
+          $ref: '#/components/schemas/StudioInvitationCollectionCapabilities'
         links:
           $ref: '#/components/schemas/LaravelPaginationLinks'
         meta:

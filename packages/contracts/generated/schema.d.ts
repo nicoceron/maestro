@@ -805,11 +805,18 @@ export interface paths {
         readonly put?: never;
         /**
          * Invite a studio member
-         * @description Normalizes the email and sends a seven-day invitation. The request role is
+         * @description Normalizes the email and queues a seven-day invitation. The request role is
          *     limited to administrator, office, billing, or teacher. Owners may invite any
          *     of those roles; administrators may invite only office, billing, or teacher.
          *     The route studio, inviter, status, and token are always server-controlled.
-         *     A password or passkey confirmation no older than ten minutes is required.
+         *     After route binding, active-studio membership authorization, recent password or passkey
+         *     confirmation no older than ten minutes, and mutation role-policy authorization succeed,
+         *     create is limited to 20 attempts/hour per inviter and 100 attempts/day per route studio.
+         *     Rejected non-members, role-denied members, or unconfirmed callers do not consume these
+         *     sensitive quotas; quota rejection returns `429` before invitation, delivery, audit, or job
+         *     effects. The delivery job contains only
+         *     the invitation ULID and delivery version; bearer material is derived only at the delivery
+         *     boundary and never serialized.
          */
         readonly post: operations["createStudioInvitation"];
         readonly delete?: never;
@@ -838,12 +845,49 @@ export interface paths {
         readonly post?: never;
         /**
          * Revoke a studio invitation
-         * @description Idempotently revokes a non-accepted invitation in the route studio. Owners
+         * @description Revokes a pending invitation in the route studio and treats an already-revoked
+         *     invitation as idempotent success. Accepted, expired, and superseded invitations
+         *     return the same tenant-local `422` field error. Owners
          *     may revoke invitations for any implemented management role; administrators
          *     may revoke only office, billing, and teacher invitations. A password or
          *     passkey confirmation no older than ten minutes is required.
          */
         readonly delete: operations["revokeStudioInvitation"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/invitations/{invitation}/resend": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
+                readonly invitation: components["parameters"]["InvitationId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Queue a replacement invitation
+         * @description Atomically supersedes a pending or expired route-studio invitation with a new
+         *     invitation ULID, incremented internal delivery version, fresh seven-day expiry, and fresh
+         *     derived bearer digest. The old bearer is invalid before this operation returns.
+         *     Accepted, revoked, already-superseded, and cooldown-bound invitations return the
+         *     same tenant-local `422` field error. The replacement keeps the locked email, role,
+         *     studio, and internal lineage. Delivery is queued by invitation ULID and version only and
+         *     the response does not claim provider delivery. A password or passkey confirmation
+         *     no older than ten minutes is required.
+         */
+        readonly post: operations["resendStudioInvitation"];
+        readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -1088,6 +1132,11 @@ export interface components {
             /** @constant */
             readonly message: "Invitation accepted.";
         };
+        /**
+         * @description Safe state of the latest invitation/version delivery intent; it does not prove human receipt.
+         * @enum {string}
+         */
+        readonly InvitationDeliveryStatus: "pending" | "sent" | "suppressed";
         readonly InvitationPreview: {
             /**
              * @description Masked email with the full domain and only the first local-part character visible.
@@ -1103,7 +1152,7 @@ export interface components {
             readonly data: components["schemas"]["InvitationPreview"];
         };
         /** @enum {string} */
-        readonly InvitationStatus: "pending" | "accepted" | "revoked" | "expired";
+        readonly InvitationStatus: "pending" | "accepted" | "revoked" | "expired" | "superseded";
         /** @description Opaque invitation bearer token. Email links carry it in the URL fragment; the browser scrubs the fragment and submits the token only in a JSON request body. It is never returned by an API resource. */
         readonly InvitationToken: string;
         readonly InvitationTokenInput: {
@@ -1326,24 +1375,53 @@ export interface components {
             readonly accepted_at: string | null;
             /** Format: date-time */
             readonly created_at: string;
+            /** @description Latest delivery intent state, or `null` for a migrated invitation with no delivery row. */
+            readonly delivery_status: components["schemas"]["InvitationDeliveryStatus"] | null;
             readonly email: components["schemas"]["NormalizedEmail"];
             /** Format: date-time */
             readonly expires_at: string;
             readonly id: components["schemas"]["Ulid"];
             /** Format: date-time */
+            readonly last_sent_at: string | null;
+            readonly permissions: components["schemas"]["StudioInvitationPermissions"];
+            /**
+             * Format: date-time
+             * @description Earliest server-derived instant at which cooldown permits another replacement; policy and state still apply.
+             */
+            readonly resend_available_at: string;
+            /** Format: date-time */
             readonly revoked_at: string | null;
             readonly role: components["schemas"]["InvitableMembershipRole"];
+            readonly send_count: number;
             readonly status: components["schemas"]["InvitationStatus"];
+            /** Format: date-time */
+            readonly superseded_at: string | null;
+        };
+        readonly StudioInvitationCollectionCapabilities: {
+            readonly can_create: boolean;
+            readonly invitable_roles: readonly components["schemas"]["InvitableMembershipRole"][];
         };
         readonly StudioInvitationCreatedEnvelope: {
             readonly data: components["schemas"]["StudioInvitation"];
             /** @constant */
-            readonly message: "Invitation sent.";
+            readonly message: "Invitation queued.";
         };
         readonly StudioInvitationPaginatedCollectionEnvelope: {
+            readonly capabilities: components["schemas"]["StudioInvitationCollectionCapabilities"];
             readonly data: readonly components["schemas"]["StudioInvitation"][];
             readonly links: components["schemas"]["LaravelPaginationLinks"];
             readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly StudioInvitationPermissions: {
+            /** @description Server-derived policy, lifecycle, expiry, and cooldown decision for the current user. */
+            readonly can_resend: boolean;
+            /** @description Server-derived policy and lifecycle decision for the current user. */
+            readonly can_revoke: boolean;
+        };
+        readonly StudioInvitationResentEnvelope: {
+            readonly data: components["schemas"]["StudioInvitation"];
+            /** @constant */
+            readonly message: "Invitation resend queued.";
         };
         readonly StudioMembership: {
             readonly role: components["schemas"]["MembershipRole"];
@@ -1505,7 +1583,26 @@ export interface components {
                 readonly "application/json": components["schemas"]["ValidationProblem"];
             };
         };
-        /** @description The invitation was already accepted and cannot be revoked. */
+        /** @description The tenant-visible invitation is accepted, revoked, superseded, or still inside its resend cooldown. Expired invitations are renewable. */
+        readonly InvitationCannotBeResent: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "The invitation field is invalid.",
+                 *       "errors": {
+                 *         "invitation": [
+                 *           "This invitation cannot be resent yet."
+                 *         ]
+                 *       }
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["ValidationProblem"];
+            };
+        };
+        /** @description The invitation is accepted, expired, or superseded and cannot be revoked. */
         readonly InvitationCannotBeRevoked: {
             headers: {
                 readonly [name: string]: unknown;
@@ -1516,7 +1613,7 @@ export interface components {
                  *       "message": "The invitation field is invalid.",
                  *       "errors": {
                  *         "invitation": [
-                 *           "An accepted invitation cannot be revoked."
+                 *           "This invitation cannot be revoked."
                  *         ]
                  *       }
                  *     }
@@ -1628,6 +1725,15 @@ export interface components {
         readonly HouseholdSearch: string | null;
         /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
         readonly InvitationId: components["schemas"]["Ulid"];
+        /** @description Return only invitations for this locked studio membership role. */
+        readonly InvitationRoleFilter: components["schemas"]["InvitableMembershipRole"];
+        /**
+         * @description Normalized, case-insensitive substring search of tenant-visible invitation email addresses.
+         * @example teacher@example.com
+         */
+        readonly InvitationSearch: string;
+        /** @description Return only invitations in this server-derived lifecycle state. */
+        readonly InvitationStatusFilter: components["schemas"]["InvitationStatus"];
         /**
          * @description One-based Laravel paginator page number.
          * @example 1
@@ -2808,6 +2914,15 @@ export interface operations {
                  * @example 1
                  */
                 readonly page?: components["parameters"]["Page"];
+                /**
+                 * @description Normalized, case-insensitive substring search of tenant-visible invitation email addresses.
+                 * @example teacher@example.com
+                 */
+                readonly q?: components["parameters"]["InvitationSearch"];
+                /** @description Return only invitations for this locked studio membership role. */
+                readonly role?: components["parameters"]["InvitationRoleFilter"];
+                /** @description Return only invitations in this server-derived lifecycle state. */
+                readonly status?: components["parameters"]["InvitationStatusFilter"];
             };
             readonly header?: never;
             readonly path: {
@@ -2833,6 +2948,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthenticated"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -2855,7 +2971,7 @@ export interface operations {
             };
         };
         readonly responses: {
-            /** @description Invitation created and queued for delivery. */
+            /** @description Invitation created and queued for delivery; provider delivery is not claimed. */
             readonly 201: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -2890,7 +3006,7 @@ export interface operations {
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Invitation revoked or already revoked; response has no body. */
+            /** @description Pending invitation revoked or already-revoked invitation left unchanged; response has no body. */
             readonly 204: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -2902,6 +3018,41 @@ export interface operations {
             readonly 404: components["responses"]["NotFound"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["InvitationCannotBeRevoked"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly resendStudioInvitation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
+                readonly invitation: components["parameters"]["InvitationId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Fresh replacement invitation created and queued; the superseded bearer is unusable. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["StudioInvitationResentEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["InvitationCannotBeResent"];
             readonly 423: components["responses"]["RecentPasswordRequired"];
             readonly 429: components["responses"]["TooManyRequests"];
         };

@@ -7,24 +7,26 @@ use App\Models\Studio;
 use App\Models\StudioInvitation;
 use App\Models\StudioMembership;
 use App\Models\User;
-use App\Notifications\StudioInvitationNotification;
+use App\Support\Audit\InvitationAudit;
+use App\Support\Auth\InvitationToken;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class CreateStudioInvitation
 {
-    /**
-     * @return array{invitation: StudioInvitation, token: string}
-     *
-     * @throws ValidationException
-     */
-    public function handle(Studio $studio, User $inviter, string $email, MembershipRole $role): array
+    public function __construct(
+        private readonly InvitationToken $tokens,
+        private readonly InvitationDeliveryOutbox $outbox,
+        private readonly InvitationAudit $audit,
+    ) {}
+
+    /** @throws ValidationException */
+    public function handle(Studio $studio, User $inviter, string $email, MembershipRole $role): StudioInvitation
     {
         $email = User::normalizeEmail($email);
 
-        $result = DB::transaction(function () use ($studio, $inviter, $email, $role): array {
+        $invitation = DB::transaction(function () use ($studio, $inviter, $email, $role): StudioInvitation {
             Studio::query()->whereKey($studio->getKey())->lockForUpdate()->firstOrFail();
 
             $isMember = StudioMembership::query()
@@ -55,29 +57,36 @@ final class CreateStudioInvitation
                     'pending_key' => null,
                     'revoked_at' => $existing->revoked_at ?? now(),
                 ])->save();
+                $this->outbox->suppressPending($existing, 'replaced', $inviter);
+                $this->audit->record($existing, 'invitation.revoked', $inviter, ['reason' => 'replaced']);
             }
 
-            $token = Str::random(64);
+            $id = (string) Str::ulid();
+            $deliveryVersion = 1;
             $invitation = StudioInvitation::query()->create([
+                'id' => $id,
                 'studio_id' => $studio->getKey(),
+                'lineage_id' => $id,
+                'delivery_version' => $deliveryVersion,
                 'email_normalized' => $email,
                 'role' => $role,
-                'token_hash' => hash('sha256', $token),
+                'token_hash' => $this->tokens->digestFor($id, $deliveryVersion),
                 'pending_key' => $pendingKey,
                 'invited_by_id' => $inviter->getKey(),
                 'expires_at' => now()->addDays((int) config('services.invitations.expires_days')),
             ]);
 
-            return ['invitation' => $invitation, 'token' => $token];
+            $this->audit->record($invitation, 'invitation.created', $inviter, [
+                'role' => $role->value,
+                'delivery_version' => $deliveryVersion,
+            ]);
+            $this->outbox->createIntent($invitation);
+
+            return $invitation;
         });
 
-        $result['invitation']->load('studio');
-        Notification::route('mail', $result['invitation']->email_normalized)
-            ->notify(new StudioInvitationNotification(
-                $result['invitation']->getKey(),
-                $result['token'],
-            ));
+        DB::afterCommit(fn () => $this->outbox->dispatch($invitation));
 
-        return $result;
+        return $invitation->refresh()->load(['latestDelivery', 'studio']);
     }
 }

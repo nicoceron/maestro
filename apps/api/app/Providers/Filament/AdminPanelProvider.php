@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\Login;
 use App\Http\Middleware\EnforceBrowserSessionLifetime;
 use App\Http\Middleware\EnsureActiveStudioMembership;
 use App\Http\Middleware\SetDatabaseUserContext;
@@ -31,7 +32,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('manage')
             ->brandName('Maestro')
-            ->login()
+            ->login(Login::class)
             ->passwordReset()
             ->profile()
             ->tenant(Studio::class, slugAttribute: 'slug')
@@ -53,6 +54,7 @@ class AdminPanelProvider extends PanelProvider
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,
+                SetDatabaseUserContext::class,
                 EnforceBrowserSessionLifetime::class,
                 AuthenticateSession::class,
                 ShareErrorsFromSession::class,
@@ -62,7 +64,6 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
-                SetDatabaseUserContext::class,
                 Authenticate::class,
             ])
             ->tenantMiddleware([

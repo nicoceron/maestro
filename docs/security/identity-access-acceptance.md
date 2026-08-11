@@ -7,7 +7,7 @@
 
 ## 1. Purpose and conformance
 
-This document is the release contract for Maestro identity, authentication, studio authorization, invitations, and sensitive identity data. `MUST`, `MUST NOT`, `SHOULD`, and `MAY` are normative. A feature is not done because a screen or endpoint exists: every applicable requirement and test ID in the companion matrix must pass through the API, Filament, Next.js, policies, jobs, and PostgreSQL tenant boundary.
+This document is the release contract for Maestro identity, authentication, studio authorization, invitations, and sensitive identity data. `MUST`, `MUST NOT`, `SHOULD`, and `MAY` are normative. A feature is not done because a screen or endpoint exists: every applicable requirement and test ID in the companion matrix must pass through the API, authenticated Filament surface, policies, jobs, PostgreSQL tenant boundary, and any relevant public Next.js credential landing.
 
 This specification extends the accepted [platform architecture](../architecture/0001-platform-architecture.md), [product parity matrix](../product/parity-matrix.md), and [product vision](../product/vision.md). It does not claim that all controls are implemented today.
 
@@ -22,7 +22,7 @@ This specification extends the accepted [platform architecture](../architecture/
 | Sanctum first-party cookie authentication | Sanctum 4.3, `statefulApi()`, `web` guard, credentialed CORS, trusted host/origin enforcement, security headers, database-backed session inventory/revocation, eight-hour idle maximum, and 30-day absolute maximum are configured | Scaffolded; platform-specific shorter sessions and broader global-account lifecycle remain |
 | Password broker | Database reset-token broker, 60-minute expiry, generic `202`, HMAC limiter keys, uncompromised-password validation, database-session invalidation, and PAT revocation are tested | Scaffolded; security audit/notification and broader session backends remain |
 | Fortify | Headless normalized-email login, uniform unauthenticated public/invited registration, reset, verification, ten-minute password/passkey confirmation, encrypted TOTP setup/confirm/recovery/disable with a ten-minute pending-setup expiry and replay-resistant five-minute login challenge, and official WebAuthn passkey login/confirmation/management routes are present under `/api/v1/auth` | Scaffolded; `IDA-REG-001` passes current backend/frontend evidence with fixed generic `202`, no login/session rotation, bounded work/timing, keyed rate limits, passphrase support, and no semantic account/invitation errors; mandatory-role MFA/grace, full security notifications/audit, and recovery governance remain |
-| Invitations | Tenant-scoped list/create/revoke, JSON-body preview/accept, fragment-delivered and scrubbed browser credentials, digest-scoped RLS, normalized-email atomic acceptance, non-accepting invited registration, and recent confirmation on create/revoke are present | Scaffolded; resend/supersession, full audit/outbox, and broader lifecycle remain |
+| Invitations | Tenant-scoped list/create/resend/revoke, JSON-body preview/accept, fragment-delivered and scrubbed browser credentials, replacement-token supersession, token-safe versioned delivery/outbox recovery, immutable tenant audit, 30-day digest redaction, forced RLS, normalized-email atomic acceptance, non-accepting invited registration, and recent confirmation on create/resend/revoke are present | `IDA-INVITE-001` passes current invitation-domain evidence; broader role/onboarding lifecycle and cross-domain audit/outbox remain scaffolded |
 | Verification enforcement | Verification/resend routes and verified middleware on studio business routes are present | Scaffolded |
 | MFA, passkeys, session inventory/revocation | TOTP and passkey ceremonies plus safe metadata/session inventory and revocation endpoints are implemented; user sessions have forced PostgreSQL RLS | Scaffolded; remaining acceptance gaps are stated above and in the executable ledger |
 | Platform support access | Not implemented | Planned next gap |
@@ -30,7 +30,7 @@ This specification extends the accepted [platform architecture](../architecture/
 
 An implementation must preserve the verified controls while satisfying the target below. Tests may use Fortify's routes directly, but Maestro owns response normalization, policy enforcement, audit events, and UX.
 
-Snapshot gaps that the test ledger deliberately exposes: mandatory owner/administrator MFA enrollment and grace enforcement, complete security notifications, Sanctum PAT expiry, invitation resend/supersession, immutable security audit/outbox, ownership transfer, membership removal, and support-access flows are absent. Platform-specific 30-minute idle/eight-hour absolute sessions are not yet a separate runtime profile. Implemented controls now include uniform unauthenticated `202` registration for new/existing/semantic-invitation cases, verified-email owner onboarding, invitation-bound account creation without invite consumption, HMAC-derived registration/login/reset limiter keys, uncompromised passphrase-friendly password validation, reset invalidation of database sessions, session-registry rows, and PATs, trusted browser boundaries, fragment credential scrubbing, forced PostgreSQL RLS for memberships/invitations/user-session metadata, ten-minute recent confirmation and pending TOTP setup expiry, post-confirmation-only recovery-code disclosure, replay-resistant five-minute TOTP challenge, exact-origin WebAuthn passkeys, and user-facing session inventory/revocation with stale-record pruning and eight-hour idle/30-day absolute limits. These are implementation observations, not accepted exceptions for the remaining target gaps.
+Snapshot gaps that the test ledger deliberately exposes: mandatory owner/administrator MFA enrollment and grace enforcement, complete security notifications, Sanctum PAT expiry, cross-domain immutable security audit/outbox, ownership transfer, membership removal, and support-access flows are absent. Platform-specific 30-minute idle/eight-hour absolute sessions are not yet a separate runtime profile. Implemented controls now include uniform unauthenticated `202` registration for new/existing/semantic-invitation cases, verified-email owner onboarding, invitation-bound account creation without invite consumption, HMAC-derived registration/login/reset limiter keys, uncompromised passphrase-friendly password validation, reset invalidation of database sessions, session-registry rows, and PATs, trusted browser boundaries, fragment credential scrubbing, forced PostgreSQL RLS for memberships/invitations/user-session/audit/delivery metadata, ten-minute recent confirmation and pending TOTP setup expiry, post-confirmation-only recovery-code disclosure, replay-resistant five-minute TOTP challenge, exact-origin WebAuthn passkeys, user-facing session inventory/revocation with stale-record pruning and eight-hour idle/30-day absolute limits, and invitation replacement-token resend/supersession with recoverable versioned delivery, append-only tenant audit, and idempotent 30-day digest redaction. These are implementation observations, not accepted exceptions for the remaining target gaps.
 
 ### 1.2 Stable identity control IDs
 
@@ -50,11 +50,11 @@ These IDs are permanent review handles. A later implementation may add narrower 
 | `IDA-SESSION-002` | Idle and absolute server-side lifetimes terminate sessions independently of the browser cookie | `AUTH-E014`, `CFG-001` |
 | `IDA-INVITE-001` | Tenant-authorized create/resend/revoke uses replacement tokens, supersession, quotas, and safe tenant-local disclosure | `INV-E001`–`INV-E008`, `INV-E018`, `JOB-001`, `JOB-002` |
 | `IDA-INVITE-002` | Acceptance is server-bound and atomic; same-member replay is an idempotent safe success | `INV-E009`–`INV-E017`, `DB-007`, `ADV-004` |
-| `IDA-AUDIT-001` | Security writes emit immutable after-commit audit records and external delivery uses an idempotent outbox | `DB-008`, `JOB-001`–`JOB-012`, `FIELD-008` |
+| `IDA-AUDIT-001` | Security writes emit immutable after-commit audit records and external delivery uses an idempotent outbox | `AUDIT-E001`–`AUDIT-E004`, `DB-008`, `JOB-001`–`JOB-012`, `FIELD-008` |
 
 ## 2. Security invariants
 
-1. Laravel is the sole authentication and authorization boundary. Next.js middleware, hidden controls, Filament navigation, and client-stored studio selection are usability aids only.
+1. Laravel is the sole authentication and authorization boundary. Filament navigation, hidden controls, and client-stored studio selection are usability aids only; public Next.js pages never own authenticated state or policy decisions.
 2. A `User` is global. A `StudioMembership` is tenant-owned. Authentication proves the global user; authorization always resolves a fresh active membership for the route studio.
 3. A user may belong to many studios and have a different role in each. No studio choice, role, or permission supplied by a client is trusted.
 4. A valid identity is not sufficient for tenant access. Every tenant request requires `auth:sanctum`, verified email, an active membership for the resolved route tenant, a policy decision, and the appropriate step-up state.
@@ -103,7 +103,7 @@ Guardian and student access is further restricted by the user's linked person, h
 
 ### 3.4 Invitation
 
-`StudioInvitation` is tenant-owned and contains an ULID, `studio_id`, normalized target email, intended role, optional tenant person link, inviter membership/user IDs, SHA-256 token digest, `expires_at`, `last_sent_at`, `accepted_at`, `accepted_by_user_id`, `revoked_at`, `superseded_at`, and audit metadata. The plaintext token exists only while constructing a notification.
+`StudioInvitation` is tenant-owned and contains an ULID, `studio_id`, normalized target email, intended role, optional tenant person link, inviter membership/user IDs, SHA-256 token digest, monotonic delivery version, predecessor/replacement lineage, `expires_at`, `last_sent_at`, `accepted_at`, `accepted_by_user_id`, `revoked_at`, `superseded_at`, and audit metadata. The plaintext token exists only at the delivery boundary. The serialized delivery job contains exactly the invitation ULID and delivery version.
 
 Only one pending invitation per normalized `(studio_id, email)` is allowed. The same email may have independent invitations to different studios. An invitation does not disclose whether the target already has a global account or memberships elsewhere.
 
@@ -188,7 +188,7 @@ All transitions produce a success/failure audit event with actor, subject, reque
 
 ### 6.2 Password login
 
-1. The Next.js client first obtains `/sanctum/csrf-cookie`, then sends `POST /api/v1/auth/login` with credentials, `Accept: application/json`, `Origin`, credentialed cookies, and `X-XSRF-TOKEN`.
+1. The Filament login page submits directly to Laravel's stateful session guard under CSRF protection. The server normalizes the email before lookup, applies keyed account/IP limits, performs generic timeboxed credential failure, completes any required second factor, and regenerates the session before redirecting into `/manage`.
 2. Lookup uses normalized email. Unknown account, wrong password, locked account, and unverified account use the same credential failure body and materially similar timing; the UI may present a separate verification state only after valid credentials prove account ownership.
 3. Fortify's pipeline must retain username canonicalization, login throttling, two-factor redirection, authentication attempt, and authenticated-session preparation. Successful completion—not merely the first factor—regenerates the session ID.
 4. Rate limits are 5 failed attempts/minute per normalized-email hash plus IP and 50 attempts/15 minutes per IP. The normalized email is HMACed before being used as a distributed limiter key. A successful full login clears the account-specific limiter. Failure responses include retry metadata without revealing account existence.
@@ -214,7 +214,7 @@ All transitions produce a success/failure audit event with actor, subject, reque
 
 ### 6.5 CSRF, CORS, and browser boundary
 
-- First-party Next.js and Filament browsers use Sanctum stateful cookie sessions, never personal access tokens in local/session storage. SPA and API share a top-level domain.
+- The authenticated Filament browser uses Laravel's stateful database session and CSRF middleware directly, never a personal access token in local/session storage. Public Next.js content does not own an authenticated application session.
 - `statefulApi()` remains enabled. Stateful domains include exact host and port. Production CORS origins are explicit HTTPS origins; wildcard origins and reflected arbitrary origins are forbidden when credentials are supported.
 - The client calls `GET /sanctum/csrf-cookie`; URL-decodes `XSRF-TOKEN`; sends it as `X-XSRF-TOKEN` on every state-changing request; and includes credentials, `Accept: application/json`, and a valid `Origin` or `Referer`.
 - GET/HEAD/OPTIONS are side-effect free. All state changes require CSRF validation. Cookie-authenticated requests with missing/unapproved Origin/Referer fail before domain logic. Login, logout, invitation acceptance, MFA, passkey, verification resend, password change, and support access are covered.
@@ -256,6 +256,8 @@ requested -> pending_delivery -> pending
 ```
 
 Accepted, revoked, superseded, and expired are terminal. Resend creates a new token/digest and marks the former invitation superseded; it never extends or reuses a token. Default invitation lifetime is 7 days. Cleanup redacts token digests after 30 days and retains non-secret audit metadata according to retention policy.
+
+The exact resend, job-payload, audit, cleanup, privacy, and executable-evidence contract is defined in [Invitation audit and delivery acceptance](./invitation-audit-delivery-acceptance.md). Its implementation claims remain pending until the repository evidence named there passes.
 
 ### 7.2 Create, list, resend, and revoke
 
@@ -349,5 +351,8 @@ This acceptance contract was reconciled against the current Laravel 13 documenta
 - [Laravel authorization: policies and deny-by-default application authorization](https://laravel.com/docs/13.x/authorization)
 - [Laravel rate limiting: named distributed limiters](https://laravel.com/docs/13.x/rate-limiting)
 - [Laravel hashing: bcrypt/Argon2 and rehash checks](https://laravel.com/docs/13.x/hashing)
+- [Laravel queues: after-commit dispatch, uniqueness, encrypted jobs, retries and failed-job behavior](https://laravel.com/docs/13.x/queues)
+- [Laravel notifications: queued and after-commit delivery](https://laravel.com/docs/13.x/notifications)
+- [Laravel task scheduling: single-server and non-overlapping commands](https://laravel.com/docs/13.x/scheduling)
 
 Framework defaults are a floor, not the whole product policy. Numeric lifetimes, rate ceilings, role decisions, invitation semantics, field visibility, platform separation, and revocation behavior above are Maestro decisions.

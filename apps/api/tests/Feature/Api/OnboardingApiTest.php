@@ -9,6 +9,7 @@ use App\Models\Studio;
 use App\Models\StudioInvitation;
 use App\Models\StudioMembership;
 use App\Models\User;
+use App\Support\Auth\InvitationToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
@@ -220,13 +221,16 @@ class OnboardingApiTest extends TestCase
 
     private function invitationToken(Studio $studio, User $owner, string $email): string
     {
-        $result = app(CreateStudioInvitation::class)->handle(
+        $invitation = app(CreateStudioInvitation::class)->handle(
             $studio,
             $owner,
             $email,
             MembershipRole::Teacher,
         );
 
-        return $result['token'];
+        return app(InvitationToken::class)->derive(
+            (string) $invitation->getKey(),
+            $invitation->delivery_version,
+        );
     }
 }

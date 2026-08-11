@@ -7,8 +7,8 @@ Status: accepted on 2026-08-10.
 Maestro is a modular monolith with two independently deployable applications:
 
 - Laravel 13.24 is the source of truth for identity, tenants, authorization, domain rules, persistence, integrations, queues, scheduled work, and audit history.
-- Filament 5.7 provides the high-density studio operations panel and a separate future platform-operations panel.
-- Next.js 16.3 provides the polished daily experience, family/student portals, and public acquisition flows.
+- Filament 5.7, served by Laravel at `/manage`, is the complete authenticated studio and customer application, including login, onboarding, security, dashboards, portals, and studio operations. A separate platform-operations panel may be added later.
+- Next.js 16.3 is public-only: marketing, acquisition, documentation/content, and unauthenticated credential landing pages. It does not own login, onboarding, security, dashboards, portals, or studio workflows.
 - PostgreSQL 18 is the canonical database; Redis handles cache, sessions, queues, and rate limiting.
 
 The initial deployment uses one PostgreSQL database and schema. Every tenant-owned row carries a non-null `studio_id`. A user may have many studio memberships and a different role in each.
@@ -29,13 +29,13 @@ Queues, scheduled commands, imports, exports, cache keys, search documents, file
 
 ## Authentication
 
-Browser applications use Sanctum stateful session authentication and CSRF protection across sibling subdomains. Fortify owns password/TOTP flows and Laravel's official WebAuthn passkey ceremonies. Browser sessions are database-backed, have server-enforced idle and absolute limits, expose only opaque user-scoped inventory IDs, and require recent password/passkey confirmation for revocation and sensitive identity changes. Personal access tokens are reserved for native clients and integrations. Laravel remains the authorization boundary; Next.js proxy logic is only an optimistic navigation aid.
+The authenticated browser application is Laravel/Filament and uses Laravel's database-backed session guard and CSRF middleware directly. Fortify owns password/TOTP flows and Laravel's official WebAuthn passkey ceremonies. Browser sessions have server-enforced idle and absolute limits, expose only opaque user-scoped inventory IDs, and require recent password/passkey confirmation for revocation and sensitive identity changes. Personal access tokens are reserved for native clients and integrations. Public Next.js pages never become an authorization boundary or duplicate authenticated application state.
 
 Production hostnames are expected to share a top-level domain:
 
-- `app.example.com` — Next.js
+- `www.example.com` — public Next.js marketing/content
+- `app.example.com` — Laravel/Filament authenticated application
 - `api.example.com` — Laravel JSON API
-- `admin.example.com` — Filament
 
 ## Domain modules
 

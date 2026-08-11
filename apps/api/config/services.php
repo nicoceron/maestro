@@ -1,5 +1,11 @@
 <?php
 
+$invitationTokenSecret = trim((string) env('INVITATION_TOKEN_SECRET', ''));
+
+if ($invitationTokenSecret === '' && in_array((string) env('APP_ENV', 'production'), ['local', 'testing'], true)) {
+    $invitationTokenSecret = (string) env('APP_KEY', '');
+}
+
 return [
 
     'frontend' => [
@@ -8,6 +14,8 @@ return [
 
     'invitations' => [
         'expires_days' => (int) env('INVITATION_EXPIRES_DAYS', 7),
+        'resend_cooldown_seconds' => (int) env('INVITATION_RESEND_COOLDOWN_SECONDS', 60),
+        'token_secret' => $invitationTokenSecret,
     ],
 
     /*

@@ -15,7 +15,7 @@ class TenancyTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_management_members_can_access_only_active_managed_studios(): void
+    public function test_active_members_can_access_only_their_active_studios(): void
     {
         $owner = User::factory()->create();
         $first = Studio::factory()->create(['name' => 'Aria']);
@@ -36,7 +36,7 @@ class TenancyTest extends TestCase
         $this->assertSame(['Aria', 'Bravo'], $owner->getTenants($panel)->pluck('name')->all());
     }
 
-    public function test_teacher_members_use_the_next_portal_not_the_management_panel(): void
+    public function test_teacher_members_use_the_authenticated_filament_application(): void
     {
         $teacher = User::factory()->create();
         $studio = Studio::factory()->create();
@@ -44,9 +44,12 @@ class TenancyTest extends TestCase
 
         $panel = Filament::getPanel('admin');
 
-        $this->assertFalse($teacher->canAccessPanel($panel));
-        $this->assertFalse($teacher->canAccessTenant($studio));
-        $this->assertCount(0, $teacher->getTenants($panel));
+        $this->assertTrue($teacher->canAccessPanel($panel));
+        $this->assertTrue($teacher->canAccessTenant($studio));
+        $this->assertSame([$studio->getKey()], $teacher->getTenants($panel)->modelKeys());
+        $this->actingAs($teacher)
+            ->get("/manage/studio/{$studio->slug}")
+            ->assertOk();
     }
 
     private function membership(

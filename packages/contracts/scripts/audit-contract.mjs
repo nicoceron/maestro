@@ -39,6 +39,7 @@ const expectedPaths = [
   "/api/v1/onboarding",
   "/api/v1/studios/{studio}/invitations",
   "/api/v1/studios/{studio}/invitations/{invitation}",
+  "/api/v1/studios/{studio}/invitations/{invitation}/resend",
 ];
 
 const expectedOperations = [
@@ -77,6 +78,7 @@ const expectedOperations = [
   "completeOnboarding",
   "listStudioInvitations",
   "createStudioInvitation",
+  "resendStudioInvitation",
   "revokeStudioInvitation",
 ];
 
@@ -92,6 +94,10 @@ const expectedSchemas = [
   "InvitationPreview",
   "OnboardingInput",
   "StudioInvitation",
+  "InvitationDeliveryStatus",
+  "StudioInvitationPermissions",
+  "StudioInvitationCollectionCapabilities",
+  "StudioInvitationResentEnvelope",
   "WorkspaceMode",
 ];
 
@@ -106,6 +112,7 @@ const expectedAcceptanceIds = {
   revokeOtherSessions: ["AUTH-E013"],
   revokeSession: ["AUTH-E012", "AUTH-E018"],
   createStudioInvitation: ["IDA-STEPUP-001", "INV-E001"],
+  resendStudioInvitation: ["IDA-STEPUP-001", "IDA-INVITE-001", "INV-E005", "INV-E008", "INV-E018", "JOB-001", "JOB-002"],
 };
 
 const missing = [];
@@ -152,6 +159,9 @@ const invariants = [
   ["session inventory exposes derived metadata", /BrowserSession:[\s\S]*?device:[\s\S]*?approximate_location:[\s\S]*?created_at:[\s\S]*?last_seen_at:[\s\S]*?current:/],
   ["TOTP recovery material is post-confirmation only", /operationId: getTwoFactorRecoveryCodes[\s\S]*?'404':[\s\S]*?NotFound/],
   ["sensitive identity responses are non-cacheable", /operationId: listSessions[\s\S]*?Cache-Control:[\s\S]*?NoStore[\s\S]*?PragmaNoCache[\s\S]*?ExpiresImmediately/],
+  ["invitation resend requires session, CSRF, recent confirmation, and returns a replacement", /operationId: resendStudioInvitation[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?'202':[\s\S]*?StudioInvitationResentEnvelope[\s\S]*?'423':[\s\S]*?RecentPasswordRequired/],
+  ["invitation list exposes server-derived capabilities", /StudioInvitationPaginatedCollectionEnvelope:[\s\S]*?capabilities:[\s\S]*?StudioInvitationCollectionCapabilities/],
+  ["invitation resources expose server-derived actions", /StudioInvitation:[\s\S]*?resend_available_at:[\s\S]*?delivery_status:[\s\S]*?permissions:[\s\S]*?StudioInvitationPermissions/],
 ];
 
 for (const [label, pattern] of invariants) {
@@ -197,10 +207,30 @@ for (const forbiddenField of ["ip_address", "user_agent", "session_id"]) {
   }
 }
 
+const invitationResourceBlock = source.slice(
+  source.indexOf("    StudioInvitation:"),
+  source.indexOf("    StudioInvitationPermissions:"),
+);
+
+for (const forbiddenField of [
+  "token_hash",
+  "pending_key",
+  "plaintext_token",
+  "outbox_id",
+  "global_user_id",
+  "lineage_id",
+  "delivery_version",
+  "previous_invitation_id",
+  "superseded_by_id",
+]) {
+  if (invitationResourceBlock.includes(forbiddenField)) {
+    missing.push(`StudioInvitation leaks ${forbiddenField}`);
+  }
+}
+
 for (const retiredPath of [
   "/api/v1/invitations/{token}",
   "/api/v1/invitations/{token}/accept",
-  "/api/v1/studios/{studio}/invitations/{invitation}/resend",
 ]) {
   if (source.includes(`  ${retiredPath}:`)) missing.push(`retired source path ${retiredPath}`);
   if (generated.includes(`\"${retiredPath}\":`)) missing.push(`retired generated path ${retiredPath}`);

@@ -40,7 +40,17 @@ Route::prefix('v1')
                         Route::apiResource('invitations', StudioInvitationController::class)
                             ->only(['index']);
                         Route::post('invitations', [StudioInvitationController::class, 'store'])
-                            ->middleware('password.recent');
+                            ->middleware([
+                                'password.recent',
+                                'invitation.authorize:create',
+                                'rate-limit.after-authorization:invitation-create',
+                            ]);
+                        Route::post('invitations/{invitation}/resend', [StudioInvitationController::class, 'resend'])
+                            ->middleware([
+                                'password.recent',
+                                'invitation.authorize:resend',
+                                'rate-limit.after-authorization:invitation-resend',
+                            ]);
                         Route::delete('invitations/{invitation}', [StudioInvitationController::class, 'destroy'])
                             ->middleware('password.recent');
                         Route::apiResource('households', HouseholdController::class)

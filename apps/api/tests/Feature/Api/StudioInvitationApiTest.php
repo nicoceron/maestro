@@ -10,9 +10,11 @@ use App\Models\StudioInvitation;
 use App\Models\StudioMembership;
 use App\Models\User;
 use App\Notifications\StudioInvitationNotification;
+use App\Support\Auth\InvitationToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -45,6 +47,9 @@ class StudioInvitationApiTest extends TestCase
             ->assertJsonPath('data.email', 'new.teacher@example.com')
             ->assertJsonPath('data.role', 'teacher')
             ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.delivery_status', 'sent')
+            ->assertJsonPath('data.send_count', 1)
+            ->assertJsonPath('data.last_sent_at', fn (mixed $value): bool => is_string($value))
             ->assertJsonMissingPath('data.token')
             ->assertJsonMissingPath('data.token_hash');
 
@@ -67,7 +72,7 @@ class StudioInvitationApiTest extends TestCase
         );
         $this->assertIsString($rawToken);
         $this->assertInstanceOf(StudioInvitationNotification::class, $sentNotification);
-        $this->assertTrue($sentNotification->shouldSend((object) [], 'mail'));
+        $this->assertFalse($sentNotification->shouldSend((object) [], 'mail'));
         $this->assertSame(hash('sha256', $rawToken), $invitation->token_hash);
         $this->assertStringNotContainsString(
             $rawToken,
@@ -120,11 +125,14 @@ class StudioInvitationApiTest extends TestCase
 
     public function test_queued_invitation_recheck_suppresses_expired_and_accepted_messages(): void
     {
-        Notification::fake();
+        Queue::fake();
         [$owner, $studio] = $this->manager(MembershipRole::Owner);
         $token = $this->createInvitation($studio, $owner, 'queued@example.com');
         $invitation = StudioInvitation::query()->sole();
-        $notification = new StudioInvitationNotification($invitation->getKey(), $token);
+        $notification = new StudioInvitationNotification(
+            $invitation->getKey(),
+            $invitation->delivery_version,
+        );
 
         $this->assertTrue($notification->shouldSend((object) [], 'mail'));
 
@@ -325,14 +333,17 @@ class StudioInvitationApiTest extends TestCase
 
     private function createInvitation(Studio $studio, User $inviter, string $email): string
     {
-        $result = app(CreateStudioInvitation::class)->handle(
+        $invitation = app(CreateStudioInvitation::class)->handle(
             $studio,
             $inviter,
             $email,
             MembershipRole::Teacher,
         );
 
-        return $result['token'];
+        return app(InvitationToken::class)->derive(
+            (string) $invitation->getKey(),
+            $invitation->delivery_version,
+        );
     }
 
     /** @return array{User, Studio} */

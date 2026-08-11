@@ -2,20 +2,25 @@
 
 namespace Tests\Feature\Security;
 
+use App\Actions\Invitations\CreateStudioInvitation;
 use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
+use App\Jobs\DeliverStudioInvitation;
 use App\Models\Household;
 use App\Models\Studio;
 use App\Models\StudioInvitation;
+use App\Models\StudioInvitationDelivery;
 use App\Models\StudioMembership;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Notifications\StudioInvitationNotification;
+use App\Support\Auth\InvitationToken;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -244,6 +249,7 @@ class PostgresRowLevelSecurityTest extends TestCase
         }
 
         Notification::fake();
+        Queue::fake();
         [$runtime, $runtimeConnectionName] = $this->runtimeConnection();
         $originalDefault = DB::getDefaultConnection();
         $owner = User::factory()->create(['email' => 'security-runtime-owner@example.com']);
@@ -251,22 +257,51 @@ class PostgresRowLevelSecurityTest extends TestCase
         $onboardingUser = User::factory()->create(['email' => 'security-runtime-onboarding@example.com']);
         $studio = Studio::factory()->create(['name' => 'Runtime Studio', 'slug' => 'security-runtime-studio']);
         $this->membership($owner, $studio, MembershipRole::Owner);
-        $token = Str::random(64);
-        $invitation = $this->invitation($studio, $owner, $invitee->email, $token);
-        $registrationToken = Str::random(64);
-        $registrationInvitation = $this->invitation(
+        $invitation = app(CreateStudioInvitation::class)->handle(
+            $studio,
+            $owner,
+            $invitee->email,
+            MembershipRole::Teacher,
+        );
+        $token = app(InvitationToken::class)->derive(
+            $invitation->getKey(),
+            $invitation->delivery_version,
+        );
+        $registrationInvitation = app(CreateStudioInvitation::class)->handle(
             $studio,
             $owner,
             'security-runtime-registration@example.com',
-            $registrationToken,
+            MembershipRole::Teacher,
         );
-        $queuedNotification = new StudioInvitationNotification($invitation->getKey(), $token);
+        $registrationToken = app(InvitationToken::class)->derive(
+            $registrationInvitation->getKey(),
+            $registrationInvitation->delivery_version,
+        );
+        $queuedNotification = new StudioInvitationNotification(
+            $invitation->getKey(),
+            $invitation->delivery_version,
+        );
+        $queuedJob = null;
+        Queue::assertPushed(
+            DeliverStudioInvitation::class,
+            function (DeliverStudioInvitation $job) use ($invitation, &$queuedJob): bool {
+                if ($job->invitationId !== $invitation->getKey()) {
+                    return false;
+                }
+
+                $queuedJob = $job;
+
+                return true;
+            },
+        );
 
         config(['database.default' => $runtimeConnectionName]);
         DB::setDefaultConnection($runtimeConnectionName);
 
         try {
-            $this->assertTrue($queuedNotification->shouldSend((object) [], 'mail'));
+            $this->assertInstanceOf(DeliverStudioInvitation::class, $queuedJob);
+            app()->call([$queuedJob, 'handle']);
+            Notification::assertSentOnDemand(StudioInvitationNotification::class);
 
             $this->postJson('/api/v1/invitations/preview', ['invitation_token' => $token])
                 ->assertOk()
@@ -318,47 +353,236 @@ class PostgresRowLevelSecurityTest extends TestCase
                 ->assertJsonPath('data.0.slug', $studio->slug);
             $this->getJson("/api/v1/studios/{$studio->slug}/invitations")
                 ->assertOk()
-                ->assertJsonPath('data.0.id', $invitation->getKey());
+                ->assertJsonFragment(['id' => $invitation->getKey()]);
             $this->postJson("/api/v1/studios/{$studio->slug}/invitations", [
                 'email' => 'security-runtime-managed@example.com',
                 'role' => MembershipRole::Teacher->value,
             ])->assertCreated();
 
             Auth::forgetGuards();
-            $this->get("/manage/studio/{$studio->slug}")->assertOk();
+            $filamentResponse = $this->get("/manage/studio/{$studio->slug}");
+            $this->assertSame(
+                200,
+                $filamentResponse->getStatusCode(),
+                'Filament runtime path failed.',
+            );
 
             Auth::guard('web')->logout();
             session()->invalidate();
             Auth::forgetGuards();
             $this->defaultCookies = [];
             Sanctum::actingAs($invitee);
-            $this->postJson('/api/v1/invitations/accept', ['invitation_token' => $token])
-                ->assertOk()
-                ->assertJsonPath('data.slug', $studio->slug);
+            $acceptanceResponse = $this->postJson('/api/v1/invitations/accept', ['invitation_token' => $token]);
+            $this->assertSame(200, $acceptanceResponse->getStatusCode(), 'Invitation acceptance runtime path failed.');
+            $acceptanceResponse->assertJsonPath('data.slug', $studio->slug);
             $this->assertFalse($queuedNotification->shouldSend((object) [], 'mail'));
 
             Auth::forgetGuards();
             Sanctum::actingAs($onboardingUser);
-            $this->postJson('/api/v1/onboarding', [
+            $onboardingResponse = $this->postJson('/api/v1/onboarding', [
                 'studio' => [
                     'name' => 'Runtime Onboarding Studio',
                     'slug' => 'security-runtime-onboarding-studio',
                 ],
                 'workspace_mode' => 'owner',
                 'primary_goal' => 'growth',
-            ])->assertOk()
-                ->assertJsonPath('data.membership.role', MembershipRole::Owner->value);
+            ]);
+            $this->assertSame(200, $onboardingResponse->getStatusCode(), 'Onboarding runtime path failed.');
+            $onboardingResponse->assertJsonPath('data.membership.role', MembershipRole::Owner->value);
             $this->getJson('/api/v1/studios')->assertOk()->assertJsonCount(1, 'data');
         } finally {
             Auth::forgetGuards();
             DB::purge($runtimeConnectionName);
             config(['database.default' => $originalDefault]);
             DB::setDefaultConnection($originalDefault);
-            Studio::query()->whereIn('slug', [
-                'security-runtime-studio',
-                'security-runtime-onboarding-studio',
-            ])->each(fn (Studio $cleanupStudio) => $cleanupStudio->forceDelete());
             User::query()->where('email', 'like', 'security-runtime-%')->delete();
+        }
+    }
+
+    public function test_invitation_delivery_and_audit_rls_are_default_deny_cross_tenant_safe_and_bearer_scoped(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL is required for the RLS integration test.');
+        }
+
+        Queue::fake();
+        [$runtime, $runtimeConnectionName] = $this->runtimeConnection();
+        $owner = User::factory()->create(['email' => 'security-lifecycle-owner@example.com']);
+        $invitee = User::factory()->create(['email' => 'security-lifecycle-invitee@example.com']);
+        $firstStudio = Studio::factory()->create(['slug' => 'security-lifecycle-first']);
+        $secondStudio = Studio::factory()->create(['slug' => 'security-lifecycle-second']);
+        $this->membership($owner, $firstStudio, MembershipRole::Owner);
+        $secondOwner = User::factory()->create(['email' => 'security-lifecycle-second-owner@example.com']);
+        $this->membership($secondOwner, $secondStudio, MembershipRole::Owner);
+        $firstInvitation = app(CreateStudioInvitation::class)->handle(
+            $firstStudio,
+            $owner,
+            $invitee->email,
+            MembershipRole::Teacher,
+        );
+        $secondInvitation = app(CreateStudioInvitation::class)->handle(
+            $secondStudio,
+            $secondOwner,
+            'security-lifecycle-second-invitee@example.com',
+            MembershipRole::Teacher,
+        );
+        $token = app(InvitationToken::class)->derive(
+            $firstInvitation->getKey(),
+            $firstInvitation->delivery_version,
+        );
+        $terminalInvitations = [];
+
+        foreach (['revoked', 'expired', 'superseded'] as $terminalState) {
+            $terminalUser = User::factory()->create([
+                'email' => "security-lifecycle-{$terminalState}@example.com",
+            ]);
+            $terminalInvitation = app(CreateStudioInvitation::class)->handle(
+                $firstStudio,
+                $owner,
+                $terminalUser->email,
+                MembershipRole::Teacher,
+            );
+            $this->membership($terminalUser, $firstStudio, MembershipRole::Teacher);
+            $terminalInvitation->forceFill(match ($terminalState) {
+                'revoked' => ['revoked_at' => now(), 'pending_key' => null],
+                'expired' => ['expires_at' => now()->subSecond()],
+                'superseded' => ['superseded_at' => now(), 'pending_key' => null],
+            })->save();
+            $terminalInvitations[] = [$terminalUser, $terminalInvitation, app(InvitationToken::class)->derive(
+                $terminalInvitation->getKey(),
+                $terminalInvitation->delivery_version,
+            )];
+        }
+
+        try {
+            $this->assertSame(0, $runtime->table('studio_invitation_deliveries')->count());
+            $this->assertSame(0, $runtime->table('studio_audit_events')->count());
+            $this->assertSame(
+                $firstStudio->getKey(),
+                $runtime->scalar(
+                    'select public.app_resolve_invitation_delivery_studio(?, ?)',
+                    [$firstInvitation->getKey(), $firstInvitation->delivery_version],
+                ),
+            );
+            $this->assertNull($runtime->scalar(
+                'select public.app_resolve_invitation_delivery_studio(?, ?)',
+                [$firstInvitation->getKey(), 999],
+            ));
+
+            $this->setContext($runtime, 'app.current_studio_id', $firstStudio->getKey());
+            $this->assertSame(4, $runtime->table('studio_invitation_deliveries')->count());
+            $this->assertSame(8, $runtime->table('studio_audit_events')->count());
+            $this->assertSame(0, $runtime->table('studio_invitation_deliveries')
+                ->where('invitation_id', $secondInvitation->getKey())
+                ->update(['status' => 'suppressed']));
+
+            $this->setContext($runtime, 'app.current_studio_id', '');
+            $this->setContext($runtime, 'app.current_user_id', (string) $invitee->getKey());
+            $this->setContext($runtime, 'app.current_invitation_token_hash', hash('sha256', $token));
+            $this->assertSame([$firstInvitation->getKey()], $runtime->table('studio_invitations')->pluck('id')->all());
+
+            foreach ([
+                ['role' => MembershipRole::Administrator->value],
+                ['token_hash' => str_repeat('a', 64)],
+                ['lineage_id' => $secondInvitation->getKey()],
+                ['superseded_at' => now()],
+            ] as $mutation) {
+                $denied = false;
+
+                try {
+                    $denied = $runtime->table('studio_invitations')
+                        ->where('id', $firstInvitation->getKey())
+                        ->update($mutation) === 0;
+                } catch (QueryException) {
+                    $denied = true;
+                }
+
+                $this->assertTrue($denied);
+            }
+
+            $membershipDenied = false;
+
+            try {
+                $runtime->table('studio_memberships')->insert([
+                    'id' => (string) Str::ulid(),
+                    'studio_id' => $firstStudio->getKey(),
+                    'user_id' => $invitee->getKey(),
+                    'role' => MembershipRole::Administrator->value,
+                    'status' => MembershipStatus::Active->value,
+                    'joined_at' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (QueryException) {
+                $membershipDenied = true;
+            }
+
+            $this->assertTrue($membershipDenied);
+            $this->assertSame(0, $runtime->table('studio_invitation_deliveries')
+                ->where('invitation_id', $firstInvitation->getKey())
+                ->update(['status' => 'suppressed']));
+            $auditDenied = false;
+
+            try {
+                $runtime->table('studio_audit_events')->insert([
+                    'id' => (string) Str::ulid(),
+                    'studio_id' => $firstStudio->getKey(),
+                    'event_type' => 'invitation.accepted',
+                    'subject_type' => 'studio_invitation',
+                    'subject_id' => $firstInvitation->getKey(),
+                    'actor_id' => $invitee->getKey(),
+                    'metadata' => '{}',
+                    'occurred_at' => now(),
+                ]);
+            } catch (QueryException) {
+                $auditDenied = true;
+            }
+
+            $this->assertTrue($auditDenied);
+            $invalidAuditContextDenied = false;
+
+            try {
+                $runtime->statement(
+                    'select public.app_finalize_invitation_acceptance(?, ?, ?, ?, ?)',
+                    [
+                        $firstInvitation->getKey(),
+                        (string) Str::ulid(),
+                        (string) Str::ulid(),
+                        str_repeat('A', 43),
+                        str_repeat('z', 64),
+                    ],
+                );
+            } catch (QueryException) {
+                $invalidAuditContextDenied = true;
+            }
+
+            $this->assertTrue($invalidAuditContextDenied);
+
+            foreach ($terminalInvitations as [$terminalUser, $terminalInvitation, $terminalToken]) {
+                $this->setContext($runtime, 'app.current_user_id', (string) $terminalUser->getKey());
+                $this->setContext(
+                    $runtime,
+                    'app.current_invitation_token_hash',
+                    hash('sha256', $terminalToken),
+                );
+                $terminalAcceptanceDenied = false;
+
+                try {
+                    $terminalAcceptanceDenied = $runtime->table('studio_invitations')
+                        ->where('id', $terminalInvitation->getKey())
+                        ->update([
+                            'accepted_by_id' => $terminalUser->getKey(),
+                            'accepted_at' => now(),
+                            'pending_key' => null,
+                        ]) === 0;
+                } catch (QueryException) {
+                    $terminalAcceptanceDenied = true;
+                }
+
+                $this->assertTrue($terminalAcceptanceDenied);
+            }
+        } finally {
+            DB::purge($runtimeConnectionName);
         }
     }
 
@@ -479,8 +703,12 @@ class PostgresRowLevelSecurityTest extends TestCase
 
     private function invitation(Studio $studio, User $inviter, string $email, string $token): StudioInvitation
     {
-        return StudioInvitation::query()->create([
+        $id = (string) Str::ulid();
+        $invitation = StudioInvitation::query()->create([
+            'id' => $id,
             'studio_id' => $studio->getKey(),
+            'lineage_id' => $id,
+            'delivery_version' => 1,
             'email_normalized' => User::normalizeEmail($email),
             'role' => MembershipRole::Teacher,
             'token_hash' => hash('sha256', $token),
@@ -488,5 +716,14 @@ class PostgresRowLevelSecurityTest extends TestCase
             'invited_by_id' => $inviter->getKey(),
             'expires_at' => now()->addDay(),
         ]);
+
+        StudioInvitationDelivery::query()->create([
+            'studio_id' => $studio->getKey(),
+            'invitation_id' => $invitation->getKey(),
+            'delivery_version' => 1,
+            'status' => 'pending',
+        ]);
+
+        return $invitation;
     }
 }

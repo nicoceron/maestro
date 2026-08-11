@@ -6,6 +6,7 @@ use App\Enums\MembershipStatus;
 use App\Models\StudioInvitation;
 use App\Models\StudioMembership;
 use App\Models\User;
+use App\Support\Audit\InvitationAudit;
 use App\Support\Tenancy\RequestDatabaseContext;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,11 @@ use Illuminate\Validation\ValidationException;
 
 final class AcceptStudioInvitation
 {
-    public function __construct(private readonly RequestDatabaseContext $databaseContext) {}
+    public function __construct(
+        private readonly RequestDatabaseContext $databaseContext,
+        private readonly InvitationDeliveryOutbox $outbox,
+        private readonly InvitationAudit $audit,
+    ) {}
 
     /** @throws ValidationException */
     public function handle(User $user, string $token): StudioMembership
@@ -65,6 +70,16 @@ final class AcceptStudioInvitation
                 'accepted_at' => now(),
                 'pending_key' => null,
             ])->save();
+
+            if (DB::getDriverName() === 'pgsql') {
+                $this->audit->finalizeAcceptance($invitation, $user);
+            } else {
+                $this->outbox->suppressPending($invitation, 'accepted', $user);
+                $this->audit->record($invitation, 'invitation.accepted', $user, [
+                    'role' => $invitation->role->value,
+                    'delivery_version' => $invitation->delivery_version,
+                ]);
+            }
 
             if (! $user->hasVerifiedEmail() && $user->markEmailAsVerified()) {
                 event(new Verified($user));

@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\AddSecurityHeaders;
+use App\Http\Middleware\ApplyNamedRateLimiter;
+use App\Http\Middleware\AuthorizeInvitationMutation;
 use App\Http\Middleware\EnforceBrowserSessionLifetime;
 use App\Http\Middleware\EnsureRecentPasswordConfirmation;
 use App\Http\Middleware\EnsureTrustedRequestOrigin;
@@ -18,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands()
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->trustHosts(
@@ -31,8 +34,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'database.user-context' => SetDatabaseUserContext::class,
+            'invitation.authorize' => AuthorizeInvitationMutation::class,
             'password.confirm' => EnsureRecentPasswordConfirmation::class,
             'password.recent' => EnsureRecentPasswordConfirmation::class,
+            'rate-limit.after-authorization' => ApplyNamedRateLimiter::class,
             'session.lifetime' => EnforceBrowserSessionLifetime::class,
             'studio.member' => ResolveStudioTenant::class,
         ]);

@@ -15,7 +15,7 @@ final class InvitationTokenRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'invitation_token' => ['required', 'string', 'min:40', 'max:128', 'regex:/^[A-Za-z0-9]+$/'],
+            'invitation_token' => ['required', 'string', 'min:40', 'max:128', 'regex:/^[A-Za-z0-9_-]+$/'],
         ];
     }
 }

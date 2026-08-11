@@ -24,6 +24,11 @@ final class RequestDatabaseContext
         $this->set('app.current_invitation_token_hash', hash('sha256', $token), true);
     }
 
+    public function activateStudioId(string $studioId): void
+    {
+        $this->set('app.current_studio_id', $studioId, true);
+    }
+
     private function set(string $key, string $value, bool $local): void
     {
         $connection = $this->database->connection();

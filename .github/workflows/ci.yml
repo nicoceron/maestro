@@ -123,6 +123,16 @@ jobs:
           --set=ON_ERROR_STOP=1
           --file="$GITHUB_WORKSPACE/infra/postgres/init/001-runtime-role.sql"
 
+      - name: Run acceptance definer under the restricted RLS role
+        run: >-
+          PGPASSWORD="$DB_PASSWORD" psql
+          --host="$DB_HOST"
+          --port="$DB_PORT"
+          --username="$DB_USERNAME"
+          --dbname="$DB_DATABASE"
+          --set=ON_ERROR_STOP=1
+          --command="ALTER FUNCTION public.app_finalize_invitation_acceptance(char(26), char(26), char(26), varchar, char(64)) OWNER TO \"$DB_RUNTIME_USERNAME\";"
+
       - name: Run Laravel tests
         run: php artisan test --colors=always
 

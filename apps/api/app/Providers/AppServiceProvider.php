@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Support\Auth\SensitiveRateLimitKey;
 use App\Support\Tenancy\RequestDatabaseContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Routing\UrlRoutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -38,6 +40,39 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(120)
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        RateLimiter::for('invitation-create', function (Request $request): array {
+            $studio = $request->route('studio')
+                ?? $request->attributes->get('invitation_rate_limit_studio');
+            $studioId = $studio instanceof UrlRoutable
+                ? $studio->getRouteKey()
+                : (string) $studio;
+            $keys = app(SensitiveRateLimitKey::class);
+
+            return [
+                Limit::perHour(20)->by($keys->for(
+                    'invitation-create-inviter',
+                    $request->user()?->getAuthIdentifier() ?? 'guest',
+                )),
+                Limit::perDay(100)->by($keys->for(
+                    'invitation-create-studio',
+                    $studioId,
+                )),
+            ];
+        });
+        RateLimiter::for('invitation-resend', function (Request $request): Limit {
+            $invitation = $request->route('invitation')
+                ?? $request->attributes->get('invitation_rate_limit_invitation');
+            $invitationId = $invitation instanceof UrlRoutable
+                ? $invitation->getRouteKey()
+                : (string) $invitation;
+
+            return Limit::perMinute(1)->by(app(SensitiveRateLimitKey::class)->for(
+                'invitation-resend',
+                $request->user()?->getAuthIdentifier() ?? 'guest',
+                $invitationId,
+                $request->ip() ?? 'unknown',
+            ));
+        });
     }
 
     private function assertProductionSecurityLimits(): void
@@ -60,11 +95,23 @@ class AppServiceProvider extends ServiceProvider
             throw new LogicException('SESSION_DRIVER must be database in production.');
         }
 
+        if (config('mail.default') === 'log') {
+            throw new LogicException('MAIL_MAILER must not be log in production because invitation emails contain one-time bearer links.');
+        }
+
         $passkeySecret = (string) config('fortify.passkeys.user_handle_secret');
         $appKey = (string) config('app.key');
 
         if ($passkeySecret === '' || hash_equals($appKey, $passkeySecret) || $this->secretBytes($passkeySecret) < 32) {
             throw new LogicException('PASSKEYS_USER_HANDLE_SECRET must be an independent secret of at least 32 bytes in production.');
+        }
+
+        $invitationSecret = (string) config('services.invitations.token_secret');
+
+        if ($invitationSecret === ''
+            || hash_equals($appKey, $invitationSecret)
+            || $this->secretBytes($invitationSecret) < 32) {
+            throw new LogicException('INVITATION_TOKEN_SECRET must be an independent secret of at least 32 bytes in production.');
         }
 
         $relyingParty = (string) config('fortify.passkeys.relying_party_id');
