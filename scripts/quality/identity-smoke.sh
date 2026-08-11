@@ -6,6 +6,7 @@ repo_root=$(git rev-parse --show-toplevel)
 api_root="$repo_root/apps/api"
 web_root="$repo_root/apps/web"
 smoke_root=$(mktemp -d -t maestro-identity-smoke.XXXXXX)
+smoke_web_root="$smoke_root/web"
 database_path="$smoke_root/database.sqlite"
 cookie_jar="$smoke_root/cookies.txt"
 api_port=18110
@@ -68,9 +69,16 @@ wait_for_url() {
 require_command curl
 require_command jq
 require_command php
-require_command pnpm
+require_command tar
 
 touch "$database_path"
+mkdir -p "$smoke_web_root"
+tar -C "$web_root" \
+  --exclude='.next' \
+  --exclude='node_modules' \
+  --exclude='.env*' \
+  -cf - . | tar -C "$smoke_web_root" -xf -
+ln -s "$web_root/node_modules" "$smoke_web_root/node_modules"
 
 export APP_ENV=local
 export APP_DEBUG=false
@@ -95,9 +103,9 @@ export MAIL_MAILER=array
 api_pid=$!
 
 (
-  cd "$web_root"
+  cd "$smoke_web_root"
   API_ORIGIN="$api_origin" NEXT_TELEMETRY_DISABLED=1 \
-    exec pnpm exec next dev --port "$web_port" >"$smoke_root/web.log" 2>&1
+    exec "$web_root/node_modules/.bin/next" dev --webpack --port "$web_port" >"$smoke_root/web.log" 2>&1
 ) &
 web_pid=$!
 
