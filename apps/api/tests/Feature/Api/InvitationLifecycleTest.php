@@ -298,8 +298,8 @@ final class InvitationLifecycleTest extends TestCase
             'role' => MembershipRole::Teacher->value,
         ])->assertForbidden();
 
-        $this->assertSame(0, RateLimiter::attempts($outsiderQuotaKey));
-        $this->assertSame(0, RateLimiter::attempts($studioQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($outsiderQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($studioQuotaKey));
 
         $teacher = User::factory()->create();
         StudioMembership::query()->create([
@@ -319,8 +319,8 @@ final class InvitationLifecycleTest extends TestCase
             'email' => 'teacher-role-denied@example.com',
             'role' => MembershipRole::Teacher->value,
         ])->assertForbidden();
-        $this->assertSame(0, RateLimiter::attempts($teacherQuotaKey));
-        $this->assertSame(0, RateLimiter::attempts($studioQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($teacherQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($studioQuotaKey));
 
         $administrator = User::factory()->create();
         StudioMembership::query()->create([
@@ -340,8 +340,8 @@ final class InvitationLifecycleTest extends TestCase
             'email' => 'administrator-role-denied@example.com',
             'role' => MembershipRole::Administrator->value,
         ])->assertForbidden();
-        $this->assertSame(0, RateLimiter::attempts($administratorQuotaKey));
-        $this->assertSame(0, RateLimiter::attempts($studioQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($administratorQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($studioQuotaKey));
 
         Sanctum::actingAs($owner);
         $this->withSession(['auth.password_confirmed_at' => 0])
@@ -350,16 +350,16 @@ final class InvitationLifecycleTest extends TestCase
                 'role' => MembershipRole::Teacher->value,
             ])->assertStatus(423);
 
-        $this->assertSame(0, RateLimiter::attempts($ownerQuotaKey));
-        $this->assertSame(0, RateLimiter::attempts($studioQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($ownerQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($studioQuotaKey));
 
         $this->withSession(['auth.password_confirmed_at' => now()->timestamp])
             ->postJson("/api/v1/studios/{$studio->slug}/invitations", [
                 'email' => 'invalid-owner-role@example.com',
                 'role' => MembershipRole::Owner->value,
             ])->assertUnprocessable();
-        $this->assertSame(0, RateLimiter::attempts($ownerQuotaKey));
-        $this->assertSame(0, RateLimiter::attempts($studioQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($ownerQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($studioQuotaKey));
 
         $this->assertDatabaseCount('studio_invitations', 0);
         $this->assertDatabaseCount('studio_invitation_deliveries', 0);
@@ -397,7 +397,7 @@ final class InvitationLifecycleTest extends TestCase
         $this->postJson(
             "/api/v1/studios/{$studio->slug}/invitations/{$invitation->getRouteKey()}/resend",
         )->assertForbidden();
-        $this->assertSame(0, RateLimiter::attempts($outsiderQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($outsiderQuotaKey));
 
         $teacher = User::factory()->create();
         StudioMembership::query()->create([
@@ -418,7 +418,7 @@ final class InvitationLifecycleTest extends TestCase
         $this->postJson(
             "/api/v1/studios/{$studio->slug}/invitations/{$invitation->getRouteKey()}/resend",
         )->assertForbidden();
-        $this->assertSame(0, RateLimiter::attempts($teacherQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($teacherQuotaKey));
 
         $ownerQuotaKey = md5('invitation-resend'.$keys->for(
             'invitation-resend',
@@ -431,7 +431,7 @@ final class InvitationLifecycleTest extends TestCase
             ->postJson(
                 "/api/v1/studios/{$studio->slug}/invitations/{$invitation->getRouteKey()}/resend",
             )->assertStatus(423);
-        $this->assertSame(0, RateLimiter::attempts($ownerQuotaKey));
+        $this->assertSame(0, (int) RateLimiter::attempts($ownerQuotaKey));
 
         $this->assertSame($counts, [
             StudioInvitation::query()->count(),

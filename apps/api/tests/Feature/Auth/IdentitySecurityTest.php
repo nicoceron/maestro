@@ -502,8 +502,8 @@ class IdentitySecurityTest extends TestCase
             ->call('authenticate')
             ->assertHasFormErrors(['email']);
 
-        $this->assertSame(1, RateLimiter::attempts($accountKey));
-        $this->assertSame(1, RateLimiter::attempts($ipKey));
+        $this->assertSame(1, (int) RateLimiter::attempts($accountKey));
+        $this->assertSame(1, (int) RateLimiter::attempts($ipKey));
     }
 
     public function test_sensitive_limiter_windows_and_keys_do_not_contain_raw_session_user_or_ip_identifiers(): void

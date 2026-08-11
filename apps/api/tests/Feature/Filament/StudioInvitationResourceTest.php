@@ -172,11 +172,11 @@ class StudioInvitationResourceTest extends TestCase
         }
 
         $keys = app(SensitiveRateLimitKey::class);
-        $this->assertSame(5, RateLimiter::attempts($keys->for(
+        $this->assertSame(5, (int) RateLimiter::attempts($keys->for(
             'filament-identity-confirmation-account',
             $owner->getAuthIdentifier(),
         )));
-        $this->assertSame(5, RateLimiter::attempts($keys->for(
+        $this->assertSame(5, (int) RateLimiter::attempts($keys->for(
             'filament-identity-confirmation-ip',
             '127.0.0.1',
         )));
