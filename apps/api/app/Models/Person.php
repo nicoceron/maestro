@@ -35,6 +35,12 @@ class Person extends Model
         return trim(($this->preferred_name ?: $this->first_name).' '.($this->last_name ?? ''));
     }
 
+    public function setEmailAttribute(?string $email): void
+    {
+        $normalized = $email === null ? '' : User::normalizeEmail($email);
+        $this->attributes['email'] = $normalized === '' ? null : $normalized;
+    }
+
     /** @return BelongsTo<Studio, $this> */
     public function studio(): BelongsTo
     {

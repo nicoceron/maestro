@@ -5,8 +5,11 @@ namespace Tests\Feature\Security;
 use App\Actions\Invitations\CreateStudioInvitation;
 use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
+use App\Enums\StudentStatus;
 use App\Jobs\DeliverStudioInvitation;
 use App\Models\Household;
+use App\Models\Person;
+use App\Models\StudentProfile;
 use App\Models\Studio;
 use App\Models\StudioInvitation;
 use App\Models\StudioInvitationDelivery;
@@ -44,6 +47,20 @@ class PostgresRowLevelSecurityTest extends TestCase
         $secondStudio = Studio::factory()->create();
         $firstHousehold = Household::factory()->for($firstStudio)->create();
         Household::factory()->for($secondStudio)->create();
+        $firstPerson = Person::factory()->for($firstStudio)->create();
+        $secondPerson = Person::factory()->for($secondStudio)->create();
+        $firstStudent = StudentProfile::query()->create([
+            'studio_id' => $firstStudio->getKey(),
+            'person_id' => $firstPerson->getKey(),
+            'status' => StudentStatus::Lead,
+            'learning_preferences' => [],
+        ]);
+        StudentProfile::query()->create([
+            'studio_id' => $secondStudio->getKey(),
+            'person_id' => $secondPerson->getKey(),
+            'status' => StudentStatus::Active,
+            'learning_preferences' => [],
+        ]);
         $runtimeConnectionName = 'pgsql_runtime_test';
         $baseConnection = config('database.connections.pgsql');
 
@@ -62,6 +79,8 @@ class PostgresRowLevelSecurityTest extends TestCase
         try {
             $this->assertRestrictedRole($runtime, $runtimeUsername);
             $this->assertSame(0, $runtime->table('households')->count());
+            $this->assertSame(0, $runtime->table('people')->count());
+            $this->assertSame(0, $runtime->table('student_profiles')->count());
 
             $runtime->statement(
                 "select set_config('app.current_studio_id', ?, false)",
@@ -72,6 +91,8 @@ class PostgresRowLevelSecurityTest extends TestCase
                 [$firstHousehold->getKey()],
                 $runtime->table('households')->pluck('id')->all(),
             );
+            $this->assertSame([$firstPerson->getKey()], $runtime->table('people')->pluck('id')->all());
+            $this->assertSame([$firstStudent->getKey()], $runtime->table('student_profiles')->pluck('id')->all());
 
             $allowedId = (string) Str::ulid();
             $runtime->table('households')->insert([
@@ -83,6 +104,28 @@ class PostgresRowLevelSecurityTest extends TestCase
                 'updated_at' => now(),
             ]);
             $this->assertSame(2, $runtime->table('households')->count());
+
+            $allowedPersonId = (string) Str::ulid();
+            $runtime->table('people')->insert([
+                'id' => $allowedPersonId,
+                'studio_id' => $firstStudio->getKey(),
+                'first_name' => 'Runtime',
+                'last_name' => 'Student',
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $runtime->table('student_profiles')->insert([
+                'id' => (string) Str::ulid(),
+                'studio_id' => $firstStudio->getKey(),
+                'person_id' => $allowedPersonId,
+                'status' => StudentStatus::Lead->value,
+                'learning_preferences' => json_encode([], JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $this->assertSame(2, $runtime->table('people')->count());
+            $this->assertSame(2, $runtime->table('student_profiles')->count());
 
             $crossStudioWriteWasDenied = false;
 
@@ -100,6 +143,23 @@ class PostgresRowLevelSecurityTest extends TestCase
             }
 
             $this->assertTrue($crossStudioWriteWasDenied);
+
+            $crossStudioPersonWasDenied = false;
+
+            try {
+                $runtime->table('people')->insert([
+                    'id' => (string) Str::ulid(),
+                    'studio_id' => $secondStudio->getKey(),
+                    'first_name' => 'Rejected',
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (QueryException) {
+                $crossStudioPersonWasDenied = true;
+            }
+
+            $this->assertTrue($crossStudioPersonWasDenied);
         } finally {
             DB::purge($runtimeConnectionName);
             $firstStudio->forceDelete();
