@@ -1,0 +1,44 @@
+name: maestro
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: maestro
+      POSTGRES_USER: maestro
+      POSTGRES_PASSWORD: maestro
+    ports:
+      - "${MAESTRO_DB_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 stores data in a major-version subdirectory so in-place
+      # upgrades can cross the mount boundary safely.
+      - maestro-postgres:/var/lib/postgresql
+      - ./infra/postgres/init/001-runtime-role.sql:/docker-entrypoint-initdb.d/001-runtime-role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maestro -d maestro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8.2-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "${MAESTRO_REDIS_PORT:-6379}:6379"
+    volumes:
+      - maestro-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "${MAESTRO_MAIL_PORT:-1025}:1025"
+      - "${MAESTRO_MAIL_UI_PORT:-8025}:8025"
+
+volumes:
+  maestro-postgres:
+  maestro-redis:
