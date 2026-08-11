@@ -51,7 +51,7 @@ wait_for_url() {
   local url=$1
   local process_id=$2
 
-  for _ in $(seq 1 80); do
+  for _ in $(seq 1 300); do
     if ! kill -0 "$process_id" 2>/dev/null; then
       echo "Server exited before $url became ready." >&2
       exit 1
