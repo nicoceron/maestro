@@ -28,6 +28,8 @@ class StudioInvitationApiTest extends TestCase
     {
         parent::setUp();
 
+        config(['queue.default' => 'sync']);
+
         $this->withHeader('Origin', 'http://localhost:3000')
             ->withSession(['auth.password_confirmed_at' => now()->timestamp]);
     }

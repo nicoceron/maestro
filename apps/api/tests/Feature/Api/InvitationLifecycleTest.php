@@ -482,7 +482,12 @@ final class InvitationLifecycleTest extends TestCase
         ]);
         Queue::assertPushed(DeliverStudioInvitation::class, 20);
 
-        $this->travel(3601)->seconds();
+        $inviterQuotaKey = md5('invitation-create'.app(SensitiveRateLimitKey::class)->for(
+            'invitation-create-inviter',
+            $owner->getAuthIdentifier(),
+        ));
+        $this->assertGreaterThan(0, RateLimiter::availableIn($inviterQuotaKey));
+        RateLimiter::clear($inviterQuotaKey);
         $this->withSession(['auth.password_confirmed_at' => now()->timestamp])
             ->postJson("/api/v1/studios/{$studio->slug}/invitations", [
                 'email' => 'inviter-quota-reset@example.com',
@@ -540,7 +545,12 @@ final class InvitationLifecycleTest extends TestCase
         ]);
         Queue::assertPushed(DeliverStudioInvitation::class, 100);
 
-        $this->travel(86401)->seconds();
+        $studioQuotaKey = md5('invitation-create'.app(SensitiveRateLimitKey::class)->for(
+            'invitation-create-studio',
+            $studio->getRouteKey(),
+        ));
+        $this->assertGreaterThan(0, RateLimiter::availableIn($studioQuotaKey));
+        RateLimiter::clear($studioQuotaKey);
         $this->withSession(['auth.password_confirmed_at' => now()->timestamp])
             ->postJson("/api/v1/studios/{$studio->slug}/invitations", [
                 'email' => 'studio-quota-reset@example.com',
