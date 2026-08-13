@@ -154,14 +154,18 @@ final class LessonNoteTemplateResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return Filament::getTenant() instanceof Studio
-            && Gate::allows('viewAny', LessonNoteTemplate::class);
+        $tenant = Filament::getTenant();
+
+        return $tenant instanceof Studio
+            && Gate::allows('viewAny', [LessonNoteTemplate::class, $tenant]);
     }
 
     public static function canCreate(): bool
     {
-        return Filament::getTenant() instanceof Studio
-            && Gate::allows('create', LessonNoteTemplate::class);
+        $tenant = Filament::getTenant();
+
+        return $tenant instanceof Studio
+            && Gate::allows('create', [LessonNoteTemplate::class, $tenant]);
     }
 
     public static function canEdit(Model $record): bool

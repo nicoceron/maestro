@@ -9,3 +9,4 @@ repo_root=$(git rev-parse --show-toplevel)
 "$repo_root/scripts/quality/frontend.sh"
 "$repo_root/scripts/quality/contracts.sh"
 "$repo_root/scripts/quality/identity-smoke.sh"
+"$repo_root/scripts/quality/browser.sh"

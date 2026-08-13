@@ -5,3 +5,5 @@
 coverage/
 reports/
 tmp/
+apps/api/playwright-report/
+apps/api/test-results/
