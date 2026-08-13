@@ -779,7 +779,19 @@ export interface paths {
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
-        readonly patch?: never;
+        /**
+         * Update a household aggregate
+         * @description Optimistically updates household fields for owners, administrators, and office
+         *     staff. `version` is always required. Omitting `members` preserves the complete
+         *     member and guardian graph; supplying `members` replaces household membership,
+         *     and supplied or omitted `relationships` then replace that graph (omission means
+         *     no relationships). Existing people are referenced with their tenant-scoped
+         *     `person_id` and current `version`; new members omit both. Removed members remain
+         *     people in the studio. Existing student profiles cannot be removed and lifecycle
+         *     status changes use the dedicated person transition operation. Any stale,
+         *     cross-tenant, or invalid nested state returns `422` without partial mutation.
+         */
+        readonly patch: operations["updateHousehold"];
         readonly trace?: never;
     };
     readonly "/api/v1/studios/{studio}/invitations": {
@@ -893,6 +905,133 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/people": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        /**
+         * List people in a studio
+         * @description Returns a tenant-scoped, deterministic Laravel paginator ordered by last name,
+         *     first name, and ULID. Owners, administrators, office staff, and billing staff
+         *     may list; teachers may not. Billing responses retain names, person-record status,
+         *     and payer contact information while privacy-restricted fields become `null`,
+         *     private collections become empty arrays, and staff profiles become `null`.
+         *     Billing callers may use `q`, `status`, and pagination; a syntactically valid
+         *     student, staff, taxonomy, or source filter returns `403` because those fields
+         *     are private (ordinary parameter validation can return `422` first).
+         *     Taxonomy IDs from another studio cannot broaden the query and produce an empty
+         *     tenant-local result.
+         */
+        readonly get: operations["listPeople"];
+        readonly put?: never;
+        /**
+         * Create a person and optional profiles
+         * @description Atomically creates a tenant-owned person plus optional student/staff profiles,
+         *     active studio tags and instruments, and definition-typed custom-field values.
+         *     Owners, administrators, and office staff may create; billing staff and teachers
+         *     may not. Taxonomy and custom-field identifiers must resolve inside the route
+         *     studio or the entire request fails with `422` and no partial person.
+         */
+        readonly post: operations["createPerson"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/people/{person}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Person ULID resolved through the route studio before policy evaluation.
+                 * @example 01KZN8Y3A48GKXQTE6MHN7R2VC
+                 */
+                readonly person: components["parameters"]["PersonId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        /**
+         * Get a person
+         * @description Resolves the person only through the route studio, so a cross-tenant ULID is
+         *     indistinguishable from a missing record and returns `404`. Owners,
+         *     administrators, office staff, and billing staff may view. The same
+         *     membership-sensitive privacy substitutions as the collection apply; detail
+         *     responses include up to 100 newest-first immutable student status transitions
+         *     for management roles and an empty history for billing.
+         */
+        readonly get: operations["getPerson"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        /**
+         * Update a person and profiles
+         * @description Atomically updates the person and supplied profile/assignment collections for
+         *     owners, administrators, and office staff. `version` is required optimistic
+         *     concurrency state; a stale value returns a field-keyed `422` without mutation.
+         *     Student lifecycle status cannot be changed through this operation: clients use
+         *     the dedicated transition operation. Omitting a field preserves it, submitted
+         *     assignment arrays replace that collection, and existing student or staff
+         *     profiles cannot be deleted: lifecycle history is retained by transitioning the
+         *     student or setting staff status to `former`. An inactive tag or instrument that
+         *     is already assigned may be preserved, but it cannot be newly assigned.
+         */
+        readonly patch: operations["updatePerson"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/people/{person}/student-status": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Person ULID resolved through the route studio before policy evaluation.
+                 * @example 01KZN8Y3A48GKXQTE6MHN7R2VC
+                 */
+                readonly person: components["parameters"]["PersonId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Transition a student's lifecycle status
+         * @description Moves an existing student profile through the server-owned transition graph,
+         *     records an immutable tenant-scoped history row, updates lifecycle dates, and
+         *     increments the parent person's optimistic version in one transaction. Owners,
+         *     administrators, and office staff may transition. Missing, cross-tenant, and
+         *     non-student people return `404`; disallowed or same-state transitions return a
+         *     field-keyed `422` without history or version effects.
+         */
+        readonly post: operations["transitionStudentStatus"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/sanctum/csrf-cookie": {
         readonly parameters: {
             readonly query?: never;
@@ -980,6 +1119,12 @@ export interface components {
             readonly receives_billing: boolean;
             readonly student?: components["schemas"]["CreateStudentProfileInput"] | null;
         };
+        readonly CreatePersonInput: components["schemas"]["PersonWritableFields"] & {
+            readonly student?: components["schemas"]["CreatePersonStudentInput"] | null;
+        };
+        readonly CreatePersonStudentInput: components["schemas"]["PersonStudentInput"] & {
+            readonly status: components["schemas"]["StudentStatus"];
+        };
         readonly CreateStudentProfileInput: {
             /** Format: date */
             readonly joined_on?: string | null;
@@ -1031,6 +1176,8 @@ export interface components {
         readonly EmailInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
         };
+        /** @enum {string} */
+        readonly EmploymentType: "employee" | "contractor" | "volunteer";
         readonly ForgotPasswordResult: {
             /** @constant */
             readonly message: "If an account matches that email, a password reset link will be sent.";
@@ -1110,6 +1257,8 @@ export interface components {
             readonly pronouns: string | null;
             readonly status: components["schemas"]["PersonStatus"];
             readonly student: components["schemas"]["HouseholdStudentProfile"] | null;
+            /** @description Current person version required when retaining this member in a household PATCH. */
+            readonly version: number;
         };
         readonly HouseholdStudentProfile: {
             readonly id: components["schemas"]["Ulid"];
@@ -1120,6 +1269,8 @@ export interface components {
             readonly school_grade: string | null;
             readonly status: components["schemas"]["StudentStatus"];
         };
+        /** @enum {string} */
+        readonly InstrumentRelationship: "studies" | "teaches" | "both";
         /**
          * @description Roles accepted by the invitation request. `owner` is intentionally excluded;
          *     owner changes require a future ownership-transfer flow. Administrators are
@@ -1212,6 +1363,16 @@ export interface components {
          * @example member@example.com
          */
         readonly NormalizedEmail: string;
+        /**
+         * @description Normalized contact email for management roles and billing-visible payers;
+         *     otherwise the property remains present with `null`.
+         */
+        readonly NullablePersonEmail: string | null;
+        /**
+         * @description Contact phone for management roles and billing-visible payers; otherwise
+         *     the property remains present with `null`.
+         */
+        readonly NullablePersonPhone: string | null;
         readonly OnboardingCompletedEnvelope: {
             readonly data: components["schemas"]["Studio"];
             /** @constant */
@@ -1290,8 +1451,265 @@ export interface components {
         readonly PasswordConfirmationStatus: {
             readonly confirmed: boolean;
         };
+        readonly Person: {
+            /**
+             * Format: date
+             * @description Returns null for privacy-restricted roles.
+             */
+            readonly birth_date: string | null;
+            /** Format: date-time */
+            readonly created_at: string | null;
+            /** @description Empty for privacy-restricted roles. */
+            readonly custom_fields: readonly components["schemas"]["PersonCustomFieldValue"][];
+            readonly display_name: string;
+            readonly email: components["schemas"]["NullablePersonEmail"];
+            /** @description Returns null for privacy-restricted roles. */
+            readonly external_reference: string | null;
+            readonly first_name: string;
+            /**
+             * @description Management roles receive every relationship. Billing receives only
+             *     relationships where this person receives billing; other cases are empty.
+             */
+            readonly households: readonly components["schemas"]["PersonHouseholdSummary"][];
+            readonly id: components["schemas"]["Ulid"];
+            /** @description Empty for privacy-restricted roles. */
+            readonly instruments: readonly components["schemas"]["PersonInstrument"][];
+            readonly last_name: string | null;
+            readonly permissions: components["schemas"]["PersonPermissions"];
+            readonly phone: components["schemas"]["NullablePersonPhone"];
+            /** @description Normalized BCP-47-like locale, or null for privacy-restricted roles. */
+            readonly preferred_locale: string | null;
+            readonly preferred_name: string | null;
+            /** @description Returns null for privacy-restricted roles. */
+            readonly pronouns: string | null;
+            /** @description Returns null for privacy-restricted roles. */
+            readonly source: string | null;
+            /** @description Staff profile for management roles; otherwise null. */
+            readonly staff: components["schemas"]["PersonStaffProfile"] | null;
+            readonly status: components["schemas"]["PersonStatus"];
+            /**
+             * @description Student profile or `null`. Privacy-restricted billing callers receive `null`
+             *     for people outside a billing-visible payer relationship.
+             */
+            readonly student: components["schemas"]["PersonStudentProfile"] | null;
+            /**
+             * @description At most 100 newest-first immutable transitions on detail responses for
+             *     management roles. Collections and privacy-restricted responses use `[]`.
+             *     Internal/global actor identifiers are deliberately absent.
+             */
+            readonly student_status_history: readonly components["schemas"]["StudentStatusTransition"][];
+            /** @description Empty for privacy-restricted roles. */
+            readonly tags: readonly components["schemas"]["PersonTag"][];
+            /** Format: date-time */
+            readonly updated_at: string | null;
+            /** @description Server-owned optimistic concurrency version. */
+            readonly version: number;
+        };
+        readonly PersonCollectionCapabilities: {
+            /** @description Server-derived person-create policy result for the route studio. */
+            readonly can_create: boolean;
+        };
+        readonly PersonCreatedEnvelope: {
+            readonly data: components["schemas"]["Person"];
+            /** @constant */
+            readonly message: "Person created.";
+        };
+        readonly PersonCustomFieldBooleanValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "boolean";
+            readonly value: boolean;
+        };
+        readonly PersonCustomFieldDateValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "date";
+            /** Format: date */
+            readonly value: string;
+        };
+        readonly PersonCustomFieldInput: {
+            readonly definition_id: components["schemas"]["Ulid"];
+            /** @description Runtime-validated against the route-studio definition's type/options/required rule. */
+            readonly value: components["schemas"]["PersonCustomFieldScalarOrList"];
+        };
+        readonly PersonCustomFieldLongTextValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "long_text";
+            readonly value: string;
+        };
+        readonly PersonCustomFieldMultiSelectValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "multi_select";
+            readonly value: readonly string[];
+        };
+        readonly PersonCustomFieldNumberValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "number";
+            readonly value: number;
+        };
+        /**
+         * @description Request value validated against the tenant-owned definition identified by
+         *     `definition_id`; the client cannot choose or override that definition's type.
+         */
+        readonly PersonCustomFieldScalarOrList: string | number | boolean | readonly string[] | null;
+        readonly PersonCustomFieldSelectValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "select";
+            readonly value: string;
+        };
+        readonly PersonCustomFieldTextValue: components["schemas"]["PersonCustomFieldValueBase"] & {
+            /** @constant */
+            readonly type: "text";
+            readonly value: string;
+        };
+        /** @description Definition-typed custom-field response with a correlated type/value pair. */
+        readonly PersonCustomFieldValue: components["schemas"]["PersonCustomFieldTextValue"] | components["schemas"]["PersonCustomFieldLongTextValue"] | components["schemas"]["PersonCustomFieldDateValue"] | components["schemas"]["PersonCustomFieldSelectValue"] | components["schemas"]["PersonCustomFieldNumberValue"] | components["schemas"]["PersonCustomFieldBooleanValue"] | components["schemas"]["PersonCustomFieldMultiSelectValue"];
+        readonly PersonCustomFieldValueBase: {
+            readonly definition_id: components["schemas"]["Ulid"];
+            readonly key: string;
+            readonly name: string;
+        };
+        readonly PersonEnvelope: {
+            readonly data: components["schemas"]["Person"];
+        };
+        readonly PersonHouseholdSummary: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly is_primary_contact: boolean;
+            readonly name: string;
+            readonly receives_billing: boolean;
+            readonly role: components["schemas"]["HouseholdMemberRole"];
+        };
+        readonly PersonInstrument: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly is_primary: boolean;
+            readonly name: string;
+            readonly proficiency: components["schemas"]["ProficiencyLevel"] | null;
+            readonly relationship: components["schemas"]["InstrumentRelationship"];
+            readonly years_experience: number | null;
+        };
+        readonly PersonInstrumentInput: {
+            readonly instrument_id: components["schemas"]["Ulid"];
+            /** @default false */
+            readonly is_primary?: boolean;
+            readonly proficiency?: components["schemas"]["ProficiencyLevel"] | null;
+            readonly relationship: components["schemas"]["InstrumentRelationship"];
+            readonly years_experience?: number | null;
+        };
+        readonly PersonPaginatedCollectionEnvelope: {
+            readonly capabilities: components["schemas"]["PersonCollectionCapabilities"];
+            readonly data: readonly components["schemas"]["Person"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly PersonPermissions: {
+            /** @description Current delete-policy decision; true only for studio owners. */
+            readonly archive: boolean;
+            /** @description True for owners, administrators, and office staff. */
+            readonly edit: boolean;
+            /** @description True when the caller may update and this person has a student profile. */
+            readonly transition_student: boolean;
+        };
+        readonly PersonStaffInput: {
+            readonly bio?: string | null;
+            readonly can_substitute?: boolean;
+            readonly employment_type?: components["schemas"]["EmploymentType"] | null;
+            /** Format: date */
+            readonly hire_on?: string | null;
+            /** Format: date */
+            readonly left_on?: string | null;
+            readonly roles: readonly components["schemas"]["StaffRole"][];
+            readonly status: components["schemas"]["StaffStatus"];
+        };
+        readonly PersonStaffProfile: {
+            readonly bio: string | null;
+            readonly can_substitute: boolean;
+            readonly employment_type: components["schemas"]["EmploymentType"] | null;
+            /** Format: date */
+            readonly hire_on: string | null;
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date */
+            readonly left_on: string | null;
+            readonly roles: readonly components["schemas"]["StaffRole"][];
+            readonly status: components["schemas"]["StaffStatus"];
+        };
         /** @enum {string} */
         readonly PersonStatus: "active" | "inactive" | "archived";
+        readonly PersonStudentInput: {
+            /** Format: date */
+            readonly joined_on?: string | null;
+            readonly lead_source?: string | null;
+            readonly learning_preferences?: readonly string[];
+            readonly school_grade?: string | null;
+            readonly status?: components["schemas"]["StudentStatus"];
+            /** Format: date */
+            readonly trial_started_on?: string | null;
+            /** Format: date */
+            readonly waitlisted_on?: string | null;
+        };
+        readonly PersonStudentProfile: {
+            readonly id: components["schemas"]["Ulid"];
+            /**
+             * Format: date
+             * @description Visible to management roles and billing-visible payers.
+             */
+            readonly joined_on: string | null;
+            /** @description Returns null for privacy-restricted roles. */
+            readonly lead_source: string | null;
+            /** @description Empty for privacy-restricted roles. */
+            readonly learning_preferences: readonly string[];
+            /**
+             * Format: date
+             * @description Visible to management roles and billing-visible payers.
+             */
+            readonly left_on: string | null;
+            /** @description Returns null for privacy-restricted roles. */
+            readonly school_grade: string | null;
+            readonly status: components["schemas"]["StudentStatus"];
+            /**
+             * Format: date-time
+             * @description Visible to management roles and billing-visible payers.
+             */
+            readonly status_changed_at: string | null;
+            /**
+             * Format: date
+             * @description Returns null for billing callers.
+             */
+            readonly trial_started_on: string | null;
+            /**
+             * Format: date
+             * @description Returns null for billing callers.
+             */
+            readonly waitlisted_on: string | null;
+        };
+        readonly PersonTag: {
+            readonly color: string | null;
+            readonly id: components["schemas"]["Ulid"];
+            readonly name: string;
+        };
+        readonly PersonWritableFields: {
+            /**
+             * Format: date
+             * @description Must not be later than the request date.
+             */
+            readonly birth_date?: string | null;
+            readonly custom_fields?: readonly components["schemas"]["PersonCustomFieldInput"][];
+            readonly email?: string | null;
+            readonly external_reference?: string | null;
+            readonly first_name?: string;
+            /** @description Assignments must use distinct instrument IDs and at most one may be primary. */
+            readonly instruments?: readonly components["schemas"]["PersonInstrumentInput"][];
+            readonly last_name?: string | null;
+            readonly phone?: string | null;
+            readonly preferred_locale?: string | null;
+            readonly preferred_name?: string | null;
+            readonly pronouns?: string | null;
+            readonly source?: string | null;
+            /**
+             * @description On create, `null` means no staff profile. On update, an existing profile
+             *     cannot be removed; set its status to `former` to retain history.
+             */
+            readonly staff?: components["schemas"]["PersonStaffInput"] | null;
+            readonly status?: components["schemas"]["PersonStatus"];
+            readonly tag_ids?: readonly components["schemas"]["Ulid"][];
+        };
         /** @enum {string} */
         readonly PortalPermission: "calendar" | "attendance" | "learning" | "billing" | "booking" | "messages";
         /** @enum {string} */
@@ -1302,6 +1720,8 @@ export interface components {
         } & {
             readonly [key: string]: unknown;
         };
+        /** @enum {string} */
+        readonly ProficiencyLevel: "beginner" | "intermediate" | "advanced" | "professional";
         readonly RegisterInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
             /** @description Optional bearer considered during account creation. Unusable or email-mismatched tokens receive the generic accepted response and create nothing; registration never verifies the user, consumes the invitation, or creates a membership. */
@@ -1329,6 +1749,10 @@ export interface components {
         readonly SessionCollectionEnvelope: {
             readonly data: readonly components["schemas"]["BrowserSession"][];
         };
+        /** @enum {string} */
+        readonly StaffRole: "teacher" | "office" | "substitute";
+        /** @enum {string} */
+        readonly StaffStatus: "active" | "on_leave" | "former";
         /**
          * Format: password
          * @description At least 12 characters. Passphrases are allowed; confirmation equality and Laravel's uncompromised-password check are enforced server-side without character-composition rules.
@@ -1336,6 +1760,15 @@ export interface components {
         readonly StrongPassword: string;
         /** @enum {string} */
         readonly StudentStatus: "lead" | "trial" | "waiting" | "active" | "paused" | "former";
+        readonly StudentStatusTransition: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly new_status: components["schemas"]["StudentStatus"];
+            /** Format: date-time */
+            readonly occurred_at: string;
+            /** @description Null only for the immutable initial profile-created event. */
+            readonly previous_status: components["schemas"]["StudentStatus"] | null;
+            readonly reason: string | null;
+        };
         readonly Studio: {
             /** @example COP */
             readonly currency: string;
@@ -1438,6 +1871,12 @@ export interface components {
         readonly StudioSlug: string;
         /** @enum {string} */
         readonly StudioStatus: "trial" | "active" | "past_due" | "suspended" | "closed";
+        readonly TransitionStudentStatusInput: {
+            readonly reason?: string | null;
+            readonly status: components["schemas"]["StudentStatus"];
+            /** @description Expected current parent-person version. */
+            readonly version: number;
+        };
         readonly TwoFactorChallengeInput: {
             readonly code?: components["schemas"]["TwoFactorCode"];
             /** @description Single-use TOTP recovery code. */
@@ -1467,6 +1906,56 @@ export interface components {
          * @example 01KZN5W3P3507MV3FBN2BG5WKF
          */
         readonly Ulid: string;
+        readonly UpdateHouseholdInput: {
+            /** @description Supplying this array replaces household membership as one transaction. */
+            readonly members?: readonly components["schemas"]["UpdateHouseholdMemberInput"][];
+            readonly name?: string;
+            readonly notes?: string | null;
+            /** @description May be supplied only together with `members`; omission with members clears relationships. */
+            readonly relationships?: readonly components["schemas"]["CreateGuardianRelationshipInput"][];
+            /** @description Expected current household aggregate version. */
+            readonly version: number;
+        };
+        /**
+         * @description A retained studio person supplies both `person_id` and its current `version`;
+         *     a new person omits both. `key` remains request-local for guardian relationships.
+         */
+        readonly UpdateHouseholdMemberInput: {
+            /**
+             * Format: date
+             * @description Must not be later than the request date.
+             */
+            readonly birth_date?: string | null;
+            readonly email?: string | null;
+            readonly first_name: string;
+            readonly household_role: components["schemas"]["HouseholdMemberRole"];
+            readonly is_primary_contact: boolean;
+            readonly key: string;
+            readonly last_name?: string | null;
+            /** @description Omit for a new person; a retained person must include its current `version`. */
+            readonly person_id?: components["schemas"]["Ulid"] | null;
+            readonly phone?: string | null;
+            readonly preferred_name?: string | null;
+            readonly pronouns?: string | null;
+            readonly receives_billing: boolean;
+            /**
+             * @description A new profile requires `status`. An existing profile may retain its current
+             *     status but cannot be removed or transitioned through this aggregate update.
+             */
+            readonly student?: components["schemas"]["CreateStudentProfileInput"] | null;
+            /** @description Required when `person_id` identifies a retained person. */
+            readonly version?: number;
+        };
+        readonly UpdatePersonInput: components["schemas"]["PersonWritableFields"] & {
+            readonly student?: components["schemas"]["UpdatePersonStudentInput"] | null;
+            readonly version: number;
+        };
+        /**
+         * @description `status` is required when PATCH creates a student profile. For an existing
+         *     profile it may be omitted or equal the current status; use the transition
+         *     operation to change lifecycle state.
+         */
+        readonly UpdatePersonStudentInput: components["schemas"]["PersonStudentInput"];
         readonly ValidationProblem: components["schemas"]["Problem"] & {
             /** @description Validation messages keyed by request field path. */
             readonly errors: {
@@ -1561,6 +2050,18 @@ export interface components {
             };
         };
         /**
+         * @description Input validation, stale aggregate/member version, cross-tenant person identity,
+         *     or an attempted student-lifecycle bypass prevented the complete aggregate update.
+         */
+        readonly HouseholdUpdateFailed: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["ValidationProblem"];
+            };
+        };
+        /**
          * @description The invitation is missing, terminal, expired, bound to a different normalized
          *     email, or otherwise cannot create an active membership. These states share one
          *     validation field and message.
@@ -1649,6 +2150,18 @@ export interface components {
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description Input validation, stale optimistic version, unavailable tenant taxonomy, or
+         *     an attempted student-lifecycle bypass prevented the entire update.
+         */
+        readonly PersonUpdateFailed: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["ValidationProblem"];
+            };
+        };
         /** @description This sensitive operation requires a fresh password or passkey confirmation in the current session. */
         readonly RecentPasswordRequired: {
             headers: {
@@ -1661,6 +2174,18 @@ export interface components {
                  *     }
                  */
                 readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description Input validation, stale optimistic version, or the server-owned lifecycle graph
+         *     rejected the requested transition. No version or history effect is committed.
+         */
+        readonly StudentStatusTransitionFailed: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["ValidationProblem"];
             };
         };
         /** @description API rate limit exceeded. */
@@ -1723,6 +2248,8 @@ export interface components {
          * @example rivera
          */
         readonly HouseholdSearch: string | null;
+        /** @description Tenant-owned instrument ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers. */
+        readonly InstrumentIdFilter: components["schemas"]["Ulid"];
         /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
         readonly InvitationId: components["schemas"]["Ulid"];
         /** @description Return only invitations for this locked studio membership role. */
@@ -1742,20 +2269,44 @@ export interface components {
         /** @description Laravel passkey database identifier; ownership is checked against the current user. */
         readonly PasskeyId: string;
         /**
-         * @description Number of households per page. Defaults to `25`.
+         * @description Case-insensitive substring search across tenant-visible names, email, and phone.
+         *     Blank input is ignored; billing contact matching is restricted to payer-visible contacts.
+         * @example maya
+         */
+        readonly PeopleSearch: string | null;
+        /**
+         * @description Number of records per page. Defaults to `25`.
          * @example 25
          */
         readonly PerPage: number | null;
+        /**
+         * @description Person ULID resolved through the route studio before policy evaluation.
+         * @example 01KZN8Y3A48GKXQTE6MHN7R2VC
+         */
+        readonly PersonId: components["schemas"]["Ulid"];
+        /**
+         * @description Exact normalized source filter. Supplying `null` matches records whose source is null. Forbidden for billing callers.
+         * @example website
+         */
+        readonly PersonSourceFilter: string | null;
+        /** @description Return only people in this person-record status. */
+        readonly PersonStatusFilter: components["schemas"]["PersonStatus"];
         /**
          * @description Opaque public identifier for a browser session; it is not the session cookie value or storage key.
          * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
          */
         readonly SessionId: components["schemas"]["Ulid"];
+        /** @description Return only people whose staff profile includes this role. Forbidden for billing callers. */
+        readonly StaffRoleFilter: components["schemas"]["StaffRole"];
+        /** @description Return only people whose student profile has this lifecycle status. Forbidden for billing callers. */
+        readonly StudentStatusFilter: components["schemas"]["StudentStatus"];
         /**
          * @description Unique studio slug used by Laravel route-model binding.
          * @example sonora-house
          */
         readonly StudioSlug: components["schemas"]["StudioSlug"];
+        /** @description Tenant-owned tag ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers. */
+        readonly TagIdFilter: components["schemas"]["Ulid"];
     };
     requestBodies: never;
     headers: {
@@ -2797,7 +3348,7 @@ export interface operations {
                  */
                 readonly page?: components["parameters"]["Page"];
                 /**
-                 * @description Number of households per page. Defaults to `25`.
+                 * @description Number of records per page. Defaults to `25`.
                  * @example 25
                  */
                 readonly per_page?: components["parameters"]["PerPage"];
@@ -2903,6 +3454,53 @@ export interface operations {
             readonly 401: components["responses"]["Unauthenticated"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateHousehold: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Household ULID resolved inside the active studio tenant.
+                 * @example 01KZN6AKC49V3YM8ZJ7T2R5QWD
+                 */
+                readonly household: components["parameters"]["HouseholdId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                /**
+                 * @example {
+                 *       "version": 1,
+                 *       "name": "Rivera family"
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["UpdateHouseholdInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Household graph updated and aggregate version incremented. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["HouseholdEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["HouseholdUpdateFailed"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -3054,6 +3652,222 @@ export interface operations {
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["InvitationCannotBeResent"];
             readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listPeople: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Tenant-owned instrument ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers. */
+                readonly instrument_id?: components["parameters"]["InstrumentIdFilter"];
+                /**
+                 * @description One-based Laravel paginator page number.
+                 * @example 1
+                 */
+                readonly page?: components["parameters"]["Page"];
+                /**
+                 * @description Number of records per page. Defaults to `25`.
+                 * @example 25
+                 */
+                readonly per_page?: components["parameters"]["PerPage"];
+                /**
+                 * @description Case-insensitive substring search across tenant-visible names, email, and phone.
+                 *     Blank input is ignored; billing contact matching is restricted to payer-visible contacts.
+                 * @example maya
+                 */
+                readonly q?: components["parameters"]["PeopleSearch"];
+                /**
+                 * @description Exact normalized source filter. Supplying `null` matches records whose source is null. Forbidden for billing callers.
+                 * @example website
+                 */
+                readonly source?: components["parameters"]["PersonSourceFilter"];
+                /** @description Return only people whose staff profile includes this role. Forbidden for billing callers. */
+                readonly staff_role?: components["parameters"]["StaffRoleFilter"];
+                /** @description Return only people in this person-record status. */
+                readonly status?: components["parameters"]["PersonStatusFilter"];
+                /** @description Return only people whose student profile has this lifecycle status. Forbidden for billing callers. */
+                readonly student_status?: components["parameters"]["StudentStatusFilter"];
+                /** @description Tenant-owned tag ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers. */
+                readonly tag_id?: components["parameters"]["TagIdFilter"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Paginated people visible under the current membership's privacy policy. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PersonPaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createPerson: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreatePersonInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Person and submitted profiles/assignments created atomically. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PersonCreatedEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getPerson: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Person ULID resolved through the route studio before policy evaluation.
+                 * @example 01KZN8Y3A48GKXQTE6MHN7R2VC
+                 */
+                readonly person: components["parameters"]["PersonId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Person visible under the current membership's privacy policy. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PersonEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updatePerson: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Person ULID resolved through the route studio before policy evaluation.
+                 * @example 01KZN8Y3A48GKXQTE6MHN7R2VC
+                 */
+                readonly person: components["parameters"]["PersonId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdatePersonInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Person updated and version incremented. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PersonEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["PersonUpdateFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly transitionStudentStatus: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Person ULID resolved through the route studio before policy evaluation.
+                 * @example 01KZN8Y3A48GKXQTE6MHN7R2VC
+                 */
+                readonly person: components["parameters"]["PersonId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["TransitionStudentStatusInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Student lifecycle transitioned and immutable history appended. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PersonEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["StudentStatusTransitionFailed"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };

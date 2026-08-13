@@ -40,6 +40,9 @@ const expectedPaths = [
   "/api/v1/studios/{studio}/invitations",
   "/api/v1/studios/{studio}/invitations/{invitation}",
   "/api/v1/studios/{studio}/invitations/{invitation}/resend",
+  "/api/v1/studios/{studio}/people",
+  "/api/v1/studios/{studio}/people/{person}",
+  "/api/v1/studios/{studio}/people/{person}/student-status",
 ];
 
 const expectedOperations = [
@@ -80,6 +83,12 @@ const expectedOperations = [
   "createStudioInvitation",
   "resendStudioInvitation",
   "revokeStudioInvitation",
+  "listPeople",
+  "createPerson",
+  "getPerson",
+  "updatePerson",
+  "transitionStudentStatus",
+  "updateHousehold",
 ];
 
 const expectedSchemas = [
@@ -98,6 +107,19 @@ const expectedSchemas = [
   "StudioInvitationPermissions",
   "StudioInvitationCollectionCapabilities",
   "StudioInvitationResentEnvelope",
+  "Person",
+  "PersonStudentProfile",
+  "PersonStaffProfile",
+  "PersonInstrument",
+  "PersonTag",
+  "PersonCustomFieldValue",
+  "StudentStatusTransition",
+  "CreatePersonInput",
+  "UpdatePersonInput",
+  "TransitionStudentStatusInput",
+  "PersonPaginatedCollectionEnvelope",
+  "UpdateHouseholdInput",
+  "UpdateHouseholdMemberInput",
   "WorkspaceMode",
 ];
 
@@ -162,6 +184,18 @@ const invariants = [
   ["invitation resend requires session, CSRF, recent confirmation, and returns a replacement", /operationId: resendStudioInvitation[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?'202':[\s\S]*?StudioInvitationResentEnvelope[\s\S]*?'423':[\s\S]*?RecentPasswordRequired/],
   ["invitation list exposes server-derived capabilities", /StudioInvitationPaginatedCollectionEnvelope:[\s\S]*?capabilities:[\s\S]*?StudioInvitationCollectionCapabilities/],
   ["invitation resources expose server-derived actions", /StudioInvitation:[\s\S]*?resend_available_at:[\s\S]*?delivery_status:[\s\S]*?permissions:[\s\S]*?StudioInvitationPermissions/],
+  ["people collection exposes server-derived create capability", /PersonPaginatedCollectionEnvelope:[\s\S]*?capabilities:[\s\S]*?PersonCollectionCapabilities/],
+  ["person mutation requires Sanctum and CSRF", /operationId: updatePerson[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\]/],
+  ["student transition requires Sanctum and CSRF", /operationId: transitionStudentStatus[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\]/],
+  ["person update and transition both require optimistic versions", /UpdatePersonInput:[\s\S]*?required:[\s\S]*?- version[\s\S]*?TransitionStudentStatusInput:[\s\S]*?required:[\s\S]*?- version/],
+  ["student left date is response-only", /PersonStudentProfile:[\s\S]*?left_on:[\s\S]*?PersonStudentInput:(?:(?!left_on)[\s\S])*?CreatePersonStudentInput:/],
+  ["person resource keeps privacy-null fields present", /Person:[\s\S]*?required:[\s\S]*?- email[\s\S]*?- phone[\s\S]*?- birth_date[\s\S]*?- pronouns[\s\S]*?- source[\s\S]*?- external_reference[\s\S]*?- preferred_locale/],
+  ["student history is typed and bounded", /student_status_history:[\s\S]*?maxItems: 100[\s\S]*?StudentStatusTransition/],
+  ["initial student history has an explicit null predecessor", /StudentStatusTransition:[\s\S]*?previous_status:[\s\S]*?initial profile-created event[\s\S]*?type: 'null'/],
+  ["billing-private people filters are explicitly forbidden", /Billing callers may use `q`, `status`, and pagination; a syntactically valid[\s\S]*?returns `403`/],
+  ["person lookup is route-tenant scoped", /\/people\/\{person\}:[\s\S]*?cross-tenant ULID[\s\S]*?returns `404`[\s\S]*?operationId: getPerson/],
+  ["household aggregate update requires optimistic versions and CSRF", /operationId: updateHousehold[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?UpdateHouseholdInput/],
+  ["household members expose person versions for optimistic edits", /HouseholdPerson:[\s\S]*?required:[\s\S]*?- version[\s\S]*?Current person version required/],
 ];
 
 for (const [label, pattern] of invariants) {
@@ -228,6 +262,57 @@ for (const forbiddenField of [
   }
 }
 
+const personResourceBlock = source.slice(
+  source.indexOf("    Person:"),
+  source.indexOf("    PersonCollectionCapabilities:"),
+);
+
+for (const forbiddenField of [
+  "studio_id",
+  "user_id",
+  "actor_id",
+  "student_profile_id",
+  "person_id",
+  "deleted_at",
+  "normalized_name",
+  "sort_order",
+  "definition_options",
+]) {
+  if (personResourceBlock.includes(forbiddenField)) {
+    missing.push(`Person leaks internal field ${forbiddenField}`);
+  }
+}
+
+for (const forbiddenField of ["studio_id", "actor_id", "person_id", "student_profile_id"]) {
+  const historyBlock = source.slice(
+    source.indexOf("    StudentStatusTransition:"),
+    source.indexOf("    PersonPermissions:"),
+  );
+  if (historyBlock.includes(forbiddenField)) {
+    missing.push(`StudentStatusTransition leaks internal field ${forbiddenField}`);
+  }
+}
+
+const householdResourceBlock = source.slice(
+  source.indexOf("    Household:"),
+  source.indexOf("    CreateStudentProfileInput:"),
+);
+
+for (const forbiddenField of ["studio_id", "user_id", "actor_id", "deleted_at"]) {
+  if (householdResourceBlock.includes(forbiddenField)) {
+    missing.push(`Household leaks internal field ${forbiddenField}`);
+  }
+}
+
+const personPathBlock = source.slice(
+  source.indexOf("  /api/v1/studios/{studio}/people/{person}:"),
+  source.indexOf("  /api/v1/studios/{studio}/people/{person}/student-status:"),
+);
+
+if (personPathBlock.includes("    put:")) {
+  missing.push("person update advertises PUT despite PATCH-only partial semantics");
+}
+
 for (const retiredPath of [
   "/api/v1/invitations/{token}",
   "/api/v1/invitations/{token}/accept",
@@ -240,4 +325,4 @@ if (missing.length > 0) {
   throw new Error(`Contract audit failed in ${packageRoot}:\n- ${missing.join("\n- ")}`);
 }
 
-console.log(`Contract audit passed: ${expectedPaths.length} identity paths, ${expectedOperations.length} operations, and ${expectedSchemas.length} critical schemas.`);
+console.log(`Contract audit passed: ${expectedPaths.length} audited paths, ${expectedOperations.length} operations, and ${expectedSchemas.length} critical schemas.`);
