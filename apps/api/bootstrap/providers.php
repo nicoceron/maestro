@@ -1,5 +1,6 @@
 <?php
 
+use App\DataPortability\DataPortabilityServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\FortifyServiceProvider;
@@ -14,4 +15,5 @@ return [
     PlatformOperationsServiceProvider::class,
     SupportPanelProvider::class,
     TenantDataLifecycleServiceProvider::class,
+    DataPortabilityServiceProvider::class,
 ];

@@ -46,6 +46,14 @@ return [
             'report' => true,
         ],
 
+        'crm_data_portability' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/crm-data-portability'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

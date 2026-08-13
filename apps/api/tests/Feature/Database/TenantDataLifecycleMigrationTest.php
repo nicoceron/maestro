@@ -27,7 +27,11 @@ final class TenantDataLifecycleMigrationTest extends TestCase
             foreach (['tenant_data_exports', 'tenant_retention_policies', 'tenant_deletion_requests', 'tenant_restore_drills', 'tenant_data_lifecycle_events'] as $table) {
                 $this->assertTrue($schema->hasTable($table));
             }
-            $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $connection, '--step' => 1, '--force' => true]));
+            $this->assertSame(0, Artisan::call('migrate:rollback', [
+                '--database' => $connection,
+                '--path' => 'database/migrations/2026_08_13_150000_create_tenant_data_lifecycle.php',
+                '--force' => true,
+            ]));
             $this->assertFalse($schema->hasTable('tenant_data_exports'));
             $this->assertSame(0, Artisan::call('migrate', ['--database' => $connection, '--force' => true]));
             $this->assertTrue($schema->hasTable('tenant_data_exports'));
