@@ -26,7 +26,12 @@ final class AttendanceNotesMigrationTest extends TestCase
             $this->assertTrue($schema->hasColumn('lesson_note_delivery_intents', 'note_version'));
 
             $this->assertSame(0, Artisan::call('migrate:rollback', [
-                '--database' => $connection, '--step' => 2, '--force' => true,
+                '--database' => $connection,
+                '--path' => [
+                    'database/migrations/2026_08_13_130000_create_lesson_note_attachments.php',
+                    'database/migrations/2026_08_13_120000_create_attendance_and_notes.php',
+                ],
+                '--force' => true,
             ]));
             $this->assertFalse($schema->hasTable('attendance_records'));
             $this->assertTrue($schema->hasTable('event_occurrences'));

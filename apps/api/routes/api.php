@@ -114,3 +114,5 @@ Route::prefix('v1')
             });
         });
     });
+
+require __DIR__.'/fragments/platform-operations-api.php';

@@ -32,3 +32,5 @@ Schedule::command('attachments:purge')
     ->dailyAt('03:00')
     ->onOneServer()
     ->withoutOverlapping(60);
+
+require __DIR__.'/fragments/platform-operations-console.php';

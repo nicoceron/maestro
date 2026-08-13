@@ -45,7 +45,9 @@ final class LessonNoteAttachmentMigrationTest extends TestCase
             $this->assertTrue($schema->hasTable('lesson_note_attachment_retirements'));
 
             $this->assertSame(0, Artisan::call('migrate:rollback', [
-                '--database' => $connection, '--step' => 1, '--force' => true,
+                '--database' => $connection,
+                '--path' => 'database/migrations/2026_08_13_130000_create_lesson_note_attachments.php',
+                '--force' => true,
             ]));
             $this->assertFalse($schema->hasTable('lesson_note_attachments'));
             $this->assertTrue($schema->hasTable('lesson_notes'));
