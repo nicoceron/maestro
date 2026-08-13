@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'studio_id',
@@ -16,6 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'left_on',
     'school_grade',
     'learning_preferences',
+    'lead_source',
+    'trial_started_on',
+    'waitlisted_on',
+    'status_changed_at',
 ])]
 class StudentProfile extends Model
 {
@@ -33,6 +38,12 @@ class StudentProfile extends Model
         return $this->belongsTo(Person::class);
     }
 
+    /** @return HasMany<StudentStatusTransition, $this> */
+    public function statusTransitions(): HasMany
+    {
+        return $this->hasMany(StudentStatusTransition::class);
+    }
+
     protected function casts(): array
     {
         return [
@@ -40,6 +51,9 @@ class StudentProfile extends Model
             'joined_on' => 'immutable_date',
             'left_on' => 'immutable_date',
             'learning_preferences' => 'array',
+            'trial_started_on' => 'immutable_date',
+            'waitlisted_on' => 'immutable_date',
+            'status_changed_at' => 'immutable_datetime',
         ];
     }
 }

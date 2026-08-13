@@ -26,24 +26,38 @@ class StoreHouseholdRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        return $this->householdRules(creating: true);
+    }
+
+    /** @return array<string, mixed> */
+    protected function householdRules(bool $creating): array
+    {
+        $required = $creating ? 'required' : 'sometimes';
+
         return [
-            'name' => ['required', 'string', 'max:160'],
-            'notes' => ['nullable', 'string', 'max:5000'],
-            'members' => ['required', 'array', 'min:1', 'max:20'],
+            'name' => [$required, 'string', 'max:160'],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
+            'members' => [$required, 'array', 'min:1', 'max:20'],
             'members.*.key' => ['required', 'string', 'max:50', 'regex:/^[a-z0-9][a-z0-9-]*$/', 'distinct'],
+            'members.*.person_id' => $creating
+                ? ['prohibited']
+                : ['sometimes', 'nullable', 'string', 'ulid', 'distinct'],
+            'members.*.version' => $creating
+                ? ['prohibited']
+                : ['required_with:members.*.person_id', 'integer', 'min:1'],
             'members.*.first_name' => ['required', 'string', 'max:100'],
             'members.*.last_name' => ['nullable', 'string', 'max:100'],
             'members.*.preferred_name' => ['nullable', 'string', 'max:100'],
             'members.*.email' => ['nullable', 'email:rfc', 'max:254'],
             'members.*.phone' => ['nullable', 'string', 'max:40'],
-            'members.*.birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'members.*.birth_date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
             'members.*.pronouns' => ['nullable', 'string', 'max:60'],
             'members.*.household_role' => ['required', Rule::enum(HouseholdMemberRole::class)],
             'members.*.is_primary_contact' => ['required', 'boolean'],
             'members.*.receives_billing' => ['required', 'boolean'],
             'members.*.student' => ['nullable', 'array'],
             'members.*.student.status' => ['required_with:members.*.student', Rule::enum(StudentStatus::class)],
-            'members.*.student.joined_on' => ['nullable', 'date'],
+            'members.*.student.joined_on' => ['nullable', 'date_format:Y-m-d'],
             'members.*.student.school_grade' => ['nullable', 'string', 'max:60'],
             'relationships' => ['sometimes', 'array', 'max:40'],
             'relationships.*.guardian_key' => ['required', 'string'],
@@ -59,7 +73,23 @@ class StoreHouseholdRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator): void {
+        $this->validateHousehold($validator, creating: true);
+    }
+
+    protected function validateHousehold(Validator $validator, bool $creating): void
+    {
+        $validator->after(function (Validator $validator) use ($creating): void {
+            if (! $creating && ! $this->has('members')) {
+                if ($this->has('relationships')) {
+                    $validator->errors()->add(
+                        'relationships',
+                        'Relationships can only be replaced together with household members.',
+                    );
+                }
+
+                return;
+            }
+
             /** @var array<int, array<string, mixed>> $members */
             $members = $this->input('members', []);
             $primaryContacts = array_filter(
@@ -71,6 +101,15 @@ class StoreHouseholdRequest extends FormRequest
                 $validator->errors()->add('members', 'A household must have exactly one primary contact.');
             }
 
+            $billingContacts = array_filter(
+                $members,
+                static fn (array $member): bool => ($member['receives_billing'] ?? false) === true,
+            );
+
+            if ($billingContacts === []) {
+                $validator->errors()->add('members', 'A household must have at least one billing contact.');
+            }
+
             foreach ($members as $index => $member) {
                 if (($member['is_primary_contact'] ?? false) === true
                     && blank($member['email'] ?? null)
@@ -78,6 +117,14 @@ class StoreHouseholdRequest extends FormRequest
                     $validator->errors()->add(
                         "members.{$index}.email",
                         'The primary contact needs an email address or phone number.',
+                    );
+                }
+
+                if (($member['receives_billing'] ?? false) === true
+                    && blank($member['email'] ?? null)) {
+                    $validator->errors()->add(
+                        "members.{$index}.email",
+                        'A billing contact needs an email address.',
                     );
                 }
 
@@ -114,6 +161,14 @@ class StoreHouseholdRequest extends FormRequest
                     $validator->errors()->add(
                         "relationships.{$index}.student_key",
                         'The student key must reference a learner member.',
+                    );
+                }
+
+                if (in_array(PortalPermission::Billing->value, $relationship['portal_permissions'] ?? [], true)
+                    && ($guardian['receives_billing'] ?? false) !== true) {
+                    $validator->errors()->add(
+                        "relationships.{$index}.portal_permissions",
+                        'Billing portal access requires a billing contact.',
                     );
                 }
 

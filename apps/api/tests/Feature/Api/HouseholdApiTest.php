@@ -251,6 +251,72 @@ class HouseholdApiTest extends TestCase
         $this->assertDatabaseEmpty('people');
     }
 
+    public function test_office_can_update_a_household_aggregate_with_optimistic_versions(): void
+    {
+        [, $studio] = $this->authenticatedMember(MembershipRole::Office);
+        $created = $this->postJson(
+            "/api/v1/studios/{$studio->slug}/households",
+            $this->householdPayload(),
+        )->assertCreated();
+
+        $householdId = $created->json('data.id');
+        $guardian = $created->json('data.members.0.person');
+        $learner = $created->json('data.members.1.person');
+        $payload = $this->householdPayload();
+        $payload['version'] = 1;
+        $payload['name'] = 'Rivera music household';
+        $payload['members'][0]['person_id'] = $guardian['id'];
+        $payload['members'][0]['version'] = $guardian['version'];
+        $payload['members'][0]['phone'] = '+57 300 555 9999';
+        $payload['members'][1]['person_id'] = $learner['id'];
+        $payload['members'][1]['version'] = $learner['version'];
+        $payload['members'][1]['student']['school_grade'] = '6';
+
+        $this->patchJson("/api/v1/studios/{$studio->slug}/households/{$householdId}", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Rivera music household')
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.members.0.person.phone', '+57 300 555 9999')
+            ->assertJsonPath('data.members.1.person.student.school_grade', '6');
+
+        $this->assertDatabaseCount('people', 2);
+        $this->assertDatabaseCount('student_status_transitions', 1);
+        $this->assertDatabaseCount('guardian_relationships', 1);
+
+        $this->patchJson("/api/v1/studios/{$studio->slug}/households/{$householdId}", [
+            'version' => 1,
+            'notes' => 'stale overwrite',
+        ])->assertUnprocessable()->assertJsonValidationErrors('version');
+    }
+
+    public function test_household_update_is_atomic_and_rejects_cross_tenant_people(): void
+    {
+        [, $studio] = $this->authenticatedMember(MembershipRole::Administrator);
+        $created = $this->postJson(
+            "/api/v1/studios/{$studio->slug}/households",
+            $this->householdPayload(),
+        )->assertCreated();
+        $foreignPerson = Person::factory()->create();
+        $payload = $this->householdPayload();
+        $payload['version'] = 1;
+        $payload['members'][0]['person_id'] = $foreignPerson->getKey();
+        $payload['members'][0]['version'] = 1;
+        $payload['members'][1]['person_id'] = $created->json('data.members.1.person.id');
+        $payload['members'][1]['version'] = 1;
+
+        $this->patchJson(
+            "/api/v1/studios/{$studio->slug}/households/{$created->json('data.id')}",
+            $payload,
+        )->assertUnprocessable()->assertJsonValidationErrors('members');
+
+        $this->assertDatabaseHas('households', [
+            'id' => $created->json('data.id'),
+            'name' => 'Rivera household',
+            'version' => 1,
+        ]);
+        $this->assertDatabaseCount('people', 3);
+    }
+
     /** @return array{0: User, 1: Studio} */
     private function authenticatedMember(MembershipRole $role): array
     {

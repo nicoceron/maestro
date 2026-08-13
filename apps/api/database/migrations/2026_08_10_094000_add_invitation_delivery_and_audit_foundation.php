@@ -234,10 +234,33 @@ return new class extends Migration
         Schema::dropIfExists('studio_audit_events');
         Schema::dropIfExists('studio_invitation_deliveries');
 
+        DB::table('studio_invitations')
+            ->whereNull('token_hash')
+            ->orderBy('id')
+            ->eachById(function (object $invitation): void {
+                DB::table('studio_invitations')
+                    ->where('id', $invitation->id)
+                    ->update([
+                        'token_hash' => hash(
+                            'sha256',
+                            "maestro-redacted-invitation\0{$invitation->id}",
+                        ),
+                    ]);
+            }, column: 'id');
+
+        if (DB::getDriverName() === 'sqlite') {
+            $this->restoreOriginalInvitationTableOnSqlite();
+
+            return;
+        }
+
         Schema::table('studio_invitations', function (Blueprint $table): void {
-            $table->dropForeign('studio_invitations_lineage_studio_fk');
-            $table->dropForeign('studio_invitations_previous_studio_fk');
-            $table->dropForeign('studio_invitations_superseded_studio_fk');
+            if (DB::getDriverName() === 'pgsql') {
+                $table->dropForeign('studio_invitations_lineage_studio_fk');
+                $table->dropForeign('studio_invitations_previous_studio_fk');
+                $table->dropForeign('studio_invitations_superseded_studio_fk');
+            }
+
             $table->dropUnique('studio_invitations_lineage_version_unique');
             $table->dropUnique('studio_invitations_id_studio_unique');
             $table->dropColumn([
@@ -251,6 +274,60 @@ return new class extends Migration
                 'token_redacted_at',
             ]);
         });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE studio_invitations ALTER COLUMN token_hash SET NOT NULL');
+        } else {
+            Schema::table('studio_invitations', function (Blueprint $table): void {
+                $table->char('token_hash', 64)->nullable(false)->change();
+            });
+        }
+    }
+
+    private function restoreOriginalInvitationTableOnSqlite(): void
+    {
+        Schema::disableForeignKeyConstraints();
+
+        try {
+            Schema::create('studio_invitations_rollback', function (Blueprint $table): void {
+                $table->ulid('id')->primary();
+                $table->foreignUlid('studio_id')->constrained()->cascadeOnDelete();
+                $table->string('email_normalized', 254);
+                $table->string('role', 32);
+                $table->char('token_hash', 64);
+                $table->string('pending_key', 300)->nullable();
+                $table->foreignId('invited_by_id')->nullable()->constrained('users')->nullOnDelete();
+                $table->foreignId('accepted_by_id')->nullable()->constrained('users')->nullOnDelete();
+                $table->timestamp('expires_at');
+                $table->timestamp('accepted_at')->nullable();
+                $table->timestamp('revoked_at')->nullable();
+                $table->timestamps();
+            });
+
+            DB::statement(<<<'SQL'
+                INSERT INTO studio_invitations_rollback (
+                    id, studio_id, email_normalized, role, token_hash, pending_key,
+                    invited_by_id, accepted_by_id, expires_at, accepted_at, revoked_at,
+                    created_at, updated_at
+                )
+                SELECT
+                    id, studio_id, email_normalized, role, token_hash, pending_key,
+                    invited_by_id, accepted_by_id, expires_at, accepted_at, revoked_at,
+                    created_at, updated_at
+                FROM studio_invitations
+                SQL);
+
+            Schema::drop('studio_invitations');
+            Schema::rename('studio_invitations_rollback', 'studio_invitations');
+            Schema::table('studio_invitations', function (Blueprint $table): void {
+                $table->unique('token_hash');
+                $table->unique('pending_key');
+                $table->index('expires_at');
+                $table->index(['studio_id', 'email_normalized']);
+            });
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
     }
 
     private function installImmutabilityAndRowLevelSecurity(): void
