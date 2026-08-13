@@ -1057,6 +1057,266 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/data-portability/exports": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Request a private CRM portable export
+         * @description Creates one requester-scoped asynchronous export under recent identity confirmation, current-session MFA, CSRF, and an actor-scoped idempotency key. The current scaffold does not yet satisfy full portable-reference round-trip or point-in-time snapshot acceptance.
+         */
+        readonly post: operations["requestCrmPortableExport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/exports/{export}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get a CRM portable export
+         * @description Returns one safe requester-only export projection. It omits actor/global IDs, storage coordinates, archive hashes, idempotency fingerprints, failure digests, and queue identifiers.
+         */
+        readonly get: operations["getCrmPortableExport"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/exports/{export}/download": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Download a private CRM portable bundle
+         * @description Atomically claims the ready export once and streams the decrypted `.maestro` JSON bundle after signature, current requester authorization, recent identity confirmation, current-session MFA, state, expiry, and encrypted-object integrity are rechecked.
+         */
+        readonly get: operations["downloadCrmPortableExport"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/exports/{export}/download-url": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Create a CRM export download URL
+         * @description Returns a five-minute signed application route only after requester authorization, ready/unexpired/unused state, recent identity confirmation, and current-session MFA.
+         */
+        readonly post: operations["createCrmPortableExportDownloadUrl"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Stage a private People CSV or portable bundle import
+         * @description Validates and stages one bounded UTF-8 CSV or decrypted Maestro CRM portable JSON bundle under a private random quarantine key. The actor-scoped idempotency key binds the exact uploaded bytes. Recent identity confirmation and current-session MFA are required. A portable bundle is an empty-target create-only restore; staging alone does not reserve or mutate the target.
+         */
+        readonly post: operations["stageCrmImport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get a staged CRM import
+         * @description Returns the safe status and aggregate projection only to the exact initiating actor in the route studio. Wrong-actor, cross-studio, expired, and purged identifiers are nondisclosing.
+         */
+        readonly get: operations["getCrmImport"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}/commit": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Queue CRM import commit
+         * @description Queues one actor- and version-bound commit command. Exact idempotent replay returns the original command; changed reuse conflicts. A portable-bundle commit atomically creates at most 5,000 people, rechecks its empty create-only target, and returns `CRM_PORTABLE_ROW_LIMIT_EXCEEDED` or `CRM_PORTABLE_TARGET_NOT_EMPTY` when those invariants fail. The daily-CSV worker processes bounded row chunks, but full crash/concurrency and production-shaped round-trip acceptance remains incomplete.
+         */
+        readonly post: operations["commitCrmImport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}/errors.csv": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Download sanitized CRM import errors
+         * @description Returns only source record number, stable error code, and safe field keys for failed rows. Raw uploaded cells and internal exception/storage/job metadata are never copied into the file. Download requires step-up.
+         */
+        readonly get: operations["downloadCrmImportErrors"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}/preview": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview a staged CRM import
+         * @description Parses the immutable staged bytes, applies an explicit source-to-canonical mapping, and creates safe row plans without People-domain writes. Daily-CSV no-match rows auto-plan create while duplicates remain conflicts. A portable bundle requires an empty CRM target and plans every bundled person as create; otherwise this endpoint returns `CRM_PORTABLE_TARGET_NOT_EMPTY`.
+         */
+        readonly post: operations["previewCrmImport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}/resolutions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /**
+         * Resolve CRM duplicate row plans
+         * @description Applies at most 200 explicit create, update, or skip decisions to a daily CSV under the locked import version and each row plan version. Update candidates are revalidated in the route studio at their optimistic version. No separate bearer token is issued. Portable-bundle decisions are forbidden with `CRM_PORTABLE_DECISIONS_FORBIDDEN` because bundle v1 is create-only into an empty target.
+         */
+        readonly put: operations["resolveCrmImportRows"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}/resume": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Queue CRM import resume
+         * @description Queues a durable resume command for nonterminal work under the same requester, tenant, version, authorization, step-up, and idempotency boundary as commit.
+         */
+        readonly post: operations["resumeCrmImport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/imports/{import}/rows": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List staged CRM row plans
+         * @description Cursor-paginates safe row plans for the exact requester. Candidate references are tenant-local; storage coordinates, hashes, global identities, raw rows, and infrastructure metadata are omitted.
+         */
+        readonly get: operations["listCrmImportRows"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-portability/template": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Download the People import template
+         * @description Returns the canonical UTF-8, header-first People CSV template for an active owner, administrator, or office member. This ordinary authorized read does not require step-up.
+         */
+        readonly get: operations["downloadCrmImportTemplate"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/studios/{studio}/deletion-requests": {
         readonly parameters: {
             readonly query?: never;
@@ -2395,6 +2655,9 @@ export interface components {
             /** Format: date-time */
             readonly last_seen_at: string;
         };
+        readonly CommitCrmImportInput: {
+            readonly import_version: number;
+        };
         readonly ConfirmPasswordInput: {
             /** Format: password */
             readonly password: string;
@@ -2678,6 +2941,179 @@ export interface components {
             readonly minutes: number;
             readonly staff_profile_id: components["schemas"]["Ulid"];
             readonly to_location_id: components["schemas"]["Ulid"];
+        };
+        /** @description The staged projection initially contains `source_columns`; after preview, each canonical People field maps to its selected source heading. The preview request uses the inverse source-heading-to-canonical-field direction. */
+        readonly CrmColumnMapping: {
+            readonly [key: string]: string | readonly string[];
+        };
+        readonly CrmDataPortabilityProblem: {
+            /** @enum {string} */
+            readonly code: "IDEMPOTENCY_KEY_REUSED" | "CRM_IMPORT_VERSION_CONFLICT" | "CRM_IMPORT_PLAN_VERSION_CONFLICT" | "CRM_IMPORT_STATE_INVALID" | "CRM_IMPORT_ROW_STATE_INVALID" | "CRM_IMPORT_NOT_RESOLVED" | "CRM_IMPORT_EXPIRED" | "CRM_IMPORT_CANDIDATE_STALE" | "CRM_IMPORT_RUN_ALREADY_ACTIVE" | "CRM_IMPORT_RUN_CONFLICT" | "CRM_PORTABLE_TARGET_NOT_EMPTY" | "CRM_PORTABLE_DECISIONS_FORBIDDEN" | "CRM_PORTABLE_ROW_LIMIT_EXCEEDED" | "CRM_EXPORT_NOT_DOWNLOADABLE" | "CRM_EXPORT_ALREADY_DOWNLOADED" | "CRM_EXPORT_EXPIRED" | "RECENT_CONFIRMATION_REQUIRED" | "MFA_REQUIRED";
+            readonly message: string;
+        };
+        readonly CrmHouseholdCandidate: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly name: string;
+            readonly version: number;
+        };
+        readonly CrmImport: {
+            /** Format: date-time */
+            readonly completed_at: string | null;
+            readonly error_code: string | null;
+            /** Format: date-time */
+            readonly expires_at: string;
+            /** @description Sanitized display filename only; never a storage path. */
+            readonly file_name: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly mapping: components["schemas"]["CrmColumnMapping"] | null;
+            /** Format: date-time */
+            readonly previewed_at: string | null;
+            readonly schema: components["schemas"]["CrmImportSchema"];
+            readonly status: components["schemas"]["CrmImportStatus"];
+            readonly summary: components["schemas"]["CrmImportSummary"];
+            readonly version: number;
+        };
+        readonly CrmImportCandidates: {
+            readonly households: readonly components["schemas"]["CrmHouseholdCandidate"][];
+            readonly people: readonly components["schemas"]["CrmPersonCandidate"][];
+        };
+        readonly CrmImportCommand: {
+            readonly command_id: components["schemas"]["Ulid"];
+            readonly import_id: components["schemas"]["Ulid"];
+            /** @enum {string} */
+            readonly status: "queued" | "running" | "succeeded" | "failed";
+            /** @enum {string} */
+            readonly type: "commit" | "resume";
+        };
+        readonly CrmImportCommandEnvelope: {
+            readonly data: components["schemas"]["CrmImportCommand"];
+        };
+        /** @enum {string} */
+        readonly CrmImportDecision: "create" | "update" | "skip" | "conflict";
+        readonly CrmImportEnvelope: {
+            readonly data: components["schemas"]["CrmImport"];
+        };
+        readonly CrmImportPreviewEnvelope: {
+            readonly data: components["schemas"]["CrmImport"];
+            readonly rows: components["schemas"]["CrmImportRowPage"];
+        };
+        readonly CrmImportRow: {
+            readonly candidates: components["schemas"]["CrmImportCandidates"] | null;
+            readonly decision: components["schemas"]["CrmImportDecision"];
+            readonly error_code: string | null;
+            readonly error_fields: readonly string[] | null;
+            readonly id: components["schemas"]["Ulid"];
+            /** @enum {string|null} */
+            readonly match_kind: "none" | "invalid" | "portable_id" | "external_reference" | "email" | "name_birth_date" | "ambiguous_portable_id" | "ambiguous_external_reference" | "ambiguous_email" | "ambiguous_name_birth_date" | "ambiguous_household" | "file_duplicate" | null;
+            readonly plan_version: number;
+            readonly preview: components["schemas"]["CrmImportRowPreview"];
+            /** @description Source CSV record number; header is record 1. */
+            readonly row_number: number;
+            readonly status: components["schemas"]["CrmImportRowStatus"];
+        };
+        readonly CrmImportRowPage: {
+            readonly data: readonly components["schemas"]["CrmImportRow"][];
+            readonly meta: components["schemas"]["CrmImportRowPageMeta"];
+        };
+        readonly CrmImportRowPageMeta: {
+            readonly next_cursor: string | null;
+            readonly per_page: number;
+            readonly previous_cursor: string | null;
+        };
+        readonly CrmImportRowPreview: {
+            readonly birth_date: string;
+            readonly email: string;
+            readonly first_name: string;
+            readonly household_name: string;
+            readonly last_name: string;
+            readonly phone: string;
+            readonly student_status: string;
+        };
+        /** @enum {string} */
+        readonly CrmImportRowStatus: "resolved" | "conflict" | "processing" | "created" | "updated" | "skipped" | "failed";
+        readonly CrmImportSchema: {
+            /** @constant */
+            readonly encoding: "UTF-8";
+            /** @enum {string} */
+            readonly name: "maestro_people_households" | "maestro.crm-portability";
+            /** @constant */
+            readonly version: "1.0";
+        };
+        /** @enum {string} */
+        readonly CrmImportStatus: "staged" | "previewing" | "needs_resolution" | "ready" | "committing" | "completed" | "completed_with_errors" | "failed" | "expired" | "purged";
+        readonly CrmImportSummary: {
+            readonly conflicts: number;
+            readonly creates: number;
+            readonly failed: number;
+            readonly processed: number;
+            readonly rows: number;
+            readonly skipped: number;
+            readonly updates: number;
+        };
+        readonly CrmPersonCandidate: {
+            readonly display_name: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly version: number;
+        };
+        readonly CrmPortableCanonicalization: {
+            /** @constant */
+            readonly cell_encoding: "base64-v1 for formula-effective or marker-prefixed literals";
+            readonly csv: string;
+        };
+        readonly CrmPortableDatasetProjection: {
+            readonly columns: readonly string[];
+            readonly dependencies: readonly string[];
+            /** @constant */
+            readonly media_type: "text/csv; charset=utf-8; header=present";
+            readonly name: string;
+            readonly row_count: number;
+        };
+        readonly CrmPortableExport: {
+            readonly archive_size: number | null;
+            readonly download_count: number;
+            readonly error_code: string | null;
+            /** Format: date-time */
+            readonly expires_at: string;
+            /** @constant */
+            readonly format_version: "1.0";
+            readonly id: components["schemas"]["Ulid"];
+            readonly manifest: components["schemas"]["CrmPortableManifestProjection"] | null;
+            /** Format: date-time */
+            readonly ready_at: string | null;
+            readonly status: components["schemas"]["CrmPortableExportStatus"];
+            readonly version: number;
+        };
+        readonly CrmPortableExportDownloadUrl: {
+            /** Format: date-time */
+            readonly expires_at: string;
+            /**
+             * Format: uri
+             * @description Five-minute signed application route; never a storage URL.
+             */
+            readonly url: string;
+        };
+        readonly CrmPortableExportDownloadUrlEnvelope: {
+            readonly data: components["schemas"]["CrmPortableExportDownloadUrl"];
+        };
+        readonly CrmPortableExportEnvelope: {
+            readonly data: components["schemas"]["CrmPortableExport"];
+        };
+        /** @enum {string} */
+        readonly CrmPortableExportStatus: "queued" | "building" | "ready" | "failed" | "expired" | "purged";
+        readonly CrmPortableManifestProjection: {
+            readonly canonicalization: components["schemas"]["CrmPortableCanonicalization"];
+            readonly datasets: readonly components["schemas"]["CrmPortableDatasetProjection"][];
+            readonly excluded: readonly string[];
+            /** @constant */
+            readonly schema: "maestro.crm-portability";
+            readonly studio: components["schemas"]["CrmPortableStudioDefaults"];
+            /** @constant */
+            readonly version: "1.0";
+        };
+        readonly CrmPortableStudioDefaults: {
+            readonly currency: string;
+            readonly locale: string;
+            readonly timezone: string;
         };
         readonly CurrentUser: {
             readonly email: components["schemas"]["NormalizedEmail"];
@@ -3529,6 +3965,13 @@ export interface components {
         };
         /** @enum {string} */
         readonly PortalPermission: "calendar" | "attendance" | "learning" | "billing" | "booking" | "messages";
+        readonly PreviewCrmImportInput: {
+            readonly import_version: number;
+            /** @description Source heading keys mapped to canonical People column values. */
+            readonly mapping?: {
+                readonly [key: string]: string;
+            };
+        };
         readonly PreviewEventEnrollmentInput: {
             readonly person_id: components["schemas"]["Ulid"];
             /** @enum {string} */
@@ -3709,6 +4152,20 @@ export interface components {
             readonly password_confirmation: components["schemas"]["StrongPassword"];
             /** @description Single-use Laravel password-broker token received in a URL fragment, scrubbed by the browser, and submitted only in this JSON body. */
             readonly token: string;
+        };
+        readonly ResolveCrmImportRowInput: {
+            readonly candidate_household_id?: components["schemas"]["Ulid"] | null;
+            readonly candidate_household_version?: number | null;
+            readonly candidate_person_id?: components["schemas"]["Ulid"] | null;
+            readonly candidate_person_version?: number | null;
+            /** @enum {string} */
+            readonly decision: "create" | "update" | "skip";
+            readonly plan_version: number;
+            readonly row_id: components["schemas"]["Ulid"];
+        };
+        readonly ResolveCrmImportRowsInput: {
+            readonly import_version: number;
+            readonly rows: readonly components["schemas"]["ResolveCrmImportRowInput"][];
         };
         readonly ResolvedOfferingConfiguration: {
             readonly booking_lead_minutes: number;
@@ -3905,6 +4362,13 @@ export interface components {
         readonly StaffRole: "teacher" | "office" | "substitute";
         /** @enum {string} */
         readonly StaffStatus: "active" | "on_leave" | "former";
+        readonly StageCrmImportInput: {
+            /**
+             * Format: binary
+             * @description At most 10 MiB; the current route accepts a UTF-8 People CSV or a decrypted `application/vnd.maestro.crm-portability+json` `.maestro` JSON bundle through the same multipart field. Daily CSV permits at most 25,000 records; atomic bundle commit permits at most 5,000 People records.
+             */
+            readonly file: string;
+        };
         /**
          * Format: password
          * @description At least 12 characters. Passphrases are allowed; confirmation equality and Laravel's uncompromised-password check are enforced server-side without character-composition rules.
@@ -4581,6 +5045,24 @@ export interface components {
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
+        /** @description A CRM import/export idempotency, optimistic-version, row-plan, lifecycle, lease, readiness, or one-use invariant rejected the operation without a partial request effect. */
+        readonly CrmDataPortabilityConflict: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["CrmDataPortabilityProblem"];
+            };
+        };
+        /** @description Recent password/passkey confirmation or current-session MFA is missing or older than ten minutes. */
+        readonly CrmDataPortabilityStepUpRequired: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["CrmDataPortabilityProblem"];
+            };
+        };
         /** @description The Sanctum CSRF cookie/header pair is absent or invalid. */
         readonly CsrfTokenMismatch: {
             headers: {
@@ -4891,6 +5373,16 @@ export interface components {
         readonly CalendarPageSize: number;
         /** @description Exclusive range end after `from`; the calendar range cannot exceed 93 days. */
         readonly CalendarTo: string;
+        /** @description Opaque 8–128 character key scoped to the authenticated requester, route studio, and exact CRM portability command fingerprint. */
+        readonly CrmIdempotencyKey: string;
+        /** @description Opaque Laravel CRM import-row cursor, bound to this requester, import, and filter set. */
+        readonly CrmImportCursor: string;
+        /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+        readonly CrmImportId: components["schemas"]["Ulid"];
+        /** @description Optional exact safe row-plan/outcome state. */
+        readonly CrmImportRowStatusFilter: "resolved" | "conflict" | "processing" | "created" | "updated" | "skipped" | "failed";
+        /** @description Requester-owned CRM portable-export ULID resolved inside the route studio. */
+        readonly CrmPortableExportId: components["schemas"]["Ulid"];
         /** @description Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set. */
         readonly Cursor: string;
         /** @description Enrollment ULID constrained to the route studio and event series. */
@@ -5005,6 +5497,10 @@ export interface components {
         readonly AttachmentDisposition: string;
         /** @description Private attachment bytes must not be stored by a browser or intermediary cache. */
         readonly AttachmentNoStore: "max-age=0, no-store, private";
+        /** @description Safe generated CRM template or diagnostic CSV filename; no original upload or storage key is reflected. */
+        readonly CrmCsvDisposition: string;
+        /** @description Safe generated requester-scoped `.maestro` filename; no original upload or storage key is reflected. */
+        readonly CrmPortableExportDisposition: string;
         /** @description Compatibility directive marking sensitive identity material immediately stale. */
         readonly ExpiresImmediately: "0";
         /** @description Sensitive identity material must not be stored by a browser or intermediary cache. */
@@ -6648,6 +7144,503 @@ export interface operations {
             readonly 409: components["responses"]["TenantDataConflict"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly requestCrmPortableExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque 8–128 character key scoped to the authenticated requester, route studio, and exact CRM portability command fingerprint. */
+                readonly "Idempotency-Key": components["parameters"]["CrmIdempotencyKey"];
+            };
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Export queued, or exact original projection returned on replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmPortableExportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getCrmPortableExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM portable-export ULID resolved inside the route studio. */
+                readonly export: components["parameters"]["CrmPortableExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Safe requester-visible export status. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmPortableExportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly downloadCrmPortableExport: {
+        readonly parameters: {
+            readonly query: {
+                readonly expires: number;
+                readonly signature: string;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM portable-export ULID resolved inside the route studio. */
+                readonly export: components["parameters"]["CrmPortableExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Decrypted private `.maestro` JSON bundle. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly "Content-Disposition": components["headers"]["CrmPortableExportDisposition"];
+                    /** @description Browser MIME sniffing disabled. */
+                    readonly "X-Content-Type-Options"?: "nosniff";
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/vnd.maestro.crm-portability+json": string;
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createCrmPortableExportDownloadUrl: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM portable-export ULID resolved inside the route studio. */
+                readonly export: components["parameters"]["CrmPortableExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Private no-store response containing a short-lived signed application URL. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmPortableExportDownloadUrlEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly stageCrmImport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque 8–128 character key scoped to the authenticated requester, route studio, and exact CRM portability command fingerprint. */
+                readonly "Idempotency-Key": components["parameters"]["CrmIdempotencyKey"];
+            };
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "multipart/form-data": components["schemas"]["StageCrmImportInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Private import staged, or exact original projection returned on replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getCrmImport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Requester-visible import state and monotonic aggregate progress. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly commitCrmImport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque 8–128 character key scoped to the authenticated requester, route studio, and exact CRM portability command fingerprint. */
+                readonly "Idempotency-Key": components["parameters"]["CrmIdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CommitCrmImportInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Durable commit command queued, or original command returned on exact replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportCommandEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly downloadCrmImportErrors: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Deterministic formula-safe CSV diagnostics. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly "Content-Disposition": components["headers"]["CrmCsvDisposition"];
+                    /** @description Browser MIME sniffing disabled. */
+                    readonly "X-Content-Type-Options"?: "nosniff";
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "text/csv; charset=utf-8; header=present": string;
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewCrmImport: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Opaque Laravel CRM import-row cursor, bound to this requester, import, and filter set. */
+                readonly cursor?: components["parameters"]["CrmImportCursor"];
+                readonly per_page?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewCrmImportInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Incremented import projection and first safe cursor page of row plans. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportPreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly resolveCrmImportRows: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ResolveCrmImportRowsInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Accepted decisions persisted and import version incremented. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly resumeCrmImport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque 8–128 character key scoped to the authenticated requester, route studio, and exact CRM portability command fingerprint. */
+                readonly "Idempotency-Key": components["parameters"]["CrmIdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CommitCrmImportInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Durable resume command queued, or original command returned on exact replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportCommandEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["CrmDataPortabilityConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["CrmDataPortabilityStepUpRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listCrmImportRows: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Opaque Laravel CRM import-row cursor, bound to this requester, import, and filter set. */
+                readonly cursor?: components["parameters"]["CrmImportCursor"];
+                readonly per_page?: number;
+                /** @description Optional exact safe row-plan/outcome state. */
+                readonly status?: components["parameters"]["CrmImportRowStatusFilter"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Requester-owned CRM import ULID resolved inside the route studio. */
+                readonly import: components["parameters"]["CrmImportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Stable source-order page of safe row plans. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CrmImportRowPage"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly downloadCrmImportTemplate: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Canonical quoted CSV template with CRLF records and a final CRLF. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly "Content-Disposition": components["headers"]["CrmCsvDisposition"];
+                    /** @description Browser MIME sniffing disabled. */
+                    readonly "X-Content-Type-Options"?: "nosniff";
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "text/csv; charset=utf-8; header=present": string;
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
