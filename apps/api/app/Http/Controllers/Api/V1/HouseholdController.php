@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\People\CreateHousehold;
+use App\Actions\People\UpdateHousehold;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreHouseholdRequest;
+use App\Http\Requests\Api\V1\UpdateHouseholdRequest;
 use App\Http\Resources\HouseholdResource;
 use App\Models\Household;
 use App\Models\Studio;
@@ -55,7 +57,7 @@ class HouseholdController extends Controller
         Studio $studio,
         CreateHousehold $createHousehold,
     ): JsonResponse {
-        $household = $createHousehold->handle($request->validated());
+        $household = $createHousehold->handle($request->validated(), $request->user());
 
         return (new HouseholdResource($household))
             ->additional(['message' => 'Household created.'])
@@ -72,5 +74,25 @@ class HouseholdController extends Controller
         Gate::authorize('view', $record);
 
         return new HouseholdResource($record);
+    }
+
+    public function update(
+        UpdateHouseholdRequest $request,
+        Studio $studio,
+        string $household,
+        UpdateHousehold $updateHousehold,
+    ): HouseholdResource {
+        $record = $studio->households()->findOrFail($household);
+        Gate::authorize('update', $record);
+        $attributes = $request->validated();
+        $version = (int) $attributes['version'];
+        unset($attributes['version']);
+
+        return new HouseholdResource($updateHousehold->handle(
+            $record,
+            $attributes,
+            $version,
+            $request->user(),
+        ));
     }
 }

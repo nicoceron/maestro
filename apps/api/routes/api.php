@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\HouseholdController;
 use App\Http\Controllers\Api\V1\InvitationAcceptanceController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\PasskeyController;
+use App\Http\Controllers\Api\V1\PersonController;
 use App\Http\Controllers\Api\V1\StudioController;
 use App\Http\Controllers\Api\V1\StudioInvitationController;
 use App\Http\Controllers\Api\V1\UserSessionController;
@@ -55,6 +56,11 @@ Route::prefix('v1')
                             ->middleware('password.recent');
                         Route::apiResource('households', HouseholdController::class)
                             ->only(['index', 'store', 'show']);
+                        Route::patch('households/{household}', [HouseholdController::class, 'update']);
+                        Route::apiResource('people', PersonController::class)
+                            ->only(['index', 'store', 'show']);
+                        Route::patch('people/{person}', [PersonController::class, 'update']);
+                        Route::post('people/{person}/student-status', [PersonController::class, 'transitionStudentStatus']);
                     });
             });
         });

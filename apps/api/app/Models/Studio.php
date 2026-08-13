@@ -55,6 +55,24 @@ class Studio extends Model
         return $this->hasMany(Person::class);
     }
 
+    /** @return HasMany<Instrument, $this> */
+    public function instruments(): HasMany
+    {
+        return $this->hasMany(Instrument::class);
+    }
+
+    /** @return HasMany<Tag, $this> */
+    public function tags(): HasMany
+    {
+        return $this->hasMany(Tag::class);
+    }
+
+    /** @return HasMany<CustomFieldDefinition, $this> */
+    public function customFieldDefinitions(): HasMany
+    {
+        return $this->hasMany(CustomFieldDefinition::class);
+    }
+
     public function getRouteKeyName(): string
     {
         return 'slug';

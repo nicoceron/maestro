@@ -9,9 +9,12 @@ use App\Models\Household;
 use App\Models\HouseholdMember;
 use App\Models\Person;
 use App\Models\StudentProfile;
+use App\Models\StudentStatusTransition;
+use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class CreateHousehold
 {
@@ -20,10 +23,12 @@ class CreateHousehold
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function handle(array $attributes): Household
+    public function handle(array $attributes, User $actor): Household
     {
-        return DB::transaction(function () use ($attributes): Household {
-            $studio = $this->tenantContext->studio();
+        $studio = $this->tenantContext->studio();
+        Gate::forUser($actor)->authorize('create', [Household::class, $studio]);
+
+        return DB::transaction(function () use ($attributes, $actor, $studio): Household {
             $household = Household::query()->create([
                 'studio_id' => $studio->getKey(),
                 'name' => $attributes['name'],
@@ -54,12 +59,25 @@ class CreateHousehold
                 ]);
 
                 if (isset($member['student'])) {
-                    StudentProfile::query()->create([
+                    $now = now();
+                    $profile = StudentProfile::query()->create([
                         'studio_id' => $studio->getKey(),
                         'person_id' => $person->getKey(),
                         'status' => $member['student']['status'],
                         'joined_on' => $member['student']['joined_on'] ?? null,
                         'school_grade' => $member['student']['school_grade'] ?? null,
+                        'learning_preferences' => [],
+                        'status_changed_at' => $now,
+                    ]);
+                    StudentStatusTransition::query()->create([
+                        'studio_id' => $studio->getKey(),
+                        'student_profile_id' => $profile->getKey(),
+                        'person_id' => $person->getKey(),
+                        'actor_id' => $actor->getAuthIdentifier(),
+                        'previous_status' => null,
+                        'new_status' => $profile->status,
+                        'reason' => 'Student profile created.',
+                        'occurred_at' => $now,
                     ]);
                 }
 

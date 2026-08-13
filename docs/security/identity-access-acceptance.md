@@ -257,7 +257,7 @@ requested -> pending_delivery -> pending
 
 Accepted, revoked, superseded, and expired are terminal. Resend creates a new token/digest and marks the former invitation superseded; it never extends or reuses a token. Default invitation lifetime is 7 days. Cleanup redacts token digests after 30 days and retains non-secret audit metadata according to retention policy.
 
-The exact resend, job-payload, audit, cleanup, privacy, and executable-evidence contract is defined in [Invitation audit and delivery acceptance](./invitation-audit-delivery-acceptance.md). Its implementation claims remain pending until the repository evidence named there passes.
+The exact resend, job-payload, audit, cleanup, privacy, and executable-evidence contract is defined in [Invitation audit and delivery acceptance](./invitation-audit-delivery-acceptance.md). The named repository evidence currently passes for the invitation-domain slice; broader cross-domain audit and outbox controls remain pending as recorded there.
 
 ### 7.2 Create, list, resend, and revoke
 

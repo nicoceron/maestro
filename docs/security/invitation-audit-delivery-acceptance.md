@@ -41,7 +41,7 @@ A successful resend returns `202 application/json`:
 
 `GET /api/v1/studios/{studio}/invitations` accepts `q` (normalized email substring, maximum 100 characters), `status`, `role`, and one-based `page`. Its paginator adds `capabilities.can_create` and the exact server-authorized `capabilities.invitable_roles`. Each invitation carries server-derived `permissions.can_resend` and `permissions.can_revoke`; clients never reconstruct policy from the current user's role. `delivery_status` is `pending`, `sent`, `suppressed`, or `null` for migrated history without a delivery row.
 
-The authenticated management surface is the tenant-scoped Filament resource at `/manage/studio/{studio}/studio-invitations`. It default-denies missing tenants, derives available roles and actions from the Laravel policy, requires the current password before every sensitive mutation, and invokes the same domain actions and HMAC-keyed create/resend limits as the API. The candidate intentionally contains no authenticated Next.js invitation-management route or component.
+The authenticated management surface is the tenant-scoped Filament resource at `/manage/studio/{studio}/studio-invitations`. It default-denies missing tenants, derives available roles and actions from the Laravel policy, requires a current-password check when the session does not already hold password or passkey confirmation from the preceding ten minutes, and invokes the same domain actions and HMAC-keyed create/resend limits as the API. The candidate intentionally contains no authenticated Next.js invitation-management route or component.
 
 Exact error families are:
 
@@ -59,7 +59,7 @@ Accepted, revoked, already-superseded, and domain-ineligible rows use the same `
 
 ## 2. Atomic resend and supersession
 
-The request pipeline completes route binding, tenant membership, recent confirmation, and actor role-policy authorization before entering the sensitive resend limiter. The resend transaction then locks the current invitation and its tenant-local pending key; rechecks current-row eligibility, cooldown, and the persistent daily lineage quota; creates a new invitation ULID with a fresh seven-day expiry and monotonically increasing delivery version; links the replacement to its predecessor; marks the predecessor with `superseded_at` and `superseded_by_id`; clears the predecessor's pending uniqueness key; stores only the new token digest; appends the resend/supersession audit records; and records the after-commit delivery intent.
+The request pipeline completes route binding, tenant membership, recent confirmation, and actor role-policy authorization before entering the sensitive resend limiter. The resend transaction then locks the current invitation; rechecks current-row eligibility, cooldown, and the persistent daily lineage quota; creates a new invitation ULID with a fresh seven-day expiry and monotonically increasing delivery version; links the replacement to its predecessor; marks the predecessor with `superseded_at` and `superseded_by_id`; clears the predecessor's pending uniqueness key; stores only the new token digest; appends the resend/supersession audit records; and records the transactional delivery intent for after-commit dispatch. A database uniqueness constraint on the tenant-local pending key closes races with create and other replacement flows.
 
 The old bearer becomes unusable before `202` is returned. Public preview of the old token returns the ordinary generic `404` unavailable response. Authenticated acceptance returns the ordinary generic `422 invitation_token` validation family. Resend never updates a token digest or expiry in place, never reuses plaintext token material, and never changes the locked email, role, studio, or inviter history.
 
@@ -67,7 +67,7 @@ Concurrent resend attempts may produce at most one replacement for a given prede
 
 ## 3. Token-safe queued delivery
 
-The serialized queue payload contains exactly the invitation ULID and delivery version. It does not contain the studio ID, email, role, inviter, plaintext token, token digest, signed URL, or mail body. Queue encryption is defense in depth and does not relax this payload rule. Failed-job storage, logs, exception context, tracing, metrics, and audit metadata apply the same exclusion.
+The job's only invitation-domain payload fields are the invitation ULID and delivery version; Laravel's ordinary queue metadata remains framework-owned. Neither the serialized job nor notification contains the studio ID, email, role, inviter, plaintext token, token digest, signed URL, or mail body. Queue encryption is defense in depth and does not relax this payload rule. Failed-job storage, logs, exception context, tracing, metrics, and audit metadata apply the same exclusion.
 
 The worker resolves the invitation and tenant context at execution time, then locks and rechecks that the row still has the requested version and is deliverable. Missing, revoked, accepted, expired, superseded, replaced-version, already-terminal, or exhausted-failure work is acknowledged as a safe no-op. It emits no email and cannot resurrect or rotate a token. After five provider failures the queue failure callback atomically suppresses the pending delivery as `delivery_failed`, so the pending-intent dispatcher cannot create an unbounded retry storm; recovery requires an authorized resend.
 
@@ -77,7 +77,7 @@ Plaintext bearer material exists only at the delivery boundary long enough to bu
 
 ## 4. Immutable tenant-aware audit
 
-Each event has a ULID, `studio_id`, event type, actor user ID or service actor, subject type and ULID, request/correlation ID, keyed request-IP hash, allowlisted metadata, and immutable `occurred_at`. Invitation metadata may include role, delivery version, predecessor/replacement ULIDs, and coarse outcome. It never includes full email, plaintext token, token digest, URL fragment, provider message body, session identifier, raw IP, or raw user agent.
+Each event has a ULID, `studio_id`, event type, actor user ID or `null` for service work, subject type and ULID, allowlisted metadata, and immutable `occurred_at`. Request-originated events also carry a server-generated request/correlation ID and keyed request-IP hash. Worker and scheduled service events deliberately leave those request-only fields `null`. Invitation metadata may include role, delivery version, predecessor/replacement ULIDs, and coarse outcome. It never includes full email, plaintext token, token digest, URL fragment, provider message body, session identifier, raw IP, or raw user agent.
 
 Required invitation event types are:
 
@@ -106,7 +106,7 @@ Each row is locked and rechecked under tenant context immediately before redacti
 | `INV-E005` | Resend returns the exact `202` replacement envelope, atomically supersedes the old row, and invalidates the old bearer |
 | `INV-E008` | Expired, revoked, superseded, accepted, random, and cleaned bearers remain in the documented generic public/authenticated error families |
 | `INV-E018` | Route binding, membership, recent confirmation, and mutation role policy precede sensitive quota consumption; create attempt 21/hour per inviter across studios or 101/day per studio, plus resend one/minute or three/day limits, produce `429` with `Retry-After` and no invitation, delivery, success audit, or job effects; hourly/daily windows reset at their declared boundary |
-| `JOB-001` | Serialized delivery payload contains exactly invitation ULID plus version; token/email/studio/mail content are absent; terminal/stale work is suppressed |
+| `JOB-001` | Invitation-domain payload contains only invitation ULID plus version, alongside Laravel's framework queue metadata; token/email/studio/mail content are absent; terminal/stale work is suppressed |
 | `JOB-002` | Create/resend/retry races leave one current version, one delivery intent, and at most one usable bearer; provider handoff is documented at-least-once for the crash-after-send window |
 | `JOB-012` | Thirty-day digest redaction is terminal-only, tenant-safe, audited once, and idempotent |
 | `AUDIT-E001` | Create/resend/revoke/accept commit the required append-only tenant event with allowlisted metadata |

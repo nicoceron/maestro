@@ -7,13 +7,21 @@ use App\Enums\MembershipRole;
 use App\Enums\MembershipStatus;
 use App\Enums\StudentStatus;
 use App\Jobs\DeliverStudioInvitation;
+use App\Models\CustomFieldDefinition;
+use App\Models\CustomFieldValue;
 use App\Models\Household;
+use App\Models\Instrument;
 use App\Models\Person;
+use App\Models\PersonInstrument;
+use App\Models\PersonTag;
+use App\Models\StaffProfile;
 use App\Models\StudentProfile;
+use App\Models\StudentStatusTransition;
 use App\Models\Studio;
 use App\Models\StudioInvitation;
 use App\Models\StudioInvitationDelivery;
 use App\Models\StudioMembership;
+use App\Models\Tag;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Notifications\StudioInvitationNotification;
@@ -30,6 +38,179 @@ use Tests\TestCase;
 
 class PostgresRowLevelSecurityTest extends TestCase
 {
+    public function test_people_extension_tables_are_default_deny_tenant_scoped_and_database_guarded(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL is required for the RLS integration test.');
+        }
+
+        [$runtime, $runtimeConnectionName] = $this->runtimeConnection();
+        $actor = User::factory()->create();
+        $firstStudio = Studio::factory()->create();
+        $secondStudio = Studio::factory()->create();
+        $records = [];
+
+        foreach ([$firstStudio, $secondStudio] as $studio) {
+            $person = Person::factory()->for($studio)->create();
+            $profile = StudentProfile::query()->create([
+                'studio_id' => $studio->getKey(),
+                'person_id' => $person->getKey(),
+                'status' => StudentStatus::Lead,
+                'learning_preferences' => [],
+                'status_changed_at' => now(),
+            ]);
+            $staff = StaffProfile::query()->create([
+                'studio_id' => $studio->getKey(),
+                'person_id' => $person->getKey(),
+                'roles' => ['teacher'],
+                'status' => 'active',
+            ]);
+            $instrument = Instrument::query()->create([
+                'studio_id' => $studio->getKey(),
+                'name' => 'Piano '.$studio->getKey(),
+                'active' => true,
+            ]);
+            $personInstrument = PersonInstrument::query()->create([
+                'studio_id' => $studio->getKey(),
+                'person_id' => $person->getKey(),
+                'instrument_id' => $instrument->getKey(),
+                'relationship' => 'studies',
+                'is_primary' => true,
+            ]);
+            $tag = Tag::query()->create([
+                'studio_id' => $studio->getKey(),
+                'name' => 'Priority '.$studio->getKey(),
+                'active' => true,
+            ]);
+            $personTag = PersonTag::query()->create([
+                'studio_id' => $studio->getKey(),
+                'person_id' => $person->getKey(),
+                'tag_id' => $tag->getKey(),
+            ]);
+            $definition = CustomFieldDefinition::query()->create([
+                'studio_id' => $studio->getKey(),
+                'key' => 'level-'.$studio->getKey(),
+                'name' => 'Level',
+                'type' => 'text',
+                'applies_to' => 'person',
+                'active' => true,
+            ]);
+            $value = CustomFieldValue::query()->create([
+                'studio_id' => $studio->getKey(),
+                'definition_id' => $definition->getKey(),
+                'person_id' => $person->getKey(),
+                'value' => ['value' => 'A'],
+            ]);
+            $transition = StudentStatusTransition::query()->create([
+                'studio_id' => $studio->getKey(),
+                'student_profile_id' => $profile->getKey(),
+                'person_id' => $person->getKey(),
+                'actor_id' => $actor->getKey(),
+                'previous_status' => null,
+                'new_status' => StudentStatus::Lead,
+                'reason' => 'Profile created.',
+                'occurred_at' => now(),
+            ]);
+            $records[(string) $studio->getKey()] = compact(
+                'person',
+                'profile',
+                'staff',
+                'instrument',
+                'personInstrument',
+                'tag',
+                'personTag',
+                'definition',
+                'value',
+                'transition',
+            );
+        }
+
+        $tenantTables = [
+            'staff_profiles',
+            'instruments',
+            'person_instruments',
+            'tags',
+            'person_tags',
+            'custom_field_definitions',
+            'custom_field_values',
+            'student_status_transitions',
+        ];
+
+        try {
+            foreach ($tenantTables as $table) {
+                $this->assertSame(0, $runtime->table($table)->count(), "{$table} must default deny.");
+            }
+
+            $this->setContext($runtime, 'app.current_studio_id', (string) $firstStudio->getKey());
+
+            foreach ($tenantTables as $table) {
+                $this->assertSame(1, $runtime->table($table)->count(), "{$table} leaked another tenant.");
+            }
+
+            $first = $records[(string) $firstStudio->getKey()];
+            $second = $records[(string) $secondStudio->getKey()];
+            $crossTenantAssignmentDenied = false;
+
+            try {
+                $runtime->table('person_tags')->insert([
+                    'id' => (string) Str::ulid(),
+                    'studio_id' => $firstStudio->getKey(),
+                    'person_id' => $first['person']->getKey(),
+                    'tag_id' => $second['tag']->getKey(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (QueryException) {
+                $crossTenantAssignmentDenied = true;
+            }
+
+            $this->assertTrue($crossTenantAssignmentDenied);
+            $directStatusUpdateDenied = false;
+
+            try {
+                $runtime->table('student_profiles')
+                    ->where('id', $first['profile']->getKey())
+                    ->update(['status' => StudentStatus::Active->value]);
+            } catch (QueryException) {
+                $directStatusUpdateDenied = true;
+            }
+
+            $this->assertTrue($directStatusUpdateDenied);
+            $runtime->table('student_status_transitions')->insert([
+                'id' => (string) Str::ulid(),
+                'studio_id' => $firstStudio->getKey(),
+                'student_profile_id' => $first['profile']->getKey(),
+                'person_id' => $first['person']->getKey(),
+                'actor_id' => $actor->getKey(),
+                'previous_status' => StudentStatus::Lead->value,
+                'new_status' => StudentStatus::Trial->value,
+                'reason' => 'RLS lifecycle proof.',
+                'occurred_at' => now()->addSecond(),
+            ]);
+            $this->assertSame(
+                StudentStatus::Trial->value,
+                $runtime->table('student_profiles')->where('id', $first['profile']->getKey())->value('status'),
+            );
+            $this->assertSame(
+                2,
+                $runtime->table('people')->where('id', $first['person']->getKey())->value('version'),
+            );
+            $historyMutationDenied = false;
+
+            try {
+                $runtime->table('student_status_transitions')
+                    ->where('id', $first['transition']->getKey())
+                    ->update(['reason' => 'rewritten']);
+            } catch (QueryException) {
+                $historyMutationDenied = true;
+            }
+
+            $this->assertTrue($historyMutationDenied);
+        } finally {
+            DB::purge($runtimeConnectionName);
+        }
+    }
+
     public function test_restricted_runtime_role_is_default_deny_and_cannot_cross_studios(): void
     {
         if (DB::getDriverName() !== 'pgsql') {

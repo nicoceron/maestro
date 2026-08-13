@@ -21,6 +21,7 @@ class HouseholdMemberResource extends JsonResource
             MembershipRole::Office,
         ], true);
         $canViewContact = $canViewPrivateProfile || $this->receives_billing;
+        $canViewStudent = $canViewPrivateProfile || $this->receives_billing;
 
         return [
             'id' => $this->getKey(),
@@ -33,17 +34,18 @@ class HouseholdMemberResource extends JsonResource
                 'last_name' => $person->last_name,
                 'preferred_name' => $person->preferred_name,
                 'display_name' => $person->displayName(),
+                'version' => $person->version,
                 'email' => $canViewContact ? $person->email : null,
                 'phone' => $canViewContact ? $person->phone : null,
                 'birth_date' => $canViewPrivateProfile ? $person->birth_date?->toDateString() : null,
                 'pronouns' => $canViewPrivateProfile ? $person->pronouns : null,
                 'status' => $person->status->value,
-                'student' => $student === null ? null : [
+                'student' => ! $canViewStudent || $student === null ? null : [
                     'id' => $student->getKey(),
                     'status' => $student->status->value,
                     'joined_on' => $student->joined_on?->toDateString(),
                     'left_on' => $student->left_on?->toDateString(),
-                    'school_grade' => $student->school_grade,
+                    'school_grade' => $canViewPrivateProfile ? $student->school_grade : null,
                 ],
             ],
         ];

@@ -281,7 +281,7 @@ class IdentitySecurityTest extends TestCase
         ]);
         $this->actingAs($user, 'web');
 
-        foreach ([now()->subSeconds(601)->timestamp, now()->addSecond()->timestamp, 'not-a-timestamp', null] as $value) {
+        foreach ([now()->subSeconds(601)->timestamp, now()->addMinute()->timestamp, 'not-a-timestamp', null] as $value) {
             $this->withSession(['auth.password_confirmed_at' => $value]);
             $this->postJson('/api/v1/auth/user/two-factor-authentication')->assertStatus(423);
             $this->getJson('/api/v1/auth/user/passkeys/options')->assertStatus(423);

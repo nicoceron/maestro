@@ -5,9 +5,10 @@ info:
   version: 0.1.0
   description: |-
     Contract for Maestro's Laravel JSON API. It covers browser identity and CSRF,
-    onboarding, authenticated studio discovery, studio invitations, and household
-    aggregate management. First-party browser mutations use Sanctum's stateful
-    session together with Laravel's XSRF cookie/header pair.
+    onboarding, authenticated studio discovery, studio invitations, people and
+    student lifecycle management, and household aggregate management. First-party
+    browser mutations use Sanctum's stateful session together with Laravel's XSRF
+    cookie/header pair.
   contact:
     name: Maestro engineering
   license:
@@ -25,6 +26,8 @@ tags:
     description: Studio discovery and lifecycle entry points for authenticated members.
   - name: Invitations
     description: Public invitation preview and tenant-scoped invitation management and acceptance.
+  - name: People
+    description: Tenant-scoped people, student/staff profiles, taxonomy assignments, and student lifecycle.
   - name: Households
     description: Tenant-scoped household, learner, guardian, and portal-access management.
 security:
@@ -1431,9 +1434,9 @@ paths:
         create is limited to 20 attempts/hour per inviter and 100 attempts/day per route studio.
         Rejected non-members, role-denied members, or unconfirmed callers do not consume these
         sensitive quotas; quota rejection returns `429` before invitation, delivery, audit, or job
-        effects. The delivery job contains only
-        the invitation ULID and delivery version; bearer material is derived only at the delivery
-        boundary and never serialized.
+        effects. The delivery job's invitation-domain payload contains only the invitation ULID
+        and delivery version, alongside Laravel's framework queue metadata; bearer material is
+        derived only at the delivery boundary and never serialized.
       operationId: createStudioInvitation
       x-acceptance-ids: [IDA-STEPUP-001, IDA-INVITE-001, INV-E001, INV-E002, INV-E018]
       security:
@@ -1555,6 +1558,233 @@ paths:
           $ref: '#/components/responses/RecentPasswordRequired'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/people:
+    parameters:
+      - $ref: '#/components/parameters/StudioSlug'
+    get:
+      tags:
+        - People
+      summary: List people in a studio
+      description: |-
+        Returns a tenant-scoped, deterministic Laravel paginator ordered by last name,
+        first name, and ULID. Owners, administrators, office staff, and billing staff
+        may list; teachers may not. Billing responses retain names, person-record status,
+        and payer contact information while privacy-restricted fields become `null`,
+        private collections become empty arrays, and staff profiles become `null`.
+        Billing callers may use `q`, `status`, and pagination; a syntactically valid
+        student, staff, taxonomy, or source filter returns `403` because those fields
+        are private (ordinary parameter validation can return `422` first).
+        Taxonomy IDs from another studio cannot broaden the query and produce an empty
+        tenant-local result.
+      operationId: listPeople
+      parameters:
+        - $ref: '#/components/parameters/PeopleSearch'
+        - $ref: '#/components/parameters/PersonStatusFilter'
+        - $ref: '#/components/parameters/StudentStatusFilter'
+        - $ref: '#/components/parameters/StaffRoleFilter'
+        - $ref: '#/components/parameters/InstrumentIdFilter'
+        - $ref: '#/components/parameters/TagIdFilter'
+        - $ref: '#/components/parameters/PersonSourceFilter'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Paginated people visible under the current membership's privacy policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonPaginatedCollectionEnvelope'
+              examples:
+                people:
+                  $ref: '#/components/examples/PeopleCollection'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    post:
+      tags:
+        - People
+      summary: Create a person and optional profiles
+      description: |-
+        Atomically creates a tenant-owned person plus optional student/staff profiles,
+        active studio tags and instruments, and definition-typed custom-field values.
+        Owners, administrators, and office staff may create; billing staff and teachers
+        may not. Taxonomy and custom-field identifiers must resolve inside the route
+        studio or the entire request fails with `422` and no partial person.
+      operationId: createPerson
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePersonInput'
+            examples:
+              student:
+                $ref: '#/components/examples/CreatePerson'
+      responses:
+        '201':
+          description: Person and submitted profiles/assignments created atomically.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonCreatedEnvelope'
+              examples:
+                created:
+                  $ref: '#/components/examples/PersonCreated'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/people/{person}:
+    parameters:
+      - $ref: '#/components/parameters/StudioSlug'
+      - $ref: '#/components/parameters/PersonId'
+    get:
+      tags:
+        - People
+      summary: Get a person
+      description: |-
+        Resolves the person only through the route studio, so a cross-tenant ULID is
+        indistinguishable from a missing record and returns `404`. Owners,
+        administrators, office staff, and billing staff may view. The same
+        membership-sensitive privacy substitutions as the collection apply; detail
+        responses include up to 100 newest-first immutable student status transitions
+        for management roles and an empty history for billing.
+      operationId: getPerson
+      responses:
+        '200':
+          description: Person visible under the current membership's privacy policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonEnvelope'
+              examples:
+                person:
+                  $ref: '#/components/examples/PersonDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    patch:
+      tags:
+        - People
+      summary: Update a person and profiles
+      description: |-
+        Atomically updates the person and supplied profile/assignment collections for
+        owners, administrators, and office staff. `version` is required optimistic
+        concurrency state; a stale value returns a field-keyed `422` without mutation.
+        Student lifecycle status cannot be changed through this operation: clients use
+        the dedicated transition operation. Omitting a field preserves it, submitted
+        assignment arrays replace that collection, and existing student or staff
+        profiles cannot be deleted: lifecycle history is retained by transitioning the
+        student or setting staff status to `former`. An inactive tag or instrument that
+        is already assigned may be preserved, but it cannot be newly assigned.
+      operationId: updatePerson
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePersonInput'
+            examples:
+              update:
+                $ref: '#/components/examples/UpdatePerson'
+      responses:
+        '200':
+          description: Person updated and version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonEnvelope'
+              examples:
+                updated:
+                  $ref: '#/components/examples/PersonDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/PersonUpdateFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/people/{person}/student-status:
+    parameters:
+      - $ref: '#/components/parameters/StudioSlug'
+      - $ref: '#/components/parameters/PersonId'
+    post:
+      tags:
+        - People
+      summary: Transition a student's lifecycle status
+      description: |-
+        Moves an existing student profile through the server-owned transition graph,
+        records an immutable tenant-scoped history row, updates lifecycle dates, and
+        increments the parent person's optimistic version in one transaction. Owners,
+        administrators, and office staff may transition. Missing, cross-tenant, and
+        non-student people return `404`; disallowed or same-state transitions return a
+        field-keyed `422` without history or version effects.
+      operationId: transitionStudentStatus
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionStudentStatusInput'
+            examples:
+              trial:
+                $ref: '#/components/examples/TransitionStudentStatus'
+      responses:
+        '200':
+          description: Student lifecycle transitioned and immutable history appended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonEnvelope'
+              examples:
+                transitioned:
+                  $ref: '#/components/examples/PersonDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/StudentStatusTransitionFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /api/v1/studios/{studio}/households:
     parameters:
       - $ref: '#/components/parameters/StudioSlug'
@@ -1660,6 +1890,52 @@ paths:
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+    patch:
+      tags:
+        - Households
+      summary: Update a household aggregate
+      description: |-
+        Optimistically updates household fields for owners, administrators, and office
+        staff. `version` is always required. Omitting `members` preserves the complete
+        member and guardian graph; supplying `members` replaces household membership,
+        and supplied or omitted `relationships` then replace that graph (omission means
+        no relationships). Existing people are referenced with their tenant-scoped
+        `person_id` and current `version`; new members omit both. Removed members remain
+        people in the studio. Existing student profiles cannot be removed and lifecycle
+        status changes use the dedicated person transition operation. Any stale,
+        cross-tenant, or invalid nested state returns `422` without partial mutation.
+      operationId: updateHousehold
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHouseholdInput'
+            example:
+              version: 1
+              name: Rivera family
+      responses:
+        '200':
+          description: Household graph updated and aggregate version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '419':
+          $ref: '#/components/responses/CsrfTokenMismatch'
+        '422':
+          $ref: '#/components/responses/HouseholdUpdateFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 components:
   securitySchemes:
     sanctumSession:
@@ -1691,6 +1967,14 @@ components:
       schema:
         $ref: '#/components/schemas/Ulid'
       example: 01KZN6AKC49V3YM8ZJ7T2R5QWD
+    PersonId:
+      name: person
+      in: path
+      required: true
+      description: Person ULID resolved through the route studio before policy evaluation.
+      schema:
+        $ref: '#/components/schemas/Ulid'
+      example: 01KZN8Y3A48GKXQTE6MHN7R2VC
     InvitationId:
       name: invitation
       in: path
@@ -1748,11 +2032,70 @@ components:
           - 'null'
         maxLength: 100
       example: rivera
+    PeopleSearch:
+      name: q
+      in: query
+      required: false
+      description: |-
+        Case-insensitive substring search across tenant-visible names, email, and phone.
+        Blank input is ignored; billing contact matching is restricted to payer-visible contacts.
+      schema:
+        type:
+          - string
+          - 'null'
+        maxLength: 100
+      example: maya
+    PersonStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Return only people in this person-record status.
+      schema:
+        $ref: '#/components/schemas/PersonStatus'
+    StudentStatusFilter:
+      name: student_status
+      in: query
+      required: false
+      description: Return only people whose student profile has this lifecycle status. Forbidden for billing callers.
+      schema:
+        $ref: '#/components/schemas/StudentStatus'
+    StaffRoleFilter:
+      name: staff_role
+      in: query
+      required: false
+      description: Return only people whose staff profile includes this role. Forbidden for billing callers.
+      schema:
+        $ref: '#/components/schemas/StaffRole'
+    InstrumentIdFilter:
+      name: instrument_id
+      in: query
+      required: false
+      description: Tenant-owned instrument ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers.
+      schema:
+        $ref: '#/components/schemas/Ulid'
+    TagIdFilter:
+      name: tag_id
+      in: query
+      required: false
+      description: Tenant-owned tag ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers.
+      schema:
+        $ref: '#/components/schemas/Ulid'
+    PersonSourceFilter:
+      name: source
+      in: query
+      required: false
+      description: Exact normalized source filter. Supplying `null` matches records whose source is null. Forbidden for billing callers.
+      schema:
+        type:
+          - string
+          - 'null'
+        maxLength: 80
+      example: website
     PerPage:
       name: per_page
       in: query
       required: false
-      description: Number of households per page. Defaults to `25`.
+      description: Number of records per page. Defaults to `25`.
       schema:
         type:
           - integer
@@ -2007,6 +2350,244 @@ components:
           permissions:
             manage: true
         message: Onboarding completed.
+    CreatePerson:
+      summary: Create a lead student with studio taxonomy and a typed custom field
+      value:
+        first_name: Maya
+        last_name: Rivera
+        email: MAYA@example.test
+        phone: '+1 555 0100'
+        source: website
+        external_reference: CRM-1042
+        preferred_locale: es-CO
+        student:
+          status: lead
+          school_grade: '6'
+          learning_preferences:
+            - visual
+            - short-sessions
+          lead_source: summer-campaign
+        tag_ids:
+          - 01KZN8X32EVSN2TR5YQG4JH9CB
+        instruments:
+          - instrument_id: 01KZN8V5P4R7X2M6QH3T9CDEFG
+            relationship: studies
+            proficiency: beginner
+            is_primary: true
+            years_experience: 1
+        custom_fields:
+          - definition_id: 01KZN8W6R5T3C9Q2MV7X4HDEFG
+            value: Saturday mornings
+    UpdatePerson:
+      summary: Optimistically update contact and profile data
+      value:
+        version: 1
+        preferred_name: May
+        phone: '+1 555 0199'
+        student:
+          school_grade: '7'
+          learning_preferences:
+            - visual
+    TransitionStudentStatus:
+      summary: Move a lead to trial
+      value:
+        version: 2
+        status: trial
+        reason: Intro lesson booked.
+    PersonDetail:
+      summary: Management-visible person detail with immutable lifecycle history
+      value:
+        data:
+          id: 01KZN8Y3A48GKXQTE6MHN7R2VC
+          first_name: Maya
+          last_name: Rivera
+          preferred_name: May
+          display_name: May Rivera
+          email: maya@example.test
+          phone: '+1 555 0199'
+          birth_date: '2013-05-09'
+          pronouns: she/her
+          status: active
+          version: 3
+          source: website
+          external_reference: CRM-1042
+          preferred_locale: es-CO
+          student:
+            id: 01KZN91A7P5TR3X2VC8Q4MH6DE
+            status: trial
+            joined_on: null
+            left_on: null
+            school_grade: '7'
+            learning_preferences:
+              - visual
+            lead_source: summer-campaign
+            trial_started_on: '2026-08-12'
+            waitlisted_on: null
+            status_changed_at: '2026-08-12T16:20:00+00:00'
+          staff: null
+          instruments:
+            - id: 01KZN8V5P4R7X2M6QH3T9CDEFG
+              name: Piano
+              relationship: studies
+              proficiency: beginner
+              is_primary: true
+              years_experience: 1
+          tags:
+            - id: 01KZN8X32EVSN2TR5YQG4JH9CB
+              name: Priority lead
+              color: '#4F46E5'
+          custom_fields:
+            - definition_id: 01KZN8W6R5T3C9Q2MV7X4HDEFG
+              key: preferred-slot
+              name: Preferred slot
+              type: text
+              value: Saturday mornings
+          households: []
+          student_status_history:
+            - id: 01KZN94AQ7T2X5VC8M3RH6DEFG
+              previous_status: lead
+              new_status: trial
+              reason: Intro lesson booked.
+              occurred_at: '2026-08-12T16:20:00+00:00'
+            - id: 01KZN91B8Q6TS4Y3WD9R5NJFHG
+              previous_status: null
+              new_status: lead
+              reason: Student profile created.
+              occurred_at: '2026-08-12T15:30:00+00:00'
+          created_at: '2026-08-12T15:30:00+00:00'
+          updated_at: '2026-08-12T16:20:00+00:00'
+          permissions:
+            edit: true
+            archive: false
+            transition_student: true
+    PersonCreated:
+      summary: Created person response with normalized contact data
+      value:
+        data:
+          id: 01KZN8Y3A48GKXQTE6MHN7R2VC
+          first_name: Maya
+          last_name: Rivera
+          preferred_name: null
+          display_name: Maya Rivera
+          email: maya@example.test
+          phone: '+1 555 0100'
+          birth_date: null
+          pronouns: null
+          status: active
+          version: 1
+          source: website
+          external_reference: CRM-1042
+          preferred_locale: es-CO
+          student:
+            id: 01KZN91A7P5TR3X2VC8Q4MH6DE
+            status: lead
+            joined_on: null
+            left_on: null
+            school_grade: '6'
+            learning_preferences:
+              - visual
+              - short-sessions
+            lead_source: summer-campaign
+            trial_started_on: null
+            waitlisted_on: null
+            status_changed_at: '2026-08-12T15:30:00+00:00'
+          staff: null
+          instruments:
+            - id: 01KZN8V5P4R7X2M6QH3T9CDEFG
+              name: Piano
+              relationship: studies
+              proficiency: beginner
+              is_primary: true
+              years_experience: 1
+          tags:
+            - id: 01KZN8X32EVSN2TR5YQG4JH9CB
+              name: Priority lead
+              color: '#4F46E5'
+          custom_fields:
+            - definition_id: 01KZN8W6R5T3C9Q2MV7X4HDEFG
+              key: preferred-slot
+              name: Preferred slot
+              type: text
+              value: Saturday mornings
+          households: []
+          student_status_history: []
+          created_at: '2026-08-12T15:30:00+00:00'
+          updated_at: '2026-08-12T15:30:00+00:00'
+          permissions:
+            edit: true
+            archive: false
+            transition_student: true
+        message: Person created.
+    PeopleCollection:
+      summary: One-page people collection with server-derived capability
+      value:
+        data:
+          - id: 01KZN8Y3A48GKXQTE6MHN7R2VC
+            first_name: Maya
+            last_name: Rivera
+            preferred_name: null
+            display_name: Maya Rivera
+            email: maya@example.test
+            phone: '+1 555 0100'
+            birth_date: null
+            pronouns: null
+            status: active
+            version: 1
+            source: website
+            external_reference: CRM-1042
+            preferred_locale: es-CO
+            student:
+              id: 01KZN91A7P5TR3X2VC8Q4MH6DE
+              status: lead
+              joined_on: null
+              left_on: null
+              school_grade: '6'
+              learning_preferences:
+                - visual
+              lead_source: summer-campaign
+              trial_started_on: null
+              waitlisted_on: null
+              status_changed_at: '2026-08-12T15:30:00+00:00'
+            staff: null
+            instruments: []
+            tags: []
+            custom_fields: []
+            households: []
+            student_status_history: []
+            created_at: '2026-08-12T15:30:00+00:00'
+            updated_at: '2026-08-12T15:30:00+00:00'
+            permissions:
+              edit: true
+              archive: false
+              transition_student: true
+        capabilities:
+          can_create: true
+        links:
+          first: http://localhost/api/v1/studios/aria-academy/people?page=1
+          last: http://localhost/api/v1/studios/aria-academy/people?page=1
+          prev: null
+          next: null
+        meta:
+          current_page: 1
+          from: 1
+          last_page: 1
+          links:
+            - url: null
+              label: '&laquo; Previous'
+              page: null
+              active: false
+            - url: http://localhost/api/v1/studios/aria-academy/people?page=1
+              label: '1'
+              page: 1
+              active: true
+            - url: null
+              label: Next &raquo;
+              page: null
+              active: false
+          path: http://localhost/api/v1/studios/aria-academy/people
+          per_page: 25
+          to: 1
+          total: 1
     CreateHousehold:
       summary: Guardian and learner household
       value:
@@ -2162,6 +2743,69 @@ components:
             errors:
               invitation:
                 - This invitation cannot be resent yet.
+    PersonUpdateFailed:
+      description: |-
+        Input validation, stale optimistic version, unavailable tenant taxonomy, or
+        an attempted student-lifecycle bypass prevented the entire update.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            staleVersion:
+              value:
+                message: The version field is invalid.
+                errors:
+                  version:
+                    - This person changed after you opened it. Refresh and try again.
+            lifecycleBypass:
+              value:
+                message: The student.status field is invalid.
+                errors:
+                  student.status:
+                    - Use the student status transition action to change lifecycle state.
+    StudentStatusTransitionFailed:
+      description: |-
+        Input validation, stale optimistic version, or the server-owned lifecycle graph
+        rejected the requested transition. No version or history effect is committed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            staleVersion:
+              value:
+                message: The version field is invalid.
+                errors:
+                  version:
+                    - This person changed after you opened it. Refresh and try again.
+            transitionDenied:
+              value:
+                message: The status field is invalid.
+                errors:
+                  status:
+                    - A student cannot move from active to trial.
+    HouseholdUpdateFailed:
+      description: |-
+        Input validation, stale aggregate/member version, cross-tenant person identity,
+        or an attempted student-lifecycle bypass prevented the complete aggregate update.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            staleAggregate:
+              value:
+                message: The version field is invalid.
+                errors:
+                  version:
+                    - This household changed after you opened it. Refresh and try again.
+            staleMember:
+              value:
+                message: The members.0.version field is invalid.
+                errors:
+                  members.0.version:
+                    - This person changed after you opened the household.
     TooManyRequests:
       description: API rate limit exceeded.
       headers:
@@ -3010,6 +3654,37 @@ components:
         - active
         - paused
         - former
+    StaffRole:
+      type: string
+      enum:
+        - teacher
+        - office
+        - substitute
+    StaffStatus:
+      type: string
+      enum:
+        - active
+        - on_leave
+        - former
+    EmploymentType:
+      type: string
+      enum:
+        - employee
+        - contractor
+        - volunteer
+    InstrumentRelationship:
+      type: string
+      enum:
+        - studies
+        - teaches
+        - both
+    ProficiencyLevel:
+      type: string
+      enum:
+        - beginner
+        - intermediate
+        - advanced
+        - professional
     GuardianRelationshipType:
       type: string
       enum:
@@ -3167,6 +3842,837 @@ components:
         message:
           type: string
           const: Studio created.
+    NullablePersonEmail:
+      description: |-
+        Normalized contact email for management roles and billing-visible payers;
+        otherwise the property remains present with `null`.
+      anyOf:
+        - type: string
+          format: email
+          maxLength: 254
+        - type: 'null'
+    NullablePersonPhone:
+      description: |-
+        Contact phone for management roles and billing-visible payers; otherwise
+        the property remains present with `null`.
+      type:
+        - string
+        - 'null'
+      maxLength: 40
+    PersonStudentProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - status
+        - joined_on
+        - left_on
+        - school_grade
+        - learning_preferences
+        - lead_source
+        - trial_started_on
+        - waitlisted_on
+        - status_changed_at
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        status:
+          $ref: '#/components/schemas/StudentStatus'
+        joined_on:
+          description: Visible to management roles and billing-visible payers.
+          type:
+            - string
+            - 'null'
+          format: date
+        left_on:
+          description: Visible to management roles and billing-visible payers.
+          type:
+            - string
+            - 'null'
+          format: date
+        school_grade:
+          description: Returns null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          maxLength: 60
+        learning_preferences:
+          description: Empty for privacy-restricted roles.
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 100
+        lead_source:
+          description: Returns null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          maxLength: 80
+        trial_started_on:
+          description: Returns null for billing callers.
+          type:
+            - string
+            - 'null'
+          format: date
+        waitlisted_on:
+          description: Returns null for billing callers.
+          type:
+            - string
+            - 'null'
+          format: date
+        status_changed_at:
+          description: Visible to management roles and billing-visible payers.
+          type:
+            - string
+            - 'null'
+          format: date-time
+    PersonStaffProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - roles
+        - status
+        - employment_type
+        - bio
+        - hire_on
+        - left_on
+        - can_substitute
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/StaffRole'
+        status:
+          $ref: '#/components/schemas/StaffStatus'
+        employment_type:
+          anyOf:
+            - $ref: '#/components/schemas/EmploymentType'
+            - type: 'null'
+        bio:
+          type:
+            - string
+            - 'null'
+          maxLength: 5000
+        hire_on:
+          type:
+            - string
+            - 'null'
+          format: date
+        left_on:
+          type:
+            - string
+            - 'null'
+          format: date
+        can_substitute:
+          type: boolean
+    PersonInstrument:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - relationship
+        - proficiency
+        - is_primary
+        - years_experience
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        relationship:
+          $ref: '#/components/schemas/InstrumentRelationship'
+        proficiency:
+          anyOf:
+            - $ref: '#/components/schemas/ProficiencyLevel'
+            - type: 'null'
+        is_primary:
+          type: boolean
+        years_experience:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 100
+    PersonTag:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - color
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        color:
+          type:
+            - string
+            - 'null'
+          pattern: '^#[0-9A-Fa-f]{6}$'
+    PersonCustomFieldValueBase:
+      type: object
+      required:
+        - definition_id
+        - key
+        - name
+      properties:
+        definition_id:
+          $ref: '#/components/schemas/Ulid'
+        key:
+          type: string
+          minLength: 1
+          maxLength: 80
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    PersonCustomFieldTextValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: text
+            value:
+              type: string
+              minLength: 1
+              maxLength: 500
+      unevaluatedProperties: false
+    PersonCustomFieldLongTextValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: long_text
+            value:
+              type: string
+              minLength: 1
+              maxLength: 10000
+      unevaluatedProperties: false
+    PersonCustomFieldDateValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: date
+            value:
+              type: string
+              minLength: 10
+              maxLength: 10
+              format: date
+      unevaluatedProperties: false
+    PersonCustomFieldSelectValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: select
+            value:
+              type: string
+              minLength: 1
+              maxLength: 100
+      unevaluatedProperties: false
+    PersonCustomFieldNumberValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: number
+            value:
+              type: number
+      unevaluatedProperties: false
+    PersonCustomFieldBooleanValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: boolean
+            value:
+              type: boolean
+      unevaluatedProperties: false
+    PersonCustomFieldMultiSelectValue:
+      allOf:
+        - $ref: '#/components/schemas/PersonCustomFieldValueBase'
+        - type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: multi_select
+            value:
+              type: array
+              minItems: 1
+              maxItems: 100
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 100
+      unevaluatedProperties: false
+    PersonCustomFieldValue:
+      description: Definition-typed custom-field response with a correlated type/value pair.
+      oneOf:
+        - $ref: '#/components/schemas/PersonCustomFieldTextValue'
+        - $ref: '#/components/schemas/PersonCustomFieldLongTextValue'
+        - $ref: '#/components/schemas/PersonCustomFieldDateValue'
+        - $ref: '#/components/schemas/PersonCustomFieldSelectValue'
+        - $ref: '#/components/schemas/PersonCustomFieldNumberValue'
+        - $ref: '#/components/schemas/PersonCustomFieldBooleanValue'
+        - $ref: '#/components/schemas/PersonCustomFieldMultiSelectValue'
+    PersonCustomFieldScalarOrList:
+      description: |-
+        Request value validated against the tenant-owned definition identified by
+        `definition_id`; the client cannot choose or override that definition's type.
+      oneOf:
+        - type: string
+          maxLength: 10000
+        - type: number
+        - type: boolean
+        - type: array
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 100
+        - type: 'null'
+    PersonHouseholdSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - role
+        - is_primary_contact
+        - receives_billing
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        role:
+          $ref: '#/components/schemas/HouseholdMemberRole'
+        is_primary_contact:
+          type: boolean
+        receives_billing:
+          type: boolean
+    StudentStatusTransition:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - previous_status
+        - new_status
+        - reason
+        - occurred_at
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        previous_status:
+          description: Null only for the immutable initial profile-created event.
+          anyOf:
+            - $ref: '#/components/schemas/StudentStatus'
+            - type: 'null'
+        new_status:
+          $ref: '#/components/schemas/StudentStatus'
+        reason:
+          type:
+            - string
+            - 'null'
+          maxLength: 500
+        occurred_at:
+          type: string
+          format: date-time
+    PersonPermissions:
+      type: object
+      additionalProperties: false
+      required:
+        - edit
+        - archive
+        - transition_student
+      properties:
+        edit:
+          type: boolean
+          description: True for owners, administrators, and office staff.
+        archive:
+          type: boolean
+          description: Current delete-policy decision; true only for studio owners.
+        transition_student:
+          type: boolean
+          description: True when the caller may update and this person has a student profile.
+    Person:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - first_name
+        - last_name
+        - preferred_name
+        - display_name
+        - email
+        - phone
+        - birth_date
+        - pronouns
+        - status
+        - version
+        - source
+        - external_reference
+        - preferred_locale
+        - student
+        - staff
+        - instruments
+        - tags
+        - custom_fields
+        - households
+        - student_status_history
+        - created_at
+        - updated_at
+        - permissions
+      properties:
+        id:
+          $ref: '#/components/schemas/Ulid'
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        preferred_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 201
+        email:
+          $ref: '#/components/schemas/NullablePersonEmail'
+        phone:
+          $ref: '#/components/schemas/NullablePersonPhone'
+        birth_date:
+          description: Returns null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          format: date
+        pronouns:
+          description: Returns null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          maxLength: 60
+        status:
+          $ref: '#/components/schemas/PersonStatus'
+        version:
+          type: integer
+          minimum: 1
+          description: Server-owned optimistic concurrency version.
+        source:
+          description: Returns null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          maxLength: 80
+        external_reference:
+          description: Returns null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          maxLength: 120
+        preferred_locale:
+          description: Normalized BCP-47-like locale, or null for privacy-restricted roles.
+          type:
+            - string
+            - 'null'
+          maxLength: 16
+          pattern: '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$'
+        student:
+          description: |-
+            Student profile or `null`. Privacy-restricted billing callers receive `null`
+            for people outside a billing-visible payer relationship.
+          anyOf:
+            - $ref: '#/components/schemas/PersonStudentProfile'
+            - type: 'null'
+        staff:
+          description: Staff profile for management roles; otherwise null.
+          anyOf:
+            - $ref: '#/components/schemas/PersonStaffProfile'
+            - type: 'null'
+        instruments:
+          description: Empty for privacy-restricted roles.
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonInstrument'
+        tags:
+          description: Empty for privacy-restricted roles.
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonTag'
+        custom_fields:
+          description: Empty for privacy-restricted roles.
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCustomFieldValue'
+        households:
+          description: |-
+            Management roles receive every relationship. Billing receives only
+            relationships where this person receives billing; other cases are empty.
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonHouseholdSummary'
+        student_status_history:
+          description: |-
+            At most 100 newest-first immutable transitions on detail responses for
+            management roles. Collections and privacy-restricted responses use `[]`.
+            Internal/global actor identifiers are deliberately absent.
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/StudentStatusTransition'
+        created_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        updated_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        permissions:
+          $ref: '#/components/schemas/PersonPermissions'
+    PersonCollectionCapabilities:
+      type: object
+      additionalProperties: false
+      required:
+        - can_create
+      properties:
+        can_create:
+          type: boolean
+          description: Server-derived person-create policy result for the route studio.
+    PersonEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Person'
+    PersonCreatedEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - message
+      properties:
+        data:
+          $ref: '#/components/schemas/Person'
+        message:
+          type: string
+          const: Person created.
+    PersonStudentInput:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          $ref: '#/components/schemas/StudentStatus'
+        joined_on:
+          type:
+            - string
+            - 'null'
+          format: date
+        school_grade:
+          type:
+            - string
+            - 'null'
+          maxLength: 60
+        learning_preferences:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 100
+        lead_source:
+          type:
+            - string
+            - 'null'
+          maxLength: 80
+        trial_started_on:
+          type:
+            - string
+            - 'null'
+          format: date
+        waitlisted_on:
+          type:
+            - string
+            - 'null'
+          format: date
+    CreatePersonStudentInput:
+      allOf:
+        - $ref: '#/components/schemas/PersonStudentInput'
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: '#/components/schemas/StudentStatus'
+    UpdatePersonStudentInput:
+      allOf:
+        - $ref: '#/components/schemas/PersonStudentInput'
+      description: |-
+        `status` is required when PATCH creates a student profile. For an existing
+        profile it may be omitted or equal the current status; use the transition
+        operation to change lifecycle state.
+    PersonStaffInput:
+      type: object
+      additionalProperties: false
+      required:
+        - roles
+        - status
+      properties:
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/StaffRole'
+        status:
+          $ref: '#/components/schemas/StaffStatus'
+        employment_type:
+          anyOf:
+            - $ref: '#/components/schemas/EmploymentType'
+            - type: 'null'
+        bio:
+          type:
+            - string
+            - 'null'
+          maxLength: 5000
+        hire_on:
+          type:
+            - string
+            - 'null'
+          format: date
+        left_on:
+          type:
+            - string
+            - 'null'
+          format: date
+        can_substitute:
+          type: boolean
+    PersonInstrumentInput:
+      type: object
+      additionalProperties: false
+      required:
+        - instrument_id
+        - relationship
+      properties:
+        instrument_id:
+          $ref: '#/components/schemas/Ulid'
+        relationship:
+          $ref: '#/components/schemas/InstrumentRelationship'
+        proficiency:
+          anyOf:
+            - $ref: '#/components/schemas/ProficiencyLevel'
+            - type: 'null'
+        is_primary:
+          type: boolean
+          default: false
+        years_experience:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 100
+    PersonCustomFieldInput:
+      type: object
+      additionalProperties: false
+      required:
+        - definition_id
+        - value
+      properties:
+        definition_id:
+          $ref: '#/components/schemas/Ulid'
+        value:
+          description: Runtime-validated against the route-studio definition's type/options/required rule.
+          $ref: '#/components/schemas/PersonCustomFieldScalarOrList'
+    PersonWritableFields:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        preferred_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        email:
+          anyOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+          maxLength: 40
+        birth_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Must not be later than the request date.
+        pronouns:
+          type:
+            - string
+            - 'null'
+          maxLength: 60
+        status:
+          $ref: '#/components/schemas/PersonStatus'
+        source:
+          type:
+            - string
+            - 'null'
+          maxLength: 80
+        external_reference:
+          type:
+            - string
+            - 'null'
+          maxLength: 120
+        preferred_locale:
+          type:
+            - string
+            - 'null'
+          maxLength: 16
+          pattern: '^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$'
+        staff:
+          description: |-
+            On create, `null` means no staff profile. On update, an existing profile
+            cannot be removed; set its status to `former` to retain history.
+          anyOf:
+            - $ref: '#/components/schemas/PersonStaffInput'
+            - type: 'null'
+        tag_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Ulid'
+        instruments:
+          description: Assignments must use distinct instrument IDs and at most one may be primary.
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/PersonInstrumentInput'
+        custom_fields:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PersonCustomFieldInput'
+    CreatePersonInput:
+      allOf:
+        - $ref: '#/components/schemas/PersonWritableFields'
+        - type: object
+          required:
+            - first_name
+          properties:
+            student:
+              anyOf:
+                - $ref: '#/components/schemas/CreatePersonStudentInput'
+                - type: 'null'
+      unevaluatedProperties: false
+    UpdatePersonInput:
+      allOf:
+        - $ref: '#/components/schemas/PersonWritableFields'
+        - type: object
+          required:
+            - version
+          properties:
+            version:
+              type: integer
+              minimum: 1
+            student:
+              anyOf:
+                - $ref: '#/components/schemas/UpdatePersonStudentInput'
+                - type: 'null'
+      unevaluatedProperties: false
+    TransitionStudentStatusInput:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - status
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          description: Expected current parent-person version.
+        status:
+          $ref: '#/components/schemas/StudentStatus'
+        reason:
+          type:
+            - string
+            - 'null'
+          maxLength: 500
     StudioCollectionEnvelope:
       type: object
       additionalProperties: false
@@ -3220,6 +4726,7 @@ components:
         - birth_date
         - pronouns
         - status
+        - version
         - student
       properties:
         id:
@@ -3270,6 +4777,10 @@ components:
           maxLength: 60
         status:
           $ref: '#/components/schemas/PersonStatus'
+        version:
+          type: integer
+          minimum: 1
+          description: Current person version required when retaining this member in a household PATCH.
         student:
           anyOf:
             - $ref: '#/components/schemas/HouseholdStudentProfile'
@@ -3474,6 +4985,82 @@ components:
           anyOf:
             - $ref: '#/components/schemas/CreateStudentProfileInput'
             - type: 'null'
+    UpdateHouseholdMemberInput:
+      type: object
+      additionalProperties: false
+      description: |-
+        A retained studio person supplies both `person_id` and its current `version`;
+        a new person omits both. `key` remains request-local for guardian relationships.
+      required:
+        - key
+        - first_name
+        - household_role
+        - is_primary_contact
+        - receives_billing
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^[a-z0-9][a-z0-9-]*$'
+        person_id:
+          description: Omit for a new person; a retained person must include its current `version`.
+          anyOf:
+            - $ref: '#/components/schemas/Ulid'
+            - type: 'null'
+        version:
+          type: integer
+          minimum: 1
+          description: Required when `person_id` identifies a retained person.
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        preferred_name:
+          type:
+            - string
+            - 'null'
+          maxLength: 100
+        email:
+          anyOf:
+            - type: string
+              format: email
+              maxLength: 254
+            - type: 'null'
+        phone:
+          type:
+            - string
+            - 'null'
+          maxLength: 40
+        birth_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Must not be later than the request date.
+        pronouns:
+          type:
+            - string
+            - 'null'
+          maxLength: 60
+        household_role:
+          $ref: '#/components/schemas/HouseholdMemberRole'
+        is_primary_contact:
+          type: boolean
+        receives_billing:
+          type: boolean
+        student:
+          description: |-
+            A new profile requires `status`. An existing profile may retain its current
+            status but cannot be removed or transitioned through this aggregate update.
+          anyOf:
+            - $ref: '#/components/schemas/CreateStudentProfileInput'
+            - type: 'null'
     CreateGuardianRelationshipInput:
       type: object
       additionalProperties: false
@@ -3530,6 +5117,38 @@ components:
           items:
             $ref: '#/components/schemas/CreateHouseholdMemberInput'
         relationships:
+          type: array
+          maxItems: 40
+          items:
+            $ref: '#/components/schemas/CreateGuardianRelationshipInput'
+    UpdateHouseholdInput:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          description: Expected current household aggregate version.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        notes:
+          type:
+            - string
+            - 'null'
+          maxLength: 5000
+        members:
+          description: Supplying this array replaces household membership as one transaction.
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/UpdateHouseholdMemberInput'
+        relationships:
+          description: May be supplied only together with `members`; omission with members clears relationships.
           type: array
           maxItems: 40
           items:
@@ -3657,6 +5276,25 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Household'
+        links:
+          $ref: '#/components/schemas/LaravelPaginationLinks'
+        meta:
+          $ref: '#/components/schemas/LaravelPaginationMeta'
+    PersonPaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - capabilities
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Person'
+        capabilities:
+          $ref: '#/components/schemas/PersonCollectionCapabilities'
         links:
           $ref: '#/components/schemas/LaravelPaginationLinks'
         meta:
