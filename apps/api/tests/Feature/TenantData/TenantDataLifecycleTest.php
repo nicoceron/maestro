@@ -134,7 +134,8 @@ final class TenantDataLifecycleTest extends TestCase
             ->postJson("/api/v1/studios/{$studio->slug}/data-exports", [], ['Idempotency-Key' => 'api-export'])
             ->assertAccepted()
             ->assertJsonPath('data.status', 'queued')
-            ->assertJsonMissingPath('data.archive_sha256');
+            ->assertJsonMissingPath('data.archive_sha256')
+            ->assertJsonMissingPath('data.archive_ciphertext_sha256');
         $export = TenantDataExport::query()->findOrFail($response->json('data.id'));
         $this->runExport($export);
         $url = $this->withSession($this->recentSession())

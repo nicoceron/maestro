@@ -31,6 +31,8 @@ tags:
     description: Tenant-scoped people, student/staff profiles, taxonomy assignments, and student lifecycle.
   - name: Households
     description: Tenant-scoped household, learner, guardian, and portal-access management.
+  - name: CRM data portability
+    description: Requester-scoped staged People imports, explicit duplicate resolution, resumable commit status, and private portable exports.
   - name: Scheduling configuration
     description: Tenant-scoped service, offering, location, equipment, availability, and travel configuration.
   - name: Calendar
@@ -3185,6 +3187,395 @@ paths:
         '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/template:
+    get:
+      tags: [CRM data portability]
+      summary: Download the People import template
+      description: Returns the canonical UTF-8, header-first People CSV template for an active owner, administrator, or office member. This ordinary authorized read does not require step-up.
+      operationId: downloadCrmImportTemplate
+      x-acceptance-ids: [CRM-CSV-003, CRM-IMP-001]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      responses:
+        '200':
+          description: Canonical quoted CSV template with CRLF records and a final CRLF.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Content-Disposition: { $ref: '#/components/headers/CrmCsvDisposition' }
+            X-Content-Type-Options:
+              description: Browser MIME sniffing disabled.
+              schema: { type: string, const: nosniff }
+          content:
+            'text/csv; charset=utf-8; header=present':
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports:
+    post:
+      tags: [CRM data portability]
+      summary: Stage a private People CSV or portable bundle import
+      description: Validates and stages one bounded UTF-8 CSV or decrypted Maestro CRM portable JSON bundle under a private random quarantine key. The actor-scoped idempotency key binds the exact uploaded bytes. Recent identity confirmation and current-session MFA are required. A portable bundle is an empty-target create-only restore; staging alone does not reserve or mutate the target.
+      operationId: stageCrmImport
+      x-acceptance-ids: [CRM-CSV-001, CRM-CSV-002, CRM-IMP-001, CRM-IMP-004]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/StageCrmImportInput' }
+      responses:
+        '202':
+          description: Private import staged, or exact original projection returned on replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}:
+    get:
+      tags: [CRM data portability]
+      summary: Get a staged CRM import
+      description: Returns the safe status and aggregate projection only to the exact initiating actor in the route studio. Wrong-actor, cross-studio, expired, and purged identifiers are nondisclosing.
+      operationId: getCrmImport
+      x-acceptance-ids: [CRM-IMP-002, CRM-IMP-004, CRM-IMP-010]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+      responses:
+        '200':
+          description: Requester-visible import state and monotonic aggregate progress.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}/rows:
+    get:
+      tags: [CRM data portability]
+      summary: List staged CRM row plans
+      description: Cursor-paginates safe row plans for the exact requester. Candidate references are tenant-local; storage coordinates, hashes, global identities, raw rows, and infrastructure metadata are omitted.
+      operationId: listCrmImportRows
+      x-acceptance-ids: [CRM-IMP-002, CRM-IMP-003, CRM-IMP-004, CRM-IMP-007, CRM-IMP-010]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+        - $ref: '#/components/parameters/CrmImportCursor'
+        - $ref: '#/components/parameters/CrmImportRowStatusFilter'
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Stable source-order page of safe row plans.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportRowPage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}/preview:
+    post:
+      tags: [CRM data portability]
+      summary: Preview a staged CRM import
+      description: Parses the immutable staged bytes, applies an explicit source-to-canonical mapping, and creates safe row plans without People-domain writes. Daily-CSV no-match rows auto-plan create while duplicates remain conflicts. A portable bundle requires an empty CRM target and plans every bundled person as create; otherwise this endpoint returns `CRM_PORTABLE_TARGET_NOT_EMPTY`.
+      operationId: previewCrmImport
+      x-acceptance-ids: [CRM-IMP-002, CRM-IMP-003, CRM-IMP-004, CRM-IMP-005]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+        - $ref: '#/components/parameters/CrmImportCursor'
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewCrmImportInput' }
+            examples:
+              canonicalMapping:
+                value:
+                  import_version: 1
+                  mapping: { FirstName: first_name, EmailAddress: email }
+      responses:
+        '200':
+          description: Incremented import projection and first safe cursor page of row plans.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportPreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}/resolutions:
+    put:
+      tags: [CRM data portability]
+      summary: Resolve CRM duplicate row plans
+      description: Applies at most 200 explicit create, update, or skip decisions to a daily CSV under the locked import version and each row plan version. Update candidates are revalidated in the route studio at their optimistic version. No separate bearer token is issued. Portable-bundle decisions are forbidden with `CRM_PORTABLE_DECISIONS_FORBIDDEN` because bundle v1 is create-only into an empty target.
+      operationId: resolveCrmImportRows
+      x-acceptance-ids: [CRM-IMP-005, CRM-IMP-006, CRM-IMP-007]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveCrmImportRowsInput' }
+            examples:
+              updateOneCandidate:
+                value:
+                  import_version: 2
+                  rows:
+                    - row_id: 01K2QX5M17GT6D6WZV4K1C25M8
+                      plan_version: 1
+                      decision: update
+                      candidate_person_id: 01K2QX5M17GT6D6WZV4K1C25M9
+                      candidate_person_version: 4
+      responses:
+        '200':
+          description: Accepted decisions persisted and import version incremented.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}/commit:
+    post:
+      tags: [CRM data portability]
+      summary: Queue CRM import commit
+      description: Queues one actor- and version-bound commit command. Exact idempotent replay returns the original command; changed reuse conflicts. A portable-bundle commit atomically creates at most 5,000 people, rechecks its empty create-only target, and returns `CRM_PORTABLE_ROW_LIMIT_EXCEEDED` or `CRM_PORTABLE_TARGET_NOT_EMPTY` when those invariants fail. The daily-CSV worker processes bounded row chunks, but full crash/concurrency and production-shaped round-trip acceptance remains incomplete.
+      operationId: commitCrmImport
+      x-acceptance-ids: [CRM-IMP-008, CRM-IMP-009, CRM-IMP-010, CRM-IMP-011]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+        - $ref: '#/components/parameters/CrmIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommitCrmImportInput' }
+      responses:
+        '202':
+          description: Durable commit command queued, or original command returned on exact replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportCommandEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}/resume:
+    post:
+      tags: [CRM data portability]
+      summary: Queue CRM import resume
+      description: Queues a durable resume command for nonterminal work under the same requester, tenant, version, authorization, step-up, and idempotency boundary as commit.
+      operationId: resumeCrmImport
+      x-acceptance-ids: [CRM-IMP-008, CRM-IMP-009, CRM-IMP-010, CRM-IMP-011]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+        - $ref: '#/components/parameters/CrmIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CommitCrmImportInput' }
+      responses:
+        '202':
+          description: Durable resume command queued, or original command returned on exact replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmImportCommandEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/imports/{import}/errors.csv:
+    get:
+      tags: [CRM data portability]
+      summary: Download sanitized CRM import errors
+      description: Returns only source record number, stable error code, and safe field keys for failed rows. Raw uploaded cells and internal exception/storage/job metadata are never copied into the file. Download requires step-up.
+      operationId: downloadCrmImportErrors
+      x-acceptance-ids: [CRM-CSV-003, CRM-CSV-004, CRM-IMP-004, CRM-IMP-010]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmImportId'
+      responses:
+        '200':
+          description: Deterministic formula-safe CSV diagnostics.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Content-Disposition: { $ref: '#/components/headers/CrmCsvDisposition' }
+            X-Content-Type-Options:
+              description: Browser MIME sniffing disabled.
+              schema: { type: string, const: nosniff }
+          content:
+            'text/csv; charset=utf-8; header=present':
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/exports:
+    post:
+      tags: [CRM data portability]
+      summary: Request a private CRM portable export
+      description: Creates one requester-scoped asynchronous export under recent identity confirmation, current-session MFA, CSRF, and an actor-scoped idempotency key. The current scaffold does not yet satisfy full portable-reference round-trip or point-in-time snapshot acceptance.
+      operationId: requestCrmPortableExport
+      x-acceptance-ids: [CRM-EXP-001, CRM-EXP-002, CRM-EXP-004, CRM-EXP-006]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmIdempotencyKey'
+      responses:
+        '202':
+          description: Export queued, or exact original projection returned on replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmPortableExportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/exports/{export}:
+    get:
+      tags: [CRM data portability]
+      summary: Get a CRM portable export
+      description: Returns one safe requester-only export projection. It omits actor/global IDs, storage coordinates, archive hashes, idempotency fingerprints, failure digests, and queue identifiers.
+      operationId: getCrmPortableExport
+      x-acceptance-ids: [CRM-EXP-001, CRM-EXP-003, CRM-EXP-004]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmPortableExportId'
+      responses:
+        '200':
+          description: Safe requester-visible export status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmPortableExportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/exports/{export}/download-url:
+    post:
+      tags: [CRM data portability]
+      summary: Create a CRM export download URL
+      description: Returns a five-minute signed application route only after requester authorization, ready/unexpired/unused state, recent identity confirmation, and current-session MFA.
+      operationId: createCrmPortableExportDownloadUrl
+      x-acceptance-ids: [CRM-EXP-001, CRM-EXP-003]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmPortableExportId'
+      responses:
+        '200':
+          description: Private no-store response containing a short-lived signed application URL.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmPortableExportDownloadUrlEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-portability/exports/{export}/download:
+    get:
+      tags: [CRM data portability]
+      summary: Download a private CRM portable bundle
+      description: Atomically claims the ready export once and streams the decrypted `.maestro` JSON bundle after signature, current requester authorization, recent identity confirmation, current-session MFA, state, expiry, and encrypted-object integrity are rechecked.
+      operationId: downloadCrmPortableExport
+      x-acceptance-ids: [CRM-CSV-003, CRM-CSV-004, CRM-EXP-002, CRM-EXP-003, CRM-EXP-004]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CrmPortableExportId'
+        - name: expires
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: signature
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Decrypted private `.maestro` JSON bundle.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Content-Disposition: { $ref: '#/components/headers/CrmPortableExportDisposition' }
+            X-Content-Type-Options:
+              description: Browser MIME sniffing disabled.
+              schema: { type: string, const: nosniff }
+          content:
+            application/vnd.maestro.crm-portability+json:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/CrmDataPortabilityConflict' }
+        '423': { $ref: '#/components/responses/CrmDataPortabilityStepUpRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/v1/studios/{studio}/data-exports:
     get:
       tags: [Tenant data]
@@ -4271,6 +4662,32 @@ components:
       required: true
       description: Lesson-note attachment ULID constrained to the route studio and note.
       schema: { $ref: '#/components/schemas/Ulid' }
+    CrmImportId:
+      name: import
+      in: path
+      required: true
+      description: Requester-owned CRM import ULID resolved inside the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    CrmPortableExportId:
+      name: export
+      in: path
+      required: true
+      description: Requester-owned CRM portable-export ULID resolved inside the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    CrmImportRowStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Optional exact safe row-plan/outcome state.
+      schema:
+        type: string
+        enum: [resolved, conflict, processing, created, updated, skipped, failed]
+    CrmImportCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque Laravel CRM import-row cursor, bound to this requester, import, and filter set.
+      schema: { type: string, minLength: 1, maxLength: 1024 }
     TenantDataExportId:
       name: export
       in: path
@@ -4378,6 +4795,15 @@ components:
         type: string
         minLength: 1
         maxLength: 100
+    CrmIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Opaque 8–128 character key scoped to the authenticated requester, route studio, and exact CRM portability command fingerprint.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
   headers:
     SetCookie:
       description: |-
@@ -4421,6 +4847,16 @@ components:
       schema:
         type: string
         pattern: '^attachment; filename="maestro-[^"]+-[0-9A-HJKMNP-TV-Z]{26}\.json"$'
+    CrmCsvDisposition:
+      description: Safe generated CRM template or diagnostic CSV filename; no original upload or storage key is reflected.
+      schema:
+        type: string
+        pattern: '^attachment; filename="maestro-[a-z-]+\.csv"$'
+    CrmPortableExportDisposition:
+      description: Safe generated requester-scoped `.maestro` filename; no original upload or storage key is reflected.
+      schema:
+        type: string
+        pattern: '^attachment; filename="maestro-crm-[a-z0-9-]+\.maestro"$'
     AttachmentContentLength:
       description: Exact attachment size in bytes.
       schema:
@@ -5130,6 +5566,54 @@ components:
               value:
                 message: The note changed after delivery was previewed.
                 code: note_changed_after_preview
+    CrmDataPortabilityConflict:
+      description: A CRM import/export idempotency, optimistic-version, row-plan, lifecycle, lease, readiness, or one-use invariant rejected the operation without a partial request effect.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CrmDataPortabilityProblem' }
+          examples:
+            idempotencyReuse:
+              value:
+                message: The idempotency key was already used with different content.
+                code: IDEMPOTENCY_KEY_REUSED
+            staleImport:
+              value:
+                message: The import plan changed. Refresh and try again.
+                code: CRM_IMPORT_VERSION_CONFLICT
+            stalePlan:
+              value:
+                message: The import plan changed. Refresh and try again.
+                code: CRM_IMPORT_PLAN_VERSION_CONFLICT
+            unavailableDownload:
+              value:
+                message: The CRM data portability operation conflicts with its current state.
+                code: CRM_EXPORT_NOT_DOWNLOADABLE
+            portableTargetNotEmpty:
+              value:
+                message: Portable bundle import requires an empty CRM target.
+                code: CRM_PORTABLE_TARGET_NOT_EMPTY
+            portableDecisionForbidden:
+              value:
+                message: The CRM data portability operation conflicts with its current state.
+                code: CRM_PORTABLE_DECISIONS_FORBIDDEN
+            portableRowLimit:
+              value:
+                message: The CRM data portability operation conflicts with its current state.
+                code: CRM_PORTABLE_ROW_LIMIT_EXCEEDED
+    CrmDataPortabilityStepUpRequired:
+      description: Recent password/passkey confirmation or current-session MFA is missing or older than ten minutes.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CrmDataPortabilityProblem' }
+          examples:
+            recentIdentity:
+              value:
+                message: Recent identity confirmation is required.
+                code: RECENT_CONFIRMATION_REQUIRED
+            mfa:
+              value:
+                message: Current-session multi-factor confirmation is required.
+                code: MFA_REQUIRED
     TenantDataConflict:
       description: An idempotency, legal-hold, cooling-off, export-readiness, deletion-state, confirmation, or restore-drill invariant rejected the operation without a partial lifecycle transition.
       content:
@@ -9059,6 +9543,354 @@ components:
         mime: { type: string, minLength: 1, maxLength: 127 }
         size_bytes: { type: integer, minimum: 1 }
         sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+    StageCrmImportInput:
+      type: object
+      additionalProperties: false
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: At most 10 MiB; the current route accepts a UTF-8 People CSV or a decrypted `application/vnd.maestro.crm-portability+json` `.maestro` JSON bundle through the same multipart field. Daily CSV permits at most 25,000 records; atomic bundle commit permits at most 5,000 People records.
+    CrmImportStatus:
+      type: string
+      enum: [staged, previewing, needs_resolution, ready, committing, completed, completed_with_errors, failed, expired, purged]
+    CrmImportSchema:
+      type: object
+      additionalProperties: false
+      required: [name, version, encoding]
+      properties:
+        name: { type: string, enum: [maestro_people_households, maestro.crm-portability] }
+        version: { type: string, const: '1.0' }
+        encoding: { type: string, const: UTF-8 }
+    CrmImportSummary:
+      type: object
+      additionalProperties: false
+      required: [rows, processed, creates, updates, skipped, conflicts, failed]
+      properties:
+        rows: { type: integer, minimum: 0, maximum: 25000 }
+        processed: { type: integer, minimum: 0, maximum: 25000 }
+        creates: { type: integer, minimum: 0, maximum: 25000 }
+        updates: { type: integer, minimum: 0, maximum: 25000 }
+        skipped: { type: integer, minimum: 0, maximum: 25000 }
+        conflicts: { type: integer, minimum: 0, maximum: 25000 }
+        failed: { type: integer, minimum: 0, maximum: 25000 }
+    CrmColumnMapping:
+      type: object
+      description: The staged projection initially contains `source_columns`; after preview, each canonical People field maps to its selected source heading. The preview request uses the inverse source-heading-to-canonical-field direction.
+      additionalProperties:
+        type: [string, array]
+        items: { type: string, maxLength: 128 }
+    CrmImport:
+      type: object
+      additionalProperties: false
+      required: [id, version, status, schema, file_name, summary, mapping, previewed_at, completed_at, expires_at, error_code]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/CrmImportStatus' }
+        schema: { $ref: '#/components/schemas/CrmImportSchema' }
+        file_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Sanitized display filename only; never a storage path.
+        summary: { $ref: '#/components/schemas/CrmImportSummary' }
+        mapping:
+          anyOf:
+            - $ref: '#/components/schemas/CrmColumnMapping'
+            - type: 'null'
+        previewed_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: string, format: date-time }
+        error_code: { type: [string, 'null'], maxLength: 64 }
+    CrmImportEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CrmImport' }
+    PreviewCrmImportInput:
+      type: object
+      additionalProperties: false
+      required: [import_version]
+      properties:
+        import_version: { type: integer, minimum: 1 }
+        mapping:
+          type: object
+          maxProperties: 64
+          additionalProperties: { type: string, minLength: 1, maxLength: 128 }
+          description: Source heading keys mapped to canonical People column values.
+    CrmImportRowStatus:
+      type: string
+      enum: [resolved, conflict, processing, created, updated, skipped, failed]
+    CrmImportDecision:
+      type: string
+      enum: [create, update, skip, conflict]
+    CrmImportRowPreview:
+      type: object
+      additionalProperties: false
+      required: [first_name, last_name, email, phone, birth_date, household_name, student_status]
+      properties:
+        first_name: { type: string, maxLength: 65536 }
+        last_name: { type: string, maxLength: 65536 }
+        email: { type: string, maxLength: 65536 }
+        phone: { type: string, maxLength: 65536 }
+        birth_date: { type: string, maxLength: 65536 }
+        household_name: { type: string, maxLength: 65536 }
+        student_status: { type: string, maxLength: 65536 }
+    CrmPersonCandidate:
+      type: object
+      additionalProperties: false
+      required: [id, version, display_name]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        version: { type: integer, minimum: 1 }
+        display_name: { type: string, minLength: 1, maxLength: 240 }
+    CrmHouseholdCandidate:
+      type: object
+      additionalProperties: false
+      required: [id, version, name]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        version: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 160 }
+    CrmImportCandidates:
+      type: object
+      additionalProperties: false
+      required: [people, households]
+      properties:
+        people:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/CrmPersonCandidate' }
+        households:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/CrmHouseholdCandidate' }
+    CrmImportRow:
+      type: object
+      additionalProperties: false
+      required: [id, row_number, plan_version, status, decision, match_kind, preview, candidates, error_code, error_fields]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        row_number:
+          type: integer
+          minimum: 2
+          description: Source CSV record number; header is record 1.
+        plan_version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/CrmImportRowStatus' }
+        decision: { $ref: '#/components/schemas/CrmImportDecision' }
+        match_kind:
+          type: [string, 'null']
+          enum: [none, invalid, portable_id, external_reference, email, name_birth_date, ambiguous_portable_id, ambiguous_external_reference, ambiguous_email, ambiguous_name_birth_date, ambiguous_household, file_duplicate, null]
+        preview: { $ref: '#/components/schemas/CrmImportRowPreview' }
+        candidates:
+          anyOf:
+            - $ref: '#/components/schemas/CrmImportCandidates'
+            - type: 'null'
+        error_code: { type: [string, 'null'], maxLength: 64 }
+        error_fields:
+          type: [array, 'null']
+          maxItems: 64
+          items: { type: string, minLength: 1, maxLength: 128 }
+    CrmImportRowPageMeta:
+      type: object
+      additionalProperties: false
+      required: [per_page, next_cursor, previous_cursor]
+      properties:
+        per_page: { type: integer, minimum: 1, maximum: 100 }
+        next_cursor: { type: [string, 'null'], maxLength: 2048 }
+        previous_cursor: { type: [string, 'null'], maxLength: 2048 }
+    CrmImportRowPage:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/CrmImportRow' }
+        meta: { $ref: '#/components/schemas/CrmImportRowPageMeta' }
+    CrmImportPreviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, rows]
+      properties:
+        data: { $ref: '#/components/schemas/CrmImport' }
+        rows: { $ref: '#/components/schemas/CrmImportRowPage' }
+    ResolveCrmImportRowInput:
+      type: object
+      additionalProperties: false
+      required: [row_id, plan_version, decision]
+      properties:
+        row_id: { $ref: '#/components/schemas/Ulid' }
+        plan_version: { type: integer, minimum: 1 }
+        decision:
+          type: string
+          enum: [create, update, skip]
+        candidate_person_id:
+          anyOf:
+            - $ref: '#/components/schemas/Ulid'
+            - type: 'null'
+        candidate_person_version: { type: [integer, 'null'], minimum: 1 }
+        candidate_household_id:
+          anyOf:
+            - $ref: '#/components/schemas/Ulid'
+            - type: 'null'
+        candidate_household_version: { type: [integer, 'null'], minimum: 1 }
+    ResolveCrmImportRowsInput:
+      type: object
+      additionalProperties: false
+      required: [import_version, rows]
+      properties:
+        import_version: { type: integer, minimum: 1 }
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: '#/components/schemas/ResolveCrmImportRowInput' }
+    CommitCrmImportInput:
+      type: object
+      additionalProperties: false
+      required: [import_version]
+      properties:
+        import_version: { type: integer, minimum: 1 }
+    CrmImportCommand:
+      type: object
+      additionalProperties: false
+      required: [command_id, import_id, status, type]
+      properties:
+        command_id: { $ref: '#/components/schemas/Ulid' }
+        import_id: { $ref: '#/components/schemas/Ulid' }
+        status: { type: string, enum: [queued, running, succeeded, failed] }
+        type: { type: string, enum: [commit, resume] }
+    CrmImportCommandEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CrmImportCommand' }
+    CrmPortableStudioDefaults:
+      type: object
+      additionalProperties: false
+      required: [timezone, locale, currency]
+      properties:
+        timezone: { type: string, minLength: 1, maxLength: 64 }
+        locale: { type: string, minLength: 2, maxLength: 16 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+    CrmPortableCanonicalization:
+      type: object
+      additionalProperties: false
+      required: [csv, cell_encoding]
+      properties:
+        csv: { type: string, minLength: 1, maxLength: 200 }
+        cell_encoding: { type: string, const: base64-v1 for formula-effective or marker-prefixed literals }
+    CrmPortableDatasetProjection:
+      type: object
+      additionalProperties: false
+      required: [name, media_type, columns, row_count, dependencies]
+      properties:
+        name: { type: string, pattern: '^[a-z][a-z0-9_]*$', maxLength: 100 }
+        media_type: { type: string, const: 'text/csv; charset=utf-8; header=present' }
+        columns:
+          type: array
+          maxItems: 64
+          items: { type: string, minLength: 1, maxLength: 128 }
+        row_count: { type: integer, minimum: 0 }
+        dependencies:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: { type: string, pattern: '^[a-z][a-z0-9_]*$', maxLength: 100 }
+    CrmPortableManifestProjection:
+      type: object
+      additionalProperties: false
+      required: [schema, version, studio, canonicalization, datasets, excluded]
+      properties:
+        schema: { type: string, const: maestro.crm-portability }
+        version: { type: string, const: '1.0' }
+        studio: { $ref: '#/components/schemas/CrmPortableStudioDefaults' }
+        canonicalization: { $ref: '#/components/schemas/CrmPortableCanonicalization' }
+        datasets:
+          type: array
+          maxItems: 32
+          items: { $ref: '#/components/schemas/CrmPortableDatasetProjection' }
+        excluded:
+          type: array
+          maxItems: 64
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 100 }
+    CrmPortableExportStatus:
+      type: string
+      enum: [queued, building, ready, failed, expired, purged]
+    CrmPortableExport:
+      type: object
+      additionalProperties: false
+      required: [id, version, status, format_version, manifest, archive_size, download_count, ready_at, expires_at, error_code]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/CrmPortableExportStatus' }
+        format_version: { type: string, const: '1.0' }
+        manifest:
+          anyOf:
+            - $ref: '#/components/schemas/CrmPortableManifestProjection'
+            - type: 'null'
+        archive_size: { type: [integer, 'null'], minimum: 0 }
+        download_count: { type: integer, minimum: 0, maximum: 1 }
+        ready_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: string, format: date-time }
+        error_code: { type: [string, 'null'], maxLength: 64 }
+    CrmPortableExportEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CrmPortableExport' }
+    CrmPortableExportDownloadUrl:
+      type: object
+      additionalProperties: false
+      required: [url, expires_at]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Five-minute signed application route; never a storage URL.
+        expires_at: { type: string, format: date-time }
+    CrmPortableExportDownloadUrlEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/CrmPortableExportDownloadUrl' }
+    CrmDataPortabilityProblem:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message: { type: string, minLength: 1 }
+        code:
+          type: string
+          enum:
+            - IDEMPOTENCY_KEY_REUSED
+            - CRM_IMPORT_VERSION_CONFLICT
+            - CRM_IMPORT_PLAN_VERSION_CONFLICT
+            - CRM_IMPORT_STATE_INVALID
+            - CRM_IMPORT_ROW_STATE_INVALID
+            - CRM_IMPORT_NOT_RESOLVED
+            - CRM_IMPORT_EXPIRED
+            - CRM_IMPORT_CANDIDATE_STALE
+            - CRM_IMPORT_RUN_ALREADY_ACTIVE
+            - CRM_IMPORT_RUN_CONFLICT
+            - CRM_PORTABLE_TARGET_NOT_EMPTY
+            - CRM_PORTABLE_DECISIONS_FORBIDDEN
+            - CRM_PORTABLE_ROW_LIMIT_EXCEEDED
+            - CRM_EXPORT_NOT_DOWNLOADABLE
+            - CRM_EXPORT_ALREADY_DOWNLOADED
+            - CRM_EXPORT_EXPIRED
+            - RECENT_CONFIRMATION_REQUIRED
+            - MFA_REQUIRED
     TenantAuditSubject:
       type: object
       additionalProperties: false

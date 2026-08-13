@@ -18,7 +18,7 @@ This is the release ledger. A feature is `done` only when its acceptance behavio
 | CRM-02 | Students, statuses, leads, trials, waiting list | P1 | scaffolded | Filament lead-student creation and status filtering plus lifecycle transition/permission tests |
 | CRM-03 | Teachers, office staff, substitutes, profiles | P1 | scaffolded | Typed multi-role profile lifecycle plus role/availability tests |
 | CRM-04 | Instruments, tags, custom fields, assignments | P1 | scaffolded | Typed tenant assignments and scoped uniqueness plus bulk actions/export assertions |
-| CRM-05 | Duplicate-safe CSV import and full export | P1 | planned | Partial failure, resume, idempotency, round-trip tests |
+| CRM-05 | Duplicate-safe CSV import and full export | P1 | scaffolded | [`CRM-CSV-*`, `CRM-IMP-*`, and `CRM-EXP-*`](crm-data-portability-acceptance.md) staged preview, explicit duplicate resolution, partial failure/resume, idempotency, formula safety, RLS, and deterministic round-trip proof; pending two-process concurrency, purge fault injection/orphan reconciliation, parser fuzz/golden bytes, snapshot and production-size evidence |
 | CRM-06 | Lead pipeline, tasks, source attribution, sequences | P4 | planned | Funnel and automation acceptance suite |
 | SCH-01 | Services, programs, categories, prices, policies | P1 | scaffolded | Per-program/teacher/location precedence is tested; production-scale UI/E2E proof remains |
 | SCH-02 | Locations, rooms, equipment, capacity | P1 | scaffolded | Composite constraints and core hard-conflict tests pass; exhaustive concurrent resource matrix remains |

@@ -8,6 +8,10 @@ const platformOperationsAcceptance = readFileSync(
   new URL("../../../docs/product/platform-operations-acceptance.md", import.meta.url),
   "utf8",
 );
+const crmDataPortabilityAcceptance = readFileSync(
+  new URL("../../../docs/product/crm-data-portability-acceptance.md", import.meta.url),
+  "utf8",
+);
 
 const expectedPaths = [
   "/sanctum/csrf-cookie",
@@ -87,6 +91,19 @@ const expectedPaths = [
   "/api/v1/studios/{studio}/note-delivery-previews/{preview}/commit",
   "/api/v1/studios/{studio}/note-templates",
   "/api/v1/studios/{studio}/note-templates/{template}",
+  "/api/v1/studios/{studio}/data-portability/template",
+  "/api/v1/studios/{studio}/data-portability/imports",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}/rows",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}/preview",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}/resolutions",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}/commit",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}/resume",
+  "/api/v1/studios/{studio}/data-portability/imports/{import}/errors.csv",
+  "/api/v1/studios/{studio}/data-portability/exports",
+  "/api/v1/studios/{studio}/data-portability/exports/{export}",
+  "/api/v1/studios/{studio}/data-portability/exports/{export}/download-url",
+  "/api/v1/studios/{studio}/data-portability/exports/{export}/download",
   "/api/v1/studios/{studio}/data-exports",
   "/api/v1/studios/{studio}/data-exports/{export}",
   "/api/v1/studios/{studio}/data-exports/{export}/download-url",
@@ -204,6 +221,19 @@ const expectedOperations = [
   "listLessonNoteTemplates",
   "createLessonNoteTemplate",
   "updateLessonNoteTemplate",
+  "downloadCrmImportTemplate",
+  "stageCrmImport",
+  "getCrmImport",
+  "listCrmImportRows",
+  "previewCrmImport",
+  "resolveCrmImportRows",
+  "commitCrmImport",
+  "resumeCrmImport",
+  "downloadCrmImportErrors",
+  "requestCrmPortableExport",
+  "getCrmPortableExport",
+  "createCrmPortableExportDownloadUrl",
+  "downloadCrmPortableExport",
   "listTenantDataExports",
   "requestTenantDataExport",
   "getTenantDataExport",
@@ -299,6 +329,16 @@ const expectedSchemas = [
   "SupportSessionBanner",
   "SupportSessionStarted",
   "SupportAccessProblem",
+  "CrmImport",
+  "CrmImportRow",
+  "CrmImportRowPage",
+  "CrmImportPreviewEnvelope",
+  "ResolveCrmImportRowsInput",
+  "CrmImportCommand",
+  "CrmPortableExport",
+  "CrmPortableManifestProjection",
+  "CrmPortableExportDownloadUrl",
+  "CrmDataPortabilityProblem",
   "TenantDataExport",
   "TenantDataExportManifest",
   "TenantExportDatasetManifest",
@@ -326,6 +366,12 @@ const expectedAcceptanceIds = {
   revokeSession: ["AUTH-E012", "AUTH-E018"],
   createStudioInvitation: ["IDA-STEPUP-001", "INV-E001"],
   resendStudioInvitation: ["IDA-STEPUP-001", "IDA-INVITE-001", "INV-E005", "INV-E008", "INV-E018", "JOB-001", "JOB-002"],
+  stageCrmImport: ["CRM-CSV-001", "CRM-CSV-002", "CRM-IMP-001", "CRM-IMP-004"],
+  listCrmImportRows: ["CRM-IMP-002", "CRM-IMP-003", "CRM-IMP-004", "CRM-IMP-007", "CRM-IMP-010"],
+  resolveCrmImportRows: ["CRM-IMP-005", "CRM-IMP-006", "CRM-IMP-007"],
+  commitCrmImport: ["CRM-IMP-008", "CRM-IMP-009", "CRM-IMP-010", "CRM-IMP-011"],
+  requestCrmPortableExport: ["CRM-EXP-001", "CRM-EXP-002", "CRM-EXP-004", "CRM-EXP-006"],
+  downloadCrmPortableExport: ["CRM-CSV-003", "CRM-CSV-004", "CRM-EXP-002", "CRM-EXP-003", "CRM-EXP-004"],
   requestTenantDataExport: ["OPS-EXP-001", "OPS-EXP-002", "OPS-EXP-004", "OPS-EXP-005"],
   downloadTenantDataExport: ["OPS-EXP-005", "OPS-EXP-006"],
   requestTenantRestoreDrill: ["OPS-RST-001", "OPS-RST-002", "OPS-RST-004"],
@@ -367,6 +413,12 @@ const expectedPlatformOperationsAcceptanceIds = [
   ...Array.from({ length: 7 }, (_, index) => `OPS-RST-${String(index + 1).padStart(3, "0")}`),
 ];
 
+const expectedCrmDataPortabilityAcceptanceIds = [
+  ...Array.from({ length: 4 }, (_, index) => `CRM-CSV-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 13 }, (_, index) => `CRM-IMP-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 6 }, (_, index) => `CRM-EXP-${String(index + 1).padStart(3, "0")}`),
+];
+
 const missing = [];
 
 for (const id of expectedPlatformOperationsAcceptanceIds) {
@@ -374,6 +426,14 @@ for (const id of expectedPlatformOperationsAcceptanceIds) {
 
   if (occurrences !== 1) {
     missing.push(`platform operations acceptance ID ${id} appears ${occurrences} times instead of once`);
+  }
+}
+
+for (const id of expectedCrmDataPortabilityAcceptanceIds) {
+  const occurrences = crmDataPortabilityAcceptance.split(`\`${id}\``).length - 1;
+
+  if (occurrences !== 1) {
+    missing.push(`CRM data portability acceptance ID ${id} appears ${occurrences} times instead of once`);
   }
 }
 
@@ -468,6 +528,17 @@ const invariants = [
   ["attachment downloads require signed recent-confirmation reauthorization", /operationId: downloadLessonNoteAttachment[\s\S]*?signature[\s\S]*?'423':[\s\S]*?RecentPasswordRequired/],
   ["attachment byte responses are length-bound no-store and sandboxed", /operationId: downloadLessonNoteAttachment[\s\S]*?Cache-Control:[\s\S]*?AttachmentNoStore[\s\S]*?Content-Disposition:[\s\S]*?AttachmentDisposition[\s\S]*?Content-Length:[\s\S]*?AttachmentContentLength[\s\S]*?Content-Security-Policy:[\s\S]*?sandbox/],
   ["unsafe attachment states are nondownloadable", /\/download-url:[\s\S]*?Pending, failed, infected, retired[\s\S]*?return `404`[\s\S]*?operationId: createLessonNoteAttachmentDownloadUrl/],
+  ["CRM staging is multipart idempotent and stepped up", /operationId: stageCrmImport[\s\S]*?CrmIdempotencyKey[\s\S]*?multipart\/form-data[\s\S]*?StageCrmImportInput[\s\S]*?'423':[\s\S]*?CrmDataPortabilityStepUpRequired/],
+  ["CRM preview is versioned mapped and ordinary authorized", /operationId: previewCrmImport[\s\S]*?PreviewCrmImportInput[\s\S]*?import_version[\s\S]*?mapping/],
+  ["CRM row plans are bounded cursor pages", /operationId: listCrmImportRows[\s\S]*?Cursor[\s\S]*?per_page[\s\S]*?maximum: 100[\s\S]*?CrmImportRowPage/],
+  ["CRM resolution binds import and row plan versions without a bearer", /No separate bearer token is issued[\s\S]*?operationId: resolveCrmImportRows[\s\S]*?ResolveCrmImportRowsInput[\s\S]*?plan_version/],
+  ["CRM portable preview requires an empty create-only target", /empty CRM target[\s\S]*?CRM_PORTABLE_TARGET_NOT_EMPTY[\s\S]*?operationId: previewCrmImport/],
+  ["CRM portable resolution is forbidden", /CRM_PORTABLE_DECISIONS_FORBIDDEN[\s\S]*?operationId: resolveCrmImportRows/],
+  ["CRM portable commit is bounded and rechecks target", /at most 5,000 people[\s\S]*?CRM_PORTABLE_ROW_LIMIT_EXCEEDED[\s\S]*?CRM_PORTABLE_TARGET_NOT_EMPTY[\s\S]*?operationId: commitCrmImport/],
+  ["CRM commit and resume are durable idempotent stepped-up commands", /operationId: commitCrmImport[\s\S]*?CrmIdempotencyKey[\s\S]*?CrmImportCommandEnvelope[\s\S]*?'423':[\s\S]*?operationId: resumeCrmImport[\s\S]*?CrmIdempotencyKey/],
+  ["CRM diagnostics are formula-safe and contain no raw rows", /Raw uploaded cells[\s\S]*?operationId: downloadCrmImportErrors[\s\S]*?CrmCsvDisposition/],
+  ["CRM export download is signed stepped-up one-use and no-store", /Atomically claims[\s\S]*?once[\s\S]*?operationId: downloadCrmPortableExport[\s\S]*?signature[\s\S]*?CrmPortableExportDisposition[\s\S]*?'423'/],
+  ["CRM portable response omits storage hashes and fingerprints", /CrmPortableExport:[\s\S]*?additionalProperties: false[\s\S]*?required: \[id, version, status, format_version, manifest, archive_size, download_count, ready_at, expires_at, error_code\]/],
   ["tenant export creation requires session CSRF idempotency and high-risk confirmation", /operationId: requestTenantDataExport[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?IdempotencyKey[\s\S]*?'423':[\s\S]*?HighRiskConfirmationRequired/],
   ["tenant export download is signed reauthorized one-use and no-store", /\/data-exports\/\{export\}\/download:[\s\S]*?current-session MFA[\s\S]*?one-use[\s\S]*?operationId: downloadTenantDataExport[\s\S]*?signature[\s\S]*?Cache-Control:[\s\S]*?NoStore[\s\S]*?TenantExportDisposition/],
   ["tenant export manifest declares schema checksum and excluded secrets", /TenantDataExportManifest:[\s\S]*?snapshot_boundary[\s\S]*?excluded_secret_fields[\s\S]*?datasets[\s\S]*?manifest_sha256/],
@@ -618,6 +689,48 @@ const attachmentResourceBlock = source.slice(
 for (const forbiddenField of ["studio_id", "actor_id", "disk", "key", "quarantine", "clean_key", "engine", "retired_by"]) {
   if (attachmentResourceBlock.includes(forbiddenField)) {
     missing.push(`LessonNoteAttachment leaks internal field ${forbiddenField}`);
+  }
+}
+
+const crmImportResourceBlock = source.slice(
+  source.indexOf("    CrmImport:"),
+  source.indexOf("    CrmImportEnvelope:"),
+);
+
+for (const forbiddenField of [
+  "studio_id", "requested_by_id", "actor_id", "idempotency_key", "request_fingerprint",
+  "quarantine_path", "source_sha256", "failure_digest", "queue_id", "job_id",
+]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(crmImportResourceBlock)) {
+    missing.push(`CrmImport leaks internal field ${forbiddenField}`);
+  }
+}
+
+const crmImportRowResourceBlock = source.slice(
+  source.indexOf("    CrmImportRow:"),
+  source.indexOf("    CrmImportRowPageMeta:"),
+);
+
+for (const forbiddenField of [
+  "studio_id", "import_batch_id", "resolved_by_id", "content_hash", "normalized_payload",
+  "result_digest", "lease_token", "leased_at", "lease_expires_at", "attempts", "global_user_id",
+]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(crmImportRowResourceBlock)) {
+    missing.push(`CrmImportRow leaks internal field ${forbiddenField}`);
+  }
+}
+
+const crmPortableExportResourceBlock = source.slice(
+  source.indexOf("    CrmPortableExport:"),
+  source.indexOf("    CrmPortableExportEnvelope:"),
+);
+
+for (const forbiddenField of [
+  "studio_id", "requested_by_id", "actor_id", "idempotency_key", "request_fingerprint",
+  "archive_path", "archive_sha256", "failure_digest", "storage_key", "queue_id", "job_id",
+]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(crmPortableExportResourceBlock)) {
+    missing.push(`CrmPortableExport leaks internal field ${forbiddenField}`);
   }
 }
 

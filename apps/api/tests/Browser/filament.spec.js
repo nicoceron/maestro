@@ -112,6 +112,31 @@ test('mobile scheduling routes stay within the viewport', async ({ page }, testI
     await expectNoAccessibilityViolations(page, testInfo);
 });
 
+test('CRM portability stepper is keyboard-readable, accessible, and responsive', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page);
+    await page.goto(`${studioPath}/crm-data-portability`, { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('heading', { name: 'CRM data portability' })).toBeVisible();
+    const progress = page.getByRole('navigation', { name: 'CRM import progress' });
+    await expect(progress).toBeVisible();
+    await expect(progress.getByText('Prepare', { exact: true })).toBeVisible();
+    await expect(progress.getByText('Map', { exact: true })).toBeVisible();
+    await expect(progress.getByText('Review', { exact: true })).toBeVisible();
+    await expect(progress.getByText('Commit', { exact: true })).toBeVisible();
+    await expect(progress.getByText('Outcome', { exact: true })).toBeVisible();
+    await expect(progress.locator('[aria-current="step"]')).toContainText('Prepare');
+    await expect(page.getByRole('button', { name: 'Upload CSV' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create portable .maestro bundle' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Download CSV template' })).toBeVisible();
+    await expect(page.getByText('Data portability is being connected')).toHaveCount(0);
+
+    await progress.locator('[aria-current="step"]').focus();
+    await expect(progress.locator('[aria-current="step"]')).toBeFocused();
+    await expectNoHorizontalOverflow(page);
+    await expectNoAccessibilityViolations(page, testInfo);
+});
+
 test('calendar visual baseline remains stable on the CI browser image', async ({ page }) => {
     test.skip(process.platform !== 'linux', 'The visual baseline is generated and verified on Linux CI.');
 

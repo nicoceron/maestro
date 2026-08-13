@@ -34,3 +34,4 @@ Schedule::command('attachments:purge')
     ->withoutOverlapping(60);
 
 require __DIR__.'/fragments/platform-operations-console.php';
+require __DIR__.'/fragments/data-portability-console.php';
