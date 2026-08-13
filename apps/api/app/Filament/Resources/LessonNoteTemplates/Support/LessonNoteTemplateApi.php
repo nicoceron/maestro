@@ -21,7 +21,7 @@ final class LessonNoteTemplateApi
     /** @param array<string, mixed> $data */
     public function create(Studio $studio, User $actor, array $data, string $idempotencyKey): LessonNoteTemplate
     {
-        Gate::forUser($actor)->authorize('create', LessonNoteTemplate::class);
+        Gate::forUser($actor)->authorize('create', [LessonNoteTemplate::class, $studio]);
         $request = $this->request(StoreLessonNoteTemplateRequest::class, 'POST', $data, $actor, $idempotencyKey);
         $resource = app(LessonNoteTemplateController::class)->store(
             $request,

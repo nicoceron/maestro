@@ -7,9 +7,9 @@ info:
     Contract for Maestro's Laravel JSON API. It covers browser identity and CSRF,
     onboarding, authenticated studio discovery, studio invitations, people and
     household management, scheduling/calendar preview-commit workflows, attendance,
-    sanitized lesson notes, and private scanned note attachments. First-party browser
-    mutations use Sanctum's stateful session together with Laravel's XSRF cookie/header
-    pair.
+    sanitized lesson notes, private scanned note attachments, tenant lifecycle operations,
+    immutable audit projections, and delegated platform support. First-party browser
+    mutations use Sanctum's stateful session together with Laravel's XSRF cookie/header pair.
   contact:
     name: Maestro engineering
   license:
@@ -39,6 +39,10 @@ tags:
     description: Tenant-scoped attendance capture, correction, overdue work, and billing-safe projections.
   - name: Lesson notes
     description: Sanitized participant/group notes, immutable revisions, templates, and previewed delivery intent.
+  - name: Tenant data
+    description: Owner-only encrypted tenant exports, retention/legal-hold controls, deletion lifecycle, and non-writing restore verification.
+  - name: Audit and support
+    description: Immutable tenant audit projections and explicitly approved, read-only, time-bound platform support sessions.
 security:
   - sanctumSession: []
 paths:
@@ -3181,6 +3185,822 @@ paths:
         '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-exports:
+    get:
+      tags: [Tenant data]
+      summary: List tenant data exports
+      description: Lists only exports belonging to the route studio. This owner-only projection omits storage paths, ciphertext hashes, idempotency keys, actor IDs, failure digests, and queue metadata.
+      operationId: listTenantDataExports
+      x-acceptance-ids: [OPS-EXP-001, OPS-EXP-005]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Owner-visible exports in a Laravel paginator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDataExportPaginatedCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Tenant data]
+      summary: Request an encrypted tenant data export
+      description: |-
+        Owner-only asynchronous export creation after recent password/passkey confirmation and
+        current-session MFA. The actor-scoped idempotency key binds the media-inventory option;
+        exact replay returns the original export and changed input returns typed `409`. The worker
+        produces an encrypted deterministic JSON envelope containing a manifest and base64 NDJSON
+        datasets. This slice is not yet a proof of a transactionally consistent point-in-time dump.
+      operationId: requestTenantDataExport
+      x-acceptance-ids: [OPS-EXP-001, OPS-EXP-002, OPS-EXP-004, OPS-EXP-005]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequestTenantDataExportInput' }
+            examples:
+              fullInventory:
+                value: { include_media_inventory: true }
+      responses:
+        '202':
+          description: Export queued, or the exact original export returned on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDataExportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/TenantDataConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-exports/{export}:
+    get:
+      tags: [Tenant data]
+      summary: Get a tenant data export
+      description: Returns one owner-visible export resolved inside the route studio; cross-tenant substitution is `404`.
+      operationId: getTenantDataExport
+      x-acceptance-ids: [OPS-EXP-001, OPS-EXP-005]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDataExportId'
+      responses:
+        '200':
+          description: Safe export projection. The manifest is present only when ready.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDataExportEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-exports/{export}/download-url:
+    post:
+      tags: [Tenant data]
+      summary: Create a short-lived tenant export download URL
+      description: Reauthorizes owner access, recent identity confirmation, and current-session MFA before returning a short-lived signed application route. Pending, failed, expired, purged, foreign, or unauthorized exports are unavailable.
+      operationId: createTenantDataExportDownloadUrl
+      x-acceptance-ids: [OPS-EXP-001, OPS-EXP-006]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDataExportId'
+      responses:
+        '200':
+          description: Private no-store response containing a short-lived signed application URL.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDataExportDownloadUrlEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-exports/{export}/download:
+    get:
+      tags: [Tenant data]
+      summary: Download a tenant export archive
+      description: |-
+        Streams the decrypted Maestro JSON archive only after signed-route validation, current
+        owner authorization, recent password/passkey confirmation, current-session MFA, ready state,
+        export expiry, and its atomic one-use claim are rechecked. The archive is private/no-store
+        and contains the manifest plus base64-encoded NDJSON entries; it is not a raw database dump.
+      operationId: downloadTenantDataExport
+      x-acceptance-ids: [OPS-EXP-005, OPS-EXP-006]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDataExportId'
+        - name: expires
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: signature
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Decrypted portable JSON envelope.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Content-Disposition: { $ref: '#/components/headers/TenantExportDisposition' }
+            X-Content-Type-Options:
+              description: Browser MIME sniffing disabled.
+              schema: { type: string, const: nosniff }
+          content:
+            application/vnd.maestro.tenant-export+json:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/data-exports/{export}/restore-drills:
+    post:
+      tags: [Tenant data]
+      summary: Run a non-writing tenant restore drill
+      description: |-
+        Owner-only asynchronous dry run after recent confirmation and current-session MFA. It verifies
+        the current Maestro archive envelope, manifest/schema/hash, exact declared entries, byte and row
+        counts, NDJSON decoding, source-tenant invariants, and one proposed tenant-ID remap. It does not
+        import, activate, merge, or overwrite tenant data and therefore does not complete restore parity.
+      operationId: requestTenantRestoreDrill
+      x-acceptance-ids: [OPS-RST-001, OPS-RST-002, OPS-RST-004]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDataExportId'
+      responses:
+        '202':
+          description: Non-writing verification drill queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantRestoreDrillEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/TenantDataConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/restore-drills/{drill}:
+    get:
+      tags: [Tenant data]
+      summary: Get a tenant restore drill
+      description: Returns the privacy-safe state and aggregate verification results of one route-studio dry run.
+      operationId: getTenantRestoreDrill
+      x-acceptance-ids: [OPS-RST-002, OPS-RST-004]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantRestoreDrillId'
+      responses:
+        '200':
+          description: Restore-drill state and safe verification summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantRestoreDrillEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/retention-policy:
+    get:
+      tags: [Tenant data]
+      summary: Get the tenant retention policy
+      operationId: getTenantRetentionPolicy
+      x-acceptance-ids: [OPS-RET-001, OPS-RET-003]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      responses:
+        '200':
+          description: Current owner-visible policy and legal-hold projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantRetentionPolicyEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    patch:
+      tags: [Tenant data]
+      summary: Update the tenant retention policy
+      description: Owner-only optimistic update after recent confirmation and current-session MFA. The current `version` is mandatory; stale input is a field-keyed validation failure in this scaffolded slice.
+      operationId: updateTenantRetentionPolicy
+      x-acceptance-ids: [OPS-RET-001]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTenantRetentionPolicyInput' }
+      responses:
+        '200':
+          description: Updated policy with incremented version.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantRetentionPolicyEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/retention-policy/legal-hold:
+    post:
+      tags: [Tenant data]
+      summary: Place a tenant legal hold
+      description: Owner-only legal-hold placement after recent confirmation and current-session MFA. The hold blocks deletion progression and export expiry; this slice has one studio-wide hold rather than the target scoped, dual-approved hold aggregate.
+      operationId: placeTenantLegalHold
+      x-acceptance-ids: [OPS-RET-003, OPS-RET-004]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlaceTenantLegalHoldInput' }
+      responses:
+        '200':
+          description: Legal hold active; exact repeated placement is idempotent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantRetentionPolicyEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    delete:
+      tags: [Tenant data]
+      summary: Release the tenant legal hold
+      description: Owner-only release after recent confirmation and current-session MFA. Release does not execute retention or deletion work.
+      operationId: releaseTenantLegalHold
+      x-acceptance-ids: [OPS-RET-003, OPS-RET-004]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      responses:
+        '200':
+          description: Legal hold inactive; exact repeated release is idempotent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantRetentionPolicyEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/deletion-requests:
+    get:
+      tags: [Tenant data]
+      summary: List tenant deletion requests
+      operationId: listTenantDeletionRequests
+      x-acceptance-ids: [OPS-DEL-001, OPS-DEL-002]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Owner-visible deletion history in a Laravel paginator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDeletionRequestPaginatedCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Tenant data]
+      summary: Request tenant deletion
+      description: |-
+        Owner-only request after recent confirmation and current-session MFA. The exact typed
+        confirmation is `DELETE {studio-slug}`. The operation starts the configured 14-day
+        cooling-off period and queues a media-inventory export. An active studio-wide legal hold
+        blocks the request. No tenant data is deleted by this endpoint.
+      operationId: requestTenantDeletion
+      x-acceptance-ids: [OPS-DEL-001, OPS-DEL-002, OPS-RET-003]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequestTenantDeletionInput' }
+            examples:
+              deleteSonora:
+                value:
+                  reason: Closing this teaching business and removing its tenant records.
+                  confirmation_phrase: DELETE sonora-house
+      responses:
+        '202':
+          description: Cooling-off started, or original request returned on exact replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDeletionRequestEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/TenantDataConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/deletion-requests/{deletion}:
+    get:
+      tags: [Tenant data]
+      summary: Get a tenant deletion request
+      operationId: getTenantDeletionRequest
+      x-acceptance-ids: [OPS-DEL-001, OPS-DEL-002]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDeletionRequestId'
+      responses:
+        '200':
+          description: Owner-visible deletion lifecycle projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDeletionRequestEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/deletion-requests/{deletion}/approve:
+    post:
+      tags: [Tenant data]
+      summary: Approve a cooled-off tenant deletion
+      description: A distinct active studio administrator provides independent approval only after cooling-off, a ready verified export, no legal hold, recent confirmation, and current-session MFA. The requesting owner cannot approve. The locked transition is idempotent; it does not yet execute irreversible purge.
+      operationId: approveTenantDeletion
+      x-acceptance-ids: [OPS-DEL-001, OPS-DEL-002, OPS-DEL-003]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDeletionRequestId'
+      responses:
+        '200':
+          description: Deletion approved for scheduled lifecycle progression.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDeletionRequestEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/TenantDataConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/deletion-requests/{deletion}/cancel:
+    post:
+      tags: [Tenant data]
+      summary: Cancel a tenant deletion request
+      description: Owner-only locked, idempotent cancellation while the request is in cooling-off or approved state; requires recent confirmation and current-session MFA.
+      operationId: cancelTenantDeletion
+      x-acceptance-ids: [OPS-DEL-001, OPS-DEL-002]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDeletionRequestId'
+      responses:
+        '200':
+          description: Deletion cancelled or exact terminal cancellation returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDeletionRequestEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/TenantDataConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/deletion-requests/{deletion}/restore:
+    post:
+      tags: [Tenant data]
+      summary: Restore a suspended or quarantined tenant
+      description: |-
+        Owner-only locked reversal after recent confirmation and current-session MFA. It restores the
+        pre-suspension studio and membership statuses retained by this deletion request. It does not
+        import an export archive and is distinct from the non-writing restore drill.
+      operationId: restoreTenantDeletion
+      x-acceptance-ids: [OPS-DEL-003]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/TenantDeletionRequestId'
+      responses:
+        '200':
+          description: Tenant statuses restored, or original restored projection returned on replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantDeletionRequestEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/TenantDataConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/HighRiskConfirmationRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/audit-events:
+    get:
+      tags: [Audit and support]
+      summary: List immutable tenant audit events
+      description: |-
+        Owner/administrator-only cursor projection of the route studio's append-only audit stream.
+        It exposes safe actor/subject labels, correlation, schema version, allowlisted payload, and
+        occurrence time. It omits global actor IDs, request/network/client hashes, support token
+        material, chain HMACs, storage/outbox fields, and every other tenant.
+      operationId: listTenantAuditEvents
+      x-acceptance-ids: [OPS-AUD-001, OPS-AUD-005, OPS-AUD-006]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/AuditEventTypeFilter'
+        - $ref: '#/components/parameters/AuditSubjectTypeFilter'
+        - $ref: '#/components/parameters/AuditCorrelationIdFilter'
+        - $ref: '#/components/parameters/AuditFromFilter'
+        - $ref: '#/components/parameters/AuditToFilter'
+        - $ref: '#/components/parameters/AuditPerPage'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable descending audit cursor page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantAuditEventCursorCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/support-access/grants:
+    get:
+      tags: [Audit and support]
+      summary: List tenant support-access grants
+      description: Owner/administrator-only cursor history for the route studio. Read-only scopes and the visible reason/window make every request reviewable; no bearer or platform-assignment identifier is exposed.
+      operationId: listTenantSupportAccessGrants
+      x-acceptance-ids: [OPS-SUP-001, OPS-SUP-005]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Route-studio grants in a cursor collection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportAccessGrantCursorCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/support-access/grants/{grant}/approve:
+    post:
+      tags: [Audit and support]
+      summary: Approve a support-access grant
+      description: Owner/administrator optimistic approval after recent identity confirmation and current-session MFA. Only a current, unexpired request can be approved, and a dual-role platform operator cannot approve their own request. This tranche is strictly read-only; no write/export/destructive support scope exists.
+      operationId: approveSupportAccessGrant
+      x-acceptance-ids: [OPS-SUP-001, OPS-SUP-002, OPS-SUP-004, OPS-SUP-005]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SupportAccessGrantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApproveSupportAccessGrantInput' }
+      responses:
+        '200':
+          description: Approved grant with incremented version.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportAccessGrantEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SupportAccessProblem' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/SupportAccessProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/support-access/grants/{grant}/reject:
+    post:
+      tags: [Audit and support]
+      summary: Reject a support-access grant
+      description: Owner/administrator optimistic rejection with an explicit safe decision reason after recent confirmation and current-session MFA.
+      operationId: rejectSupportAccessGrant
+      x-acceptance-ids: [OPS-SUP-001, OPS-SUP-005]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SupportAccessGrantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecideSupportAccessGrantInput' }
+      responses:
+        '200':
+          description: Rejected grant with incremented version.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportAccessGrantEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SupportAccessProblem' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/SupportAccessProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/support-access/grants/{grant}/revoke:
+    post:
+      tags: [Audit and support]
+      summary: Revoke support access
+      description: Owner/administrator optimistic revocation with a reason after recent confirmation and current-session MFA. Every open session for the grant ends in the same locked transaction.
+      operationId: revokeSupportAccessGrant
+      x-acceptance-ids: [OPS-SUP-001, OPS-SUP-003, OPS-SUP-005]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SupportAccessGrantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecideSupportAccessGrantInput' }
+      responses:
+        '200':
+          description: Revoked grant with every open support session ended.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportAccessGrantEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SupportAccessProblem' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/SupportAccessProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/grants:
+    get:
+      tags: [Audit and support]
+      summary: List the operator's support grants
+      description: Separate platform-operator route returning only grants requested by the current active operator. A platform assignment alone never grants tenant access.
+      operationId: listPlatformSupportAccessGrants
+      x-acceptance-ids: [OPS-SUP-002, OPS-SUP-007]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Current operator's grants in a cursor collection.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportAccessGrantCursorCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/mfa-confirmation:
+    post:
+      tags: [Audit and support]
+      summary: Confirm current-session MFA for support access
+      description: |-
+        Verifies a six-digit TOTP against the authenticated operator's confirmed authenticator and
+        stamps only the current browser session for ten minutes. This does not create a grant, enter
+        a tenant, elevate a platform assignment, or return authenticator secret material. A recent
+        password or passkey confirmation is required before the challenge can be submitted.
+      operationId: confirmSupportAccessMfa
+      x-acceptance-ids: [OPS-SUP-002, OPS-SUP-007]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SupportMfaConfirmationInput' }
+            example: { code: '123456' }
+      responses:
+        '200':
+          description: Current browser session has fresh support-access MFA assurance.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportMfaConfirmationEnvelope' }
+              example:
+                data:
+                  verified: true
+                  expires_at: '2026-08-13T20:10:00Z'
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/SupportMfaConfirmationFailed' }
+        '423': { $ref: '#/components/responses/SupportAccessProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/requests:
+    post:
+      tags: [Audit and support]
+      summary: Request tenant support access
+      description: |-
+        An active platform operator requests one exact tenant, a specific purpose, one-to-five
+        allowlisted read-only scopes, and a future window of at most four hours. Recent identity
+        confirmation and current-session MFA are mandatory. `Idempotency-Key` is bound to the full
+        canonical request. The request does not enter the tenant or create a support session.
+      operationId: requestSupportAccess
+      x-acceptance-ids: [OPS-SUP-001, OPS-SUP-002, OPS-SUP-004, OPS-SUP-005, OPS-SUP-007]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequestSupportAccessInput' }
+            examples:
+              investigateSchedule:
+                value:
+                  studio_id: 01KZN5W3P3507MV3FBN2BG5WKF
+                  scopes: [audit.read, schedule.read, diagnostics.read]
+                  reason: Investigate ticket MST-1842 about missing calendar projections.
+                  starts_at: '2026-08-13T18:00:00Z'
+                  expires_at: '2026-08-13T20:00:00Z'
+      responses:
+        '201':
+          description: Support grant request recorded; tenant approval is still required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportAccessGrantEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SupportAccessProblem' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '423': { $ref: '#/components/responses/SupportAccessProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/grants/{grant}/sessions:
+    post:
+      tags: [Audit and support]
+      summary: Start an approved support session
+      description: |-
+        Starts at most one active session for the current operator's approved, unrevoked, in-window
+        grant after recent identity confirmation and current-session MFA. The session lasts no more
+        than two hours or the grant remainder. The bearer is returned exactly once and only its HMAC
+        digest is stored. It must be supplied in `X-Maestro-Support-Session` on support-session routes.
+      operationId: startSupportAccessSession
+      x-acceptance-ids: [OPS-SUP-002, OPS-SUP-003, OPS-SUP-005, OPS-SUP-007]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/SupportAccessGrantId'
+      responses:
+        '201':
+          description: Support session started; the bearer appears only in this no-store response.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportSessionStartedEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SupportAccessProblem' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '423': { $ref: '#/components/responses/SupportAccessProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/sessions/{session}:
+    delete:
+      tags: [Audit and support]
+      summary: End the current support session
+      description: Ends only the current operator's exact header-and-route-bound support session. Repeating the operation returns the terminal banner and does not revive or extend access.
+      operationId: endSupportAccessSession
+      x-acceptance-ids: [OPS-SUP-003, OPS-SUP-005, OPS-SUP-006, OPS-SUP-007]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+          supportSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportAccessSessionId'
+      responses:
+        '200':
+          description: Terminal support-session banner.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportSessionBannerEnvelope' }
+        '401': { $ref: '#/components/responses/SupportAccessProblem' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/sessions/{session}/banner:
+    get:
+      tags: [Audit and support]
+      summary: Get the active support-session banner
+      description: Revalidates the current platform operator, bearer digest, exact route session, active grant, expiry/revocation, and session ownership on every request.
+      operationId: getSupportAccessSessionBanner
+      x-acceptance-ids: [OPS-SUP-002, OPS-SUP-003, OPS-SUP-006, OPS-SUP-007]
+      security:
+        - sanctumSession: []
+          supportSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportAccessSessionId'
+      responses:
+        '200':
+          description: Mandatory active-support context for persistent UI display.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Maestro-Support-Access:
+              description: Explicitly marks a response generated in delegated support mode.
+              schema: { type: string, const: active }
+            X-Maestro-Support-Session-Id:
+              description: Active support-session ULID, never the bearer.
+              schema: { $ref: '#/components/schemas/Ulid' }
+            X-Maestro-Support-Expires-At:
+              description: Exact session expiry for persistent UI display.
+              schema: { type: string, format: date-time }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportSessionBannerEnvelope' }
+        '401': { $ref: '#/components/responses/SupportAccessProblem' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/platform/support-access/sessions/{session}/audit-events:
+    get:
+      tags: [Audit and support]
+      summary: View tenant audit through a support session
+      description: Requires the exact active support-session bearer and `audit.read` scope. It returns the same redacted tenant audit projection; the operator identity remains the actor and never becomes a tenant user.
+      operationId: listSupportSessionAuditEvents
+      x-acceptance-ids: [OPS-AUD-005, OPS-SUP-002, OPS-SUP-003, OPS-SUP-005, OPS-SUP-007]
+      security:
+        - sanctumSession: []
+          supportSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportAccessSessionId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Tenant audit cursor page under the active delegated support context.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantAuditEventCursorCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/SupportAccessProblem' }
+        '403': { $ref: '#/components/responses/SupportAccessProblem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 components:
   securitySchemes:
     sanctumSession:
@@ -3195,6 +4015,14 @@ components:
       in: header
       name: X-XSRF-TOKEN
       description: URL-decoded value of Sanctum's `XSRF-TOKEN` cookie for mutating requests.
+    supportSession:
+      type: apiKey
+      in: header
+      name: X-Maestro-Support-Session
+      description: |-
+        High-entropy bearer disclosed once when the authenticated platform operator starts an
+        approved support session. Only an HMAC digest is stored. It is always combined with the
+        operator's Sanctum session and never represents or impersonates a tenant user.
   parameters:
     StudioSlug:
       name: studio
@@ -3443,6 +4271,78 @@ components:
       required: true
       description: Lesson-note attachment ULID constrained to the route studio and note.
       schema: { $ref: '#/components/schemas/Ulid' }
+    TenantDataExportId:
+      name: export
+      in: path
+      required: true
+      description: Tenant-data-export ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    TenantRestoreDrillId:
+      name: drill
+      in: path
+      required: true
+      description: Non-writing restore-drill ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    TenantDeletionRequestId:
+      name: deletion
+      in: path
+      required: true
+      description: Tenant-deletion-request ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    SupportAccessGrantId:
+      name: grant
+      in: path
+      required: true
+      description: Support-access-grant ULID, reauthorized for the route tenant or current platform operator.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    SupportAccessSessionId:
+      name: session
+      in: path
+      required: true
+      description: Support-session ULID that must exactly match the current operator and support-session bearer.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set.
+      schema: { type: string, minLength: 1, maxLength: 2048 }
+    AuditEventTypeFilter:
+      name: event_type
+      in: query
+      required: false
+      description: Exact stable audit event type.
+      schema: { type: string, minLength: 1, maxLength: 120 }
+    AuditSubjectTypeFilter:
+      name: subject_type
+      in: query
+      required: false
+      description: Exact safe audit subject type.
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    AuditCorrelationIdFilter:
+      name: correlation_id
+      in: query
+      required: false
+      description: Correlates safe domain, audit, and outbox activity without exposing payloads.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    AuditFromFilter:
+      name: from
+      in: query
+      required: false
+      description: Inclusive audit occurrence lower bound.
+      schema: { type: string, format: date-time }
+    AuditToFilter:
+      name: to
+      in: query
+      required: false
+      description: Inclusive audit occurrence upper bound; cannot precede `from`.
+      schema: { type: string, format: date-time }
+    AuditPerPage:
+      name: per_page
+      in: query
+      required: false
+      description: Audit cursor page size; defaults to 50.
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
     CalendarFrom:
       name: from
       in: query
@@ -3516,6 +4416,11 @@ components:
       schema:
         type: string
         pattern: '^attachment;'
+    TenantExportDisposition:
+      description: Safe generated Maestro tenant-export JSON filename; no original upload or storage key is reflected.
+      schema:
+        type: string
+        pattern: '^attachment; filename="maestro-[^"]+-[0-9A-HJKMNP-TV-Z]{26}\.json"$'
     AttachmentContentLength:
       description: Exact attachment size in bytes.
       schema:
@@ -4225,6 +5130,82 @@ components:
               value:
                 message: The note changed after delivery was previewed.
                 code: note_changed_after_preview
+    TenantDataConflict:
+      description: An idempotency, legal-hold, cooling-off, export-readiness, deletion-state, confirmation, or restore-drill invariant rejected the operation without a partial lifecycle transition.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/TenantDataConflictProblem' }
+          examples:
+            idempotencyReuse:
+              value:
+                message: The tenant data operation could not be completed.
+                code: IDEMPOTENCY_KEY_REUSED
+            legalHold:
+              value:
+                message: The tenant deletion lifecycle operation could not be completed.
+                code: LEGAL_HOLD_ACTIVE
+            coolingOff:
+              value:
+                message: The tenant deletion lifecycle operation could not be completed.
+                code: COOLING_OFF_ACTIVE
+    HighRiskConfirmationRequired:
+      description: A recent password/passkey confirmation or a recent MFA verification in the current session is required for this high-risk tenant operation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/HighRiskConfirmationProblem' }
+          examples:
+            recentIdentity:
+              value:
+                message: Recent identity confirmation is required.
+                code: RECENT_CONFIRMATION_REQUIRED
+            mfa:
+              value:
+                message: Multi-factor authentication is required for tenant data lifecycle operations.
+                code: MFA_REQUIRED
+    Gone:
+      description: The private artifact is not in a currently downloadable state or has expired.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            message: The export is not available.
+    SupportAccessProblem:
+      description: The active operator, recent-auth/MFA, grant lifecycle/version, scope, session bearer, ownership, or idempotency boundary rejected the operation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SupportAccessProblem' }
+          examples:
+            inactiveSession:
+              value:
+                message: The support session is invalid, expired, ended, or revoked.
+                code: support_session_inactive
+            scopeDenied:
+              value:
+                message: The support session does not include the required scope.
+                code: support_scope_forbidden
+            versionConflict:
+              value:
+                message: The support grant changed in another session.
+                code: support_version_conflict
+    SupportMfaConfirmationFailed:
+      description: The TOTP input was malformed or did not verify against the authenticated operator's confirmed authenticator.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ValidationProblem'
+              - $ref: '#/components/schemas/SupportAccessProblem'
+          examples:
+            invalidCode:
+              value:
+                message: The support MFA code was invalid.
+                code: support_mfa_invalid
+            malformedCode:
+              value:
+                message: The code field must be 6 digits.
+                errors:
+                  code:
+                    - The code field must be 6 digits.
     TooManyRequests:
       description: API rate limit exceeded.
       headers:
@@ -8078,6 +9059,641 @@ components:
         mime: { type: string, minLength: 1, maxLength: 127 }
         size_bytes: { type: integer, minimum: 1 }
         sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+    TenantAuditSubject:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type: { type: string, minLength: 1, maxLength: 100 }
+        id: { type: [string, 'null'], maxLength: 128 }
+    TenantAuditActor:
+      type: object
+      additionalProperties: false
+      required: [type, display]
+      properties:
+        type:
+          type: string
+          enum: [user, support, system]
+        display: { type: [string, 'null'], maxLength: 160 }
+    TenantAuditEvent:
+      type: object
+      additionalProperties: false
+      required: [id, event_type, subject, actor, correlation_id, payload_version, payload, occurred_at]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        event_type: { type: string, minLength: 1, maxLength: 120 }
+        subject: { $ref: '#/components/schemas/TenantAuditSubject' }
+        actor: { $ref: '#/components/schemas/TenantAuditActor' }
+        correlation_id: { $ref: '#/components/schemas/Ulid' }
+        payload_version: { type: integer, minimum: 1, maximum: 65535 }
+        payload:
+          type: object
+          description: Event-type-specific, explicitly allowlisted safe metadata. Credentials and private transport/infrastructure fields are forbidden.
+          additionalProperties: true
+        occurred_at: { type: [string, 'null'], format: date-time }
+    TenantAuditEventCursorCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TenantAuditEvent' }
+        links: { $ref: '#/components/schemas/LaravelCursorPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelCursorPaginationMeta' }
+    SupportAccessScope:
+      type: string
+      enum: [audit.read, configuration.read, people.read, schedule.read, diagnostics.read]
+      description: Read-only delegated capability. Export, credential, billing-secret, legal-hold, deletion, restore, ownership, and arbitrary write scopes do not exist.
+    SupportAccessGrantStatus:
+      type: string
+      enum: [requested, approved, rejected, revoked, expired]
+    SupportStudioReference:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        name: { type: string, minLength: 1, maxLength: 160 }
+    SupportActorReference:
+      type: object
+      additionalProperties: false
+      required: [display]
+      properties:
+        display: { type: [string, 'null'], maxLength: 160 }
+    SupportAccessGrant:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - studio
+        - requester
+        - approver
+        - scopes
+        - reason
+        - status
+        - starts_at
+        - expires_at
+        - approved_at
+        - rejected_at
+        - revoked_at
+        - decision_reason
+        - version
+        - created_at
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        studio: { $ref: '#/components/schemas/SupportStudioReference' }
+        requester: { $ref: '#/components/schemas/SupportActorReference' }
+        approver: { $ref: '#/components/schemas/SupportActorReference' }
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/SupportAccessScope' }
+        reason: { type: string, minLength: 12, maxLength: 500 }
+        status: { $ref: '#/components/schemas/SupportAccessGrantStatus' }
+        starts_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        approved_at: { type: [string, 'null'], format: date-time }
+        rejected_at: { type: [string, 'null'], format: date-time }
+        revoked_at: { type: [string, 'null'], format: date-time }
+        decision_reason: { type: [string, 'null'], maxLength: 500 }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: [string, 'null'], format: date-time }
+    SupportAccessGrantEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SupportAccessGrant' }
+    SupportAccessGrantCursorCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SupportAccessGrant' }
+        links: { $ref: '#/components/schemas/LaravelCursorPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelCursorPaginationMeta' }
+    RequestSupportAccessInput:
+      type: object
+      additionalProperties: false
+      required: [studio_id, scopes, reason, starts_at, expires_at]
+      properties:
+        studio_id:
+          description: Exact target studio ULID; it does not establish tenant context or authority.
+          $ref: '#/components/schemas/Ulid'
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/SupportAccessScope' }
+        reason: { type: string, minLength: 12, maxLength: 500 }
+        starts_at:
+          type: string
+          format: date-time
+          description: Cannot be more than seven days in the future or materially before request time.
+        expires_at:
+          type: string
+          format: date-time
+          description: Must follow `starts_at` by no more than four hours.
+    ApproveSupportAccessGrantInput:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        reason: { type: [string, 'null'], minLength: 4, maxLength: 500 }
+    DecideSupportAccessGrantInput:
+      type: object
+      additionalProperties: false
+      required: [version, reason]
+      properties:
+        version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 4, maxLength: 500 }
+    SupportSessionBanner:
+      type: object
+      additionalProperties: false
+      required: [id, banner, studio, scopes, reason, approved_by, started_at, expires_at, ended_at, end_reason]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        banner:
+          type: string
+          const: Support access is active. Every view is scoped, visible, and audited.
+        studio: { $ref: '#/components/schemas/SupportStudioReference' }
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/SupportAccessScope' }
+        reason: { type: string, minLength: 12, maxLength: 500 }
+        approved_by: { $ref: '#/components/schemas/SupportActorReference' }
+        started_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        ended_at: { type: [string, 'null'], format: date-time }
+        end_reason: { type: [string, 'null'], maxLength: 80 }
+    SupportSessionBannerEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SupportSessionBanner' }
+    SupportSessionStarted:
+      type: object
+      additionalProperties: false
+      required: [session, access_token, token_type]
+      properties:
+        session: { $ref: '#/components/schemas/SupportSessionBanner' }
+        access_token:
+          type: string
+          minLength: 40
+          maxLength: 100
+          description: Response-once bearer; never persisted or returned by another operation.
+        token_type: { type: string, const: Maestro-Support-Session }
+    SupportSessionStartedEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SupportSessionStarted' }
+    SupportMfaConfirmationInput:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          description: Six-digit TOTP; never logged, persisted, echoed, or returned.
+    SupportMfaConfirmationResult:
+      type: object
+      additionalProperties: false
+      required: [verified, expires_at]
+      properties:
+        verified: { type: boolean, const: true }
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiry of the current browser session's support-access MFA assurance.
+    SupportMfaConfirmationEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SupportMfaConfirmationResult' }
+    SupportAccessProblem:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message: { type: string }
+        code:
+          type: string
+          enum:
+            - support_approval_forbidden
+            - support_rejection_forbidden
+            - support_revocation_forbidden
+            - support_operator_required
+            - support_mfa_required
+            - support_mfa_invalid
+            - support_current_session_mfa_required
+            - support_recent_auth_required
+            - support_scope_invalid
+            - support_window_invalid
+            - support_reason_invalid
+            - support_idempotency_conflict
+            - support_version_conflict
+            - support_grant_not_approvable
+            - support_grant_not_rejectable
+            - support_grant_not_revocable
+            - support_session_forbidden
+            - support_grant_inactive
+            - support_session_already_active
+            - support_session_required
+            - support_session_inactive
+            - support_scope_forbidden
+            - support_session_mismatch
+    RequestTenantDataExportInput:
+      type: object
+      additionalProperties: false
+      properties:
+        include_media_inventory:
+          type: boolean
+          default: false
+          description: Include the private attachment metadata inventory, never storage keys or attachment bytes.
+    TenantDataExportStatus:
+      type: string
+      enum: [requested, queued, exporting, ready, failed, expired, purged]
+    TenantDataExportProgress:
+      type: object
+      additionalProperties: false
+      required: [completed_datasets, next_dataset_index]
+      properties:
+        completed_datasets: { type: integer, minimum: 0 }
+        next_dataset_index: { type: integer, minimum: 0 }
+    TenantExportApplication:
+      type: object
+      additionalProperties: false
+      required: [name, schema]
+      properties:
+        name: { type: string, const: maestro }
+        schema: { type: string, minLength: 1, maxLength: 40 }
+    TenantExportStudioDefaults:
+      type: object
+      additionalProperties: false
+      required: [timezone, locale, currency]
+      properties:
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          example: America/Bogota
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 16
+          example: en
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          example: USD
+    TenantExportDatasetManifest:
+      type: object
+      additionalProperties: false
+      required: [name, path, media, dependencies, schema_version, count, sha256, bytes]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          maxLength: 100
+        path:
+          type: string
+          pattern: '^data/[a-z][a-z0-9_]*\.ndjson$'
+        media:
+          type: boolean
+          description: True only for the optional attachment metadata inventory; the archive contains no attachment bytes.
+        dependencies:
+          type: array
+          uniqueItems: true
+          items: { type: string, pattern: '^[a-z][a-z0-9_]*$' }
+        schema_version: { type: string, minLength: 1, maxLength: 16 }
+        count: { type: integer, minimum: 0 }
+        sha256: { $ref: '#/components/schemas/Sha256' }
+        bytes: { type: integer, minimum: 0 }
+    TenantDataExportManifest:
+      type: object
+      additionalProperties: false
+      required:
+        - format
+        - format_version
+        - export_id
+        - created_at
+        - snapshot_boundary
+        - application
+        - studio
+        - canonicalization
+        - excluded_secret_fields
+        - media_inventory_included
+        - datasets
+        - manifest_sha256
+      properties:
+        format: { type: string, const: maestro-tenant-portable-archive }
+        format_version: { type: string, const: '1.0' }
+        export_id: { $ref: '#/components/schemas/Ulid' }
+        created_at: { type: string, format: date-time }
+        snapshot_boundary:
+          type: string
+          format: date-time
+          description: Declared upper timestamp boundary; this scaffold does not yet prove complete point-in-time consistency under concurrent updates.
+        application: { $ref: '#/components/schemas/TenantExportApplication' }
+        studio: { $ref: '#/components/schemas/TenantExportStudioDefaults' }
+        canonicalization: { type: string, minLength: 1, maxLength: 200 }
+        excluded_secret_fields:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 100 }
+        media_inventory_included: { type: boolean }
+        datasets:
+          type: array
+          items: { $ref: '#/components/schemas/TenantExportDatasetManifest' }
+        manifest_sha256: { $ref: '#/components/schemas/Sha256' }
+    TenantDataExport:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - status
+        - format_version
+        - include_media_inventory
+        - progress
+        - archive_size
+        - ready_at
+        - expires_at
+        - purged_at
+        - download_count
+        - error_code
+        - created_at
+        - updated_at
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        status: { $ref: '#/components/schemas/TenantDataExportStatus' }
+        format_version: { type: string, const: '1.0' }
+        include_media_inventory: { type: boolean }
+        progress: { $ref: '#/components/schemas/TenantDataExportProgress' }
+        manifest:
+          description: Present only when status is `ready`.
+          $ref: '#/components/schemas/TenantDataExportManifest'
+        archive_size: { type: [integer, 'null'], minimum: 0 }
+        ready_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        purged_at: { type: [string, 'null'], format: date-time }
+        download_count: { type: integer, minimum: 0 }
+        error_code: { type: [string, 'null'], maxLength: 64 }
+        created_at: { type: [string, 'null'], format: date-time }
+        updated_at: { type: [string, 'null'], format: date-time }
+    TenantDataExportEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TenantDataExport' }
+    TenantDataExportPaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TenantDataExport' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    TenantDataExportDownloadUrl:
+      type: object
+      additionalProperties: false
+      required: [url, expires_at]
+      properties:
+        url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+    TenantDataExportDownloadUrlEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TenantDataExportDownloadUrl' }
+    TenantRestoreDrillStatus:
+      type: string
+      enum: [requested, running, verified, failed]
+    TenantRestoreVerification:
+      type: object
+      additionalProperties: false
+      required:
+        - archive_checksum_valid
+        - manifest_checksum_valid
+        - dataset_checksums_valid
+        - schema_version_supported
+        - tenant_invariants_valid
+        - tenant_id_remap_valid
+        - dataset_count
+        - row_count
+        - tenant_reference_count
+        - dry_run
+      properties:
+        archive_checksum_valid: { type: boolean }
+        manifest_checksum_valid: { type: boolean }
+        dataset_checksums_valid: { type: boolean }
+        schema_version_supported: { type: boolean }
+        tenant_invariants_valid: { type: boolean }
+        tenant_id_remap_valid: { type: boolean }
+        dataset_count: { type: integer, minimum: 0 }
+        row_count: { type: integer, minimum: 0 }
+        tenant_reference_count: { type: integer, minimum: 0 }
+        dry_run: { type: boolean, const: true }
+    TenantIdRemap:
+      type: object
+      minProperties: 1
+      maxProperties: 1
+      additionalProperties: { $ref: '#/components/schemas/Ulid' }
+    TenantRestoreDrill:
+      type: object
+      additionalProperties: false
+      required: [id, export_id, status, dry_run, target_studio_id, tenant_id_remap, verification, error_code, started_at, completed_at]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        export_id: { $ref: '#/components/schemas/Ulid' }
+        status: { $ref: '#/components/schemas/TenantRestoreDrillStatus' }
+        dry_run: { type: boolean, const: true }
+        target_studio_id:
+          anyOf:
+            - $ref: '#/components/schemas/Ulid'
+            - type: 'null'
+        tenant_id_remap: { $ref: '#/components/schemas/TenantIdRemap' }
+        verification:
+          anyOf:
+            - $ref: '#/components/schemas/TenantRestoreVerification'
+            - type: 'null'
+        error_code: { type: [string, 'null'], maxLength: 80 }
+        started_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+    TenantRestoreDrillEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TenantRestoreDrill' }
+    TenantRetentionPolicy:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - export_ttl_hours
+        - deletion_cooling_off_days
+        - deletion_quarantine_days
+        - operational_retention_days
+        - media_retention_days
+        - audit_retention_days
+        - legal_hold
+        - legal_hold_reason
+        - legal_hold_placed_at
+        - legal_hold_released_at
+        - version
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        export_ttl_hours: { type: integer, minimum: 1, maximum: 168 }
+        deletion_cooling_off_days: { type: integer, minimum: 1, maximum: 3650 }
+        deletion_quarantine_days: { type: integer, minimum: 1, maximum: 3650 }
+        operational_retention_days: { type: integer, minimum: 1, maximum: 3650 }
+        media_retention_days: { type: integer, minimum: 1, maximum: 3650 }
+        audit_retention_days: { type: integer, minimum: 1, maximum: 3650 }
+        legal_hold: { type: boolean }
+        legal_hold_reason: { type: [string, 'null'], maxLength: 2000 }
+        legal_hold_placed_at: { type: [string, 'null'], format: date-time }
+        legal_hold_released_at: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+    TenantRetentionPolicyEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TenantRetentionPolicy' }
+    UpdateTenantRetentionPolicyInput:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        export_ttl_hours: { type: integer, minimum: 1, maximum: 168 }
+        deletion_cooling_off_days: { type: integer, minimum: 1, maximum: 3650 }
+        deletion_quarantine_days: { type: integer, minimum: 1, maximum: 3650 }
+        operational_retention_days: { type: integer, minimum: 1, maximum: 3650 }
+        media_retention_days: { type: integer, minimum: 1, maximum: 3650 }
+        audit_retention_days: { type: integer, minimum: 1, maximum: 3650 }
+    PlaceTenantLegalHoldInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 12, maxLength: 2000 }
+    TenantDeletionStatus:
+      type: string
+      enum: [requested, cooling_off, approved, suspended, quarantined, purge_eligible, cancelled, restoring, restored, failed]
+    RequestTenantDeletionInput:
+      type: object
+      additionalProperties: false
+      required: [reason, confirmation_phrase]
+      properties:
+        reason: { type: string, minLength: 12, maxLength: 2000 }
+        confirmation_phrase:
+          type: string
+          minLength: 1
+          maxLength: 180
+          description: Exact case-sensitive `DELETE {route-studio-slug}` phrase.
+    TenantDeletionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - export_id
+        - status
+        - reason
+        - cooling_off_ends_at
+        - approved_at
+        - suspended_at
+        - quarantined_at
+        - purge_eligible_at
+        - cancelled_at
+        - restored_at
+        - version
+        - created_at
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        export_id:
+          anyOf:
+            - $ref: '#/components/schemas/Ulid'
+            - type: 'null'
+        status: { $ref: '#/components/schemas/TenantDeletionStatus' }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        cooling_off_ends_at: { type: [string, 'null'], format: date-time }
+        approved_at: { type: [string, 'null'], format: date-time }
+        suspended_at: { type: [string, 'null'], format: date-time }
+        quarantined_at: { type: [string, 'null'], format: date-time }
+        purge_eligible_at: { type: [string, 'null'], format: date-time }
+        cancelled_at: { type: [string, 'null'], format: date-time }
+        restored_at: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: [string, 'null'], format: date-time }
+    TenantDeletionRequestEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TenantDeletionRequest' }
+    TenantDeletionRequestPaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TenantDeletionRequest' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    TenantDataConflictProblem:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message: { type: string }
+        code:
+          type: string
+          enum:
+            - IDEMPOTENCY_KEY_REUSED
+            - CONFIRMATION_PHRASE_INVALID
+            - DELETION_ALREADY_OPEN
+            - LEGAL_HOLD_ACTIVE
+            - DELETION_NOT_APPROVABLE
+            - COOLING_OFF_ACTIVE
+            - SECOND_OWNER_APPROVAL_REQUIRED
+            - INDEPENDENT_APPROVAL_REQUIRED
+            - VERIFIED_EXPORT_REQUIRED
+            - DELETION_NOT_CANCELLABLE
+            - TENANT_NOT_RESTORABLE
+            - EXPORT_NOT_RESTORABLE
+    HighRiskConfirmationProblem:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message: { type: string }
+        code:
+          type: string
+          enum: [RECENT_CONFIRMATION_REQUIRED, MFA_REQUIRED]
+    Sha256:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
     TypedConflictProblem:
       type: object
       additionalProperties: false

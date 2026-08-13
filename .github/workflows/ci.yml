@@ -152,6 +152,54 @@ jobs:
       - name: Run Laravel tests
         run: php artisan test --colors=always
 
+  filament-browser:
+    name: Filament browser / Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    env:
+      CI: "true"
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.5"
+          coverage: none
+          extensions: dom, fileinfo, intl, mbstring, pdo_sqlite
+          tools: composer:v2
+
+      - name: Install Laravel dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Install browser dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run deterministic visual and accessibility journeys
+        run: ../../scripts/quality/browser.sh
+
   frontend:
     name: Next.js / Node 24
     runs-on: ubuntu-latest

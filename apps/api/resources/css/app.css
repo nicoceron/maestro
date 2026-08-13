@@ -11,6 +11,41 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
+/* Filament's default modal gray is below 4.5:1 over its overlay blend. */
+.fi-modal-description {
+    color: rgb(75 85 99);
+}
+
+.dark .fi-modal-description {
+    color: rgb(209 213 219);
+}
+
+/* Keep the select clear affordance at the WCAG 2.2 minimum target size. */
+.fi-select-input-value-remove-btn {
+    display: grid;
+    width: 1.625rem;
+    min-width: 1.625rem;
+    height: 1.625rem;
+    min-height: 1.625rem;
+    place-items: center;
+}
+
+/* Dense operational pages must keep every primary action reachable. */
+.fi-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.fi-header-actions-ctn {
+    flex: 1 1 40rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.fi-header-actions-ctn > .fi-ac {
+    width: 100%;
+}
+
 .maestro-calendar-shell {
     --maestro-border: color-mix(in srgb, currentColor 14%, transparent);
     display: grid;

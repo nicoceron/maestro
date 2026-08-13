@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\MembershipStatus;
+use App\Enums\StudioStatus;
 use App\Models\Studio;
 use App\Models\StudioMembership;
 use App\Support\Tenancy\TenantContext;
@@ -24,6 +25,11 @@ final class EnsureActiveStudioMembership
         }
 
         abort_unless($tenant instanceof Studio, Response::HTTP_FORBIDDEN);
+        abort_if(
+            in_array($tenant->status, [StudioStatus::Suspended, StudioStatus::Closed], true)
+                && $request->route()?->getName() !== 'filament.admin.pages.data-lifecycle',
+            Response::HTTP_FORBIDDEN,
+        );
 
         $membership = StudioMembership::query()
             ->where('studio_id', $tenant->getKey())

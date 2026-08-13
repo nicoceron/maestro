@@ -655,6 +655,155 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/platform/support-access/grants": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List the operator's support grants
+         * @description Separate platform-operator route returning only grants requested by the current active operator. A platform assignment alone never grants tenant access.
+         */
+        readonly get: operations["listPlatformSupportAccessGrants"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/platform/support-access/grants/{grant}/sessions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Start an approved support session
+         * @description Starts at most one active session for the current operator's approved, unrevoked, in-window
+         *     grant after recent identity confirmation and current-session MFA. The session lasts no more
+         *     than two hours or the grant remainder. The bearer is returned exactly once and only its HMAC
+         *     digest is stored. It must be supplied in `X-Maestro-Support-Session` on support-session routes.
+         */
+        readonly post: operations["startSupportAccessSession"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/platform/support-access/mfa-confirmation": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Confirm current-session MFA for support access
+         * @description Verifies a six-digit TOTP against the authenticated operator's confirmed authenticator and
+         *     stamps only the current browser session for ten minutes. This does not create a grant, enter
+         *     a tenant, elevate a platform assignment, or return authenticator secret material. A recent
+         *     password or passkey confirmation is required before the challenge can be submitted.
+         */
+        readonly post: operations["confirmSupportAccessMfa"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/platform/support-access/requests": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Request tenant support access
+         * @description An active platform operator requests one exact tenant, a specific purpose, one-to-five
+         *     allowlisted read-only scopes, and a future window of at most four hours. Recent identity
+         *     confirmation and current-session MFA are mandatory. `Idempotency-Key` is bound to the full
+         *     canonical request. The request does not enter the tenant or create a support session.
+         */
+        readonly post: operations["requestSupportAccess"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/platform/support-access/sessions/{session}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * End the current support session
+         * @description Ends only the current operator's exact header-and-route-bound support session. Repeating the operation returns the terminal banner and does not revive or extend access.
+         */
+        readonly delete: operations["endSupportAccessSession"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/platform/support-access/sessions/{session}/audit-events": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * View tenant audit through a support session
+         * @description Requires the exact active support-session bearer and `audit.read` scope. It returns the same redacted tenant audit projection; the operator identity remains the actor and never becomes a tenant user.
+         */
+        readonly get: operations["listSupportSessionAuditEvents"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/platform/support-access/sessions/{session}/banner": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get the active support-session banner
+         * @description Revalidates the current platform operator, bearer digest, exact route session, active grant, expiry/revocation, and session ownership on every request.
+         */
+        readonly get: operations["getSupportAccessSessionBanner"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/public/studios/{studio}/calendar": {
         readonly parameters: {
             readonly query?: never;
@@ -751,6 +900,29 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/audit-events": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List immutable tenant audit events
+         * @description Owner/administrator-only cursor projection of the route studio's append-only audit stream.
+         *     It exposes safe actor/subject labels, correlation, schema version, allowlisted payload, and
+         *     occurrence time. It omits global actor IDs, request/network/client hashes, support token
+         *     material, chain HMACs, storage/outbox fields, and every other tenant.
+         */
+        readonly get: operations["listTenantAuditEvents"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/studios/{studio}/calendar": {
         readonly parameters: {
             readonly query?: never;
@@ -765,6 +937,223 @@ export interface paths {
         readonly get: operations["listStudioCalendarOccurrences"];
         readonly put?: never;
         readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-exports": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List tenant data exports
+         * @description Lists only exports belonging to the route studio. This owner-only projection omits storage paths, ciphertext hashes, idempotency keys, actor IDs, failure digests, and queue metadata.
+         */
+        readonly get: operations["listTenantDataExports"];
+        readonly put?: never;
+        /**
+         * Request an encrypted tenant data export
+         * @description Owner-only asynchronous export creation after recent password/passkey confirmation and
+         *     current-session MFA. The actor-scoped idempotency key binds the media-inventory option;
+         *     exact replay returns the original export and changed input returns typed `409`. The worker
+         *     produces an encrypted deterministic JSON envelope containing a manifest and base64 NDJSON
+         *     datasets. This slice is not yet a proof of a transactionally consistent point-in-time dump.
+         */
+        readonly post: operations["requestTenantDataExport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-exports/{export}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get a tenant data export
+         * @description Returns one owner-visible export resolved inside the route studio; cross-tenant substitution is `404`.
+         */
+        readonly get: operations["getTenantDataExport"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-exports/{export}/download": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Download a tenant export archive
+         * @description Streams the decrypted Maestro JSON archive only after signed-route validation, current
+         *     owner authorization, recent password/passkey confirmation, current-session MFA, ready state,
+         *     export expiry, and its atomic one-use claim are rechecked. The archive is private/no-store
+         *     and contains the manifest plus base64-encoded NDJSON entries; it is not a raw database dump.
+         */
+        readonly get: operations["downloadTenantDataExport"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-exports/{export}/download-url": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Create a short-lived tenant export download URL
+         * @description Reauthorizes owner access, recent identity confirmation, and current-session MFA before returning a short-lived signed application route. Pending, failed, expired, purged, foreign, or unauthorized exports are unavailable.
+         */
+        readonly post: operations["createTenantDataExportDownloadUrl"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/data-exports/{export}/restore-drills": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Run a non-writing tenant restore drill
+         * @description Owner-only asynchronous dry run after recent confirmation and current-session MFA. It verifies
+         *     the current Maestro archive envelope, manifest/schema/hash, exact declared entries, byte and row
+         *     counts, NDJSON decoding, source-tenant invariants, and one proposed tenant-ID remap. It does not
+         *     import, activate, merge, or overwrite tenant data and therefore does not complete restore parity.
+         */
+        readonly post: operations["requestTenantRestoreDrill"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/deletion-requests": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List tenant deletion requests */
+        readonly get: operations["listTenantDeletionRequests"];
+        readonly put?: never;
+        /**
+         * Request tenant deletion
+         * @description Owner-only request after recent confirmation and current-session MFA. The exact typed
+         *     confirmation is `DELETE {studio-slug}`. The operation starts the configured 14-day
+         *     cooling-off period and queues a media-inventory export. An active studio-wide legal hold
+         *     blocks the request. No tenant data is deleted by this endpoint.
+         */
+        readonly post: operations["requestTenantDeletion"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/deletion-requests/{deletion}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get a tenant deletion request */
+        readonly get: operations["getTenantDeletionRequest"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/deletion-requests/{deletion}/approve": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Approve a cooled-off tenant deletion
+         * @description A distinct active studio administrator provides independent approval only after cooling-off, a ready verified export, no legal hold, recent confirmation, and current-session MFA. The requesting owner cannot approve. The locked transition is idempotent; it does not yet execute irreversible purge.
+         */
+        readonly post: operations["approveTenantDeletion"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/deletion-requests/{deletion}/cancel": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Cancel a tenant deletion request
+         * @description Owner-only locked, idempotent cancellation while the request is in cooling-off or approved state; requires recent confirmation and current-session MFA.
+         */
+        readonly post: operations["cancelTenantDeletion"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/deletion-requests/{deletion}/restore": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Restore a suspended or quarantined tenant
+         * @description Owner-only locked reversal after recent confirmation and current-session MFA. It restores the
+         *     pre-suspension studio and membership statuses retained by this deletion request. It does not
+         *     import an export archive and is distinct from the non-writing restore drill.
+         */
+        readonly post: operations["restoreTenantDeletion"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -1640,6 +2029,71 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/restore-drills/{drill}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get a tenant restore drill
+         * @description Returns the privacy-safe state and aggregate verification results of one route-studio dry run.
+         */
+        readonly get: operations["getTenantRestoreDrill"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/retention-policy": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get the tenant retention policy */
+        readonly get: operations["getTenantRetentionPolicy"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        /**
+         * Update the tenant retention policy
+         * @description Owner-only optimistic update after recent confirmation and current-session MFA. The current `version` is mandatory; stale input is a field-keyed validation failure in this scaffolded slice.
+         */
+        readonly patch: operations["updateTenantRetentionPolicy"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/retention-policy/legal-hold": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Place a tenant legal hold
+         * @description Owner-only legal-hold placement after recent confirmation and current-session MFA. The hold blocks deletion progression and export expiry; this slice has one studio-wide hold rather than the target scoped, dual-approved hold aggregate.
+         */
+        readonly post: operations["placeTenantLegalHold"];
+        /**
+         * Release the tenant legal hold
+         * @description Owner-only release after recent confirmation and current-session MFA. Release does not execute retention or deletion work.
+         */
+        readonly delete: operations["releaseTenantLegalHold"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/studios/{studio}/schedule/enrollment-previews/{preview}/commit": {
         readonly parameters: {
             readonly query?: never;
@@ -1768,6 +2222,86 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/support-access/grants": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List tenant support-access grants
+         * @description Owner/administrator-only cursor history for the route studio. Read-only scopes and the visible reason/window make every request reviewable; no bearer or platform-assignment identifier is exposed.
+         */
+        readonly get: operations["listTenantSupportAccessGrants"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/support-access/grants/{grant}/approve": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Approve a support-access grant
+         * @description Owner/administrator optimistic approval after recent identity confirmation and current-session MFA. Only a current, unexpired request can be approved, and a dual-role platform operator cannot approve their own request. This tranche is strictly read-only; no write/export/destructive support scope exists.
+         */
+        readonly post: operations["approveSupportAccessGrant"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/support-access/grants/{grant}/reject": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Reject a support-access grant
+         * @description Owner/administrator optimistic rejection with an explicit safe decision reason after recent confirmation and current-session MFA.
+         */
+        readonly post: operations["rejectSupportAccessGrant"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/support-access/grants/{grant}/revoke": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Revoke support access
+         * @description Owner/administrator optimistic revocation with a reason after recent confirmation and current-session MFA. Every open session for the grant ends in the same locked transaction.
+         */
+        readonly post: operations["revokeSupportAccessGrant"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/sanctum/csrf-cookie": {
         readonly parameters: {
             readonly query?: never;
@@ -1795,6 +2329,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        readonly ApproveSupportAccessGrantInput: {
+            readonly reason?: string | null;
+            readonly version: number;
+        };
         /** @enum {string} */
         readonly AttendanceBillingDisposition: "bill" | "no_charge" | "credit" | "pending_review";
         readonly AttendanceCorrection: {
@@ -2157,6 +2695,10 @@ export interface components {
         readonly CurrentUserEnvelope: {
             readonly data: components["schemas"]["CurrentUser"];
         };
+        readonly DecideSupportAccessGrantInput: {
+            readonly reason: string;
+            readonly version: number;
+        };
         readonly EmailInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
         };
@@ -2319,6 +2861,11 @@ export interface components {
         };
         /** @enum {string} */
         readonly GuardianRelationshipType: "parent" | "legal_guardian" | "grandparent" | "carer" | "other";
+        readonly HighRiskConfirmationProblem: {
+            /** @enum {string} */
+            readonly code: "RECENT_CONFIRMATION_REQUIRED" | "MFA_REQUIRED";
+            readonly message: string;
+        };
         readonly Household: {
             /** Format: date-time */
             readonly created_at: string | null;
@@ -2977,6 +3524,9 @@ export interface components {
             readonly status?: components["schemas"]["PersonStatus"];
             readonly tag_ids?: readonly components["schemas"]["Ulid"][];
         };
+        readonly PlaceTenantLegalHoldInput: {
+            readonly reason: string;
+        };
         /** @enum {string} */
         readonly PortalPermission: "calendar" | "attendance" | "learning" | "billing" | "booking" | "messages";
         readonly PreviewEventEnrollmentInput: {
@@ -3123,6 +3673,34 @@ export interface components {
              * @constant
              */
             readonly message: "If registration can be completed, check your email for next steps.";
+        };
+        readonly RequestSupportAccessInput: {
+            /**
+             * Format: date-time
+             * @description Must follow `starts_at` by no more than four hours.
+             */
+            readonly expires_at: string;
+            readonly reason: string;
+            readonly scopes: readonly components["schemas"]["SupportAccessScope"][];
+            /**
+             * Format: date-time
+             * @description Cannot be more than seven days in the future or materially before request time.
+             */
+            readonly starts_at: string;
+            /** @description Exact target studio ULID; it does not establish tenant context or authority. */
+            readonly studio_id: components["schemas"]["Ulid"];
+        };
+        readonly RequestTenantDataExportInput: {
+            /**
+             * @description Include the private attachment metadata inventory, never storage keys or attachment bytes.
+             * @default false
+             */
+            readonly include_media_inventory?: boolean;
+        };
+        readonly RequestTenantDeletionInput: {
+            /** @description Exact case-sensitive `DELETE {route-studio-slug}` phrase. */
+            readonly confirmation_phrase: string;
+            readonly reason: string;
         };
         readonly ResetPasswordInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
@@ -3283,6 +3861,7 @@ export interface components {
         readonly SessionCollectionEnvelope: {
             readonly data: readonly components["schemas"]["BrowserSession"][];
         };
+        readonly Sha256: string;
         readonly SlotSearchInput: {
             /**
              * @description Requested participant capacity included in room-capacity conflict checks.
@@ -3444,6 +4023,313 @@ export interface components {
         readonly StudioSlug: string;
         /** @enum {string} */
         readonly StudioStatus: "trial" | "active" | "past_due" | "suspended" | "closed";
+        readonly SupportAccessGrant: {
+            /** Format: date-time */
+            readonly approved_at: string | null;
+            readonly approver: components["schemas"]["SupportActorReference"];
+            /** Format: date-time */
+            readonly created_at: string | null;
+            readonly decision_reason: string | null;
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly reason: string;
+            /** Format: date-time */
+            readonly rejected_at: string | null;
+            readonly requester: components["schemas"]["SupportActorReference"];
+            /** Format: date-time */
+            readonly revoked_at: string | null;
+            readonly scopes: readonly components["schemas"]["SupportAccessScope"][];
+            /** Format: date-time */
+            readonly starts_at: string;
+            readonly status: components["schemas"]["SupportAccessGrantStatus"];
+            readonly studio: components["schemas"]["SupportStudioReference"];
+            readonly version: number;
+        };
+        readonly SupportAccessGrantCursorCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["SupportAccessGrant"][];
+            readonly links: components["schemas"]["LaravelCursorPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelCursorPaginationMeta"];
+        };
+        readonly SupportAccessGrantEnvelope: {
+            readonly data: components["schemas"]["SupportAccessGrant"];
+        };
+        /** @enum {string} */
+        readonly SupportAccessGrantStatus: "requested" | "approved" | "rejected" | "revoked" | "expired";
+        readonly SupportAccessProblem: {
+            /** @enum {string} */
+            readonly code: "support_approval_forbidden" | "support_rejection_forbidden" | "support_revocation_forbidden" | "support_operator_required" | "support_mfa_required" | "support_mfa_invalid" | "support_current_session_mfa_required" | "support_recent_auth_required" | "support_scope_invalid" | "support_window_invalid" | "support_reason_invalid" | "support_idempotency_conflict" | "support_version_conflict" | "support_grant_not_approvable" | "support_grant_not_rejectable" | "support_grant_not_revocable" | "support_session_forbidden" | "support_grant_inactive" | "support_session_already_active" | "support_session_required" | "support_session_inactive" | "support_scope_forbidden" | "support_session_mismatch";
+            readonly message: string;
+        };
+        /**
+         * @description Read-only delegated capability. Export, credential, billing-secret, legal-hold, deletion, restore, ownership, and arbitrary write scopes do not exist.
+         * @enum {string}
+         */
+        readonly SupportAccessScope: "audit.read" | "configuration.read" | "people.read" | "schedule.read" | "diagnostics.read";
+        readonly SupportActorReference: {
+            readonly display: string | null;
+        };
+        readonly SupportMfaConfirmationEnvelope: {
+            readonly data: components["schemas"]["SupportMfaConfirmationResult"];
+        };
+        readonly SupportMfaConfirmationInput: {
+            /** @description Six-digit TOTP; never logged, persisted, echoed, or returned. */
+            readonly code: string;
+        };
+        readonly SupportMfaConfirmationResult: {
+            /**
+             * Format: date-time
+             * @description Expiry of the current browser session's support-access MFA assurance.
+             */
+            readonly expires_at: string;
+            /** @constant */
+            readonly verified: true;
+        };
+        readonly SupportSessionBanner: {
+            readonly approved_by: components["schemas"]["SupportActorReference"];
+            /** @constant */
+            readonly banner: "Support access is active. Every view is scoped, visible, and audited.";
+            readonly end_reason: string | null;
+            /** Format: date-time */
+            readonly ended_at: string | null;
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly reason: string;
+            readonly scopes: readonly components["schemas"]["SupportAccessScope"][];
+            /** Format: date-time */
+            readonly started_at: string;
+            readonly studio: components["schemas"]["SupportStudioReference"];
+        };
+        readonly SupportSessionBannerEnvelope: {
+            readonly data: components["schemas"]["SupportSessionBanner"];
+        };
+        readonly SupportSessionStarted: {
+            /** @description Response-once bearer; never persisted or returned by another operation. */
+            readonly access_token: string;
+            readonly session: components["schemas"]["SupportSessionBanner"];
+            /** @constant */
+            readonly token_type: "Maestro-Support-Session";
+        };
+        readonly SupportSessionStartedEnvelope: {
+            readonly data: components["schemas"]["SupportSessionStarted"];
+        };
+        readonly SupportStudioReference: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly name?: string;
+        };
+        readonly TenantAuditActor: {
+            readonly display: string | null;
+            /** @enum {string} */
+            readonly type: "user" | "support" | "system";
+        };
+        readonly TenantAuditEvent: {
+            readonly actor: components["schemas"]["TenantAuditActor"];
+            readonly correlation_id: components["schemas"]["Ulid"];
+            readonly event_type: string;
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly occurred_at: string | null;
+            /** @description Event-type-specific, explicitly allowlisted safe metadata. Credentials and private transport/infrastructure fields are forbidden. */
+            readonly payload: {
+                readonly [key: string]: unknown;
+            };
+            readonly payload_version: number;
+            readonly subject: components["schemas"]["TenantAuditSubject"];
+        };
+        readonly TenantAuditEventCursorCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["TenantAuditEvent"][];
+            readonly links: components["schemas"]["LaravelCursorPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelCursorPaginationMeta"];
+        };
+        readonly TenantAuditSubject: {
+            readonly id: string | null;
+            readonly type: string;
+        };
+        readonly TenantDataConflictProblem: {
+            /** @enum {string} */
+            readonly code: "IDEMPOTENCY_KEY_REUSED" | "CONFIRMATION_PHRASE_INVALID" | "DELETION_ALREADY_OPEN" | "LEGAL_HOLD_ACTIVE" | "DELETION_NOT_APPROVABLE" | "COOLING_OFF_ACTIVE" | "SECOND_OWNER_APPROVAL_REQUIRED" | "INDEPENDENT_APPROVAL_REQUIRED" | "VERIFIED_EXPORT_REQUIRED" | "DELETION_NOT_CANCELLABLE" | "TENANT_NOT_RESTORABLE" | "EXPORT_NOT_RESTORABLE";
+            readonly message: string;
+        };
+        readonly TenantDataExport: {
+            readonly archive_size: number | null;
+            /** Format: date-time */
+            readonly created_at: string | null;
+            readonly download_count: number;
+            readonly error_code: string | null;
+            /** Format: date-time */
+            readonly expires_at: string | null;
+            /** @constant */
+            readonly format_version: "1.0";
+            readonly id: components["schemas"]["Ulid"];
+            readonly include_media_inventory: boolean;
+            /** @description Present only when status is `ready`. */
+            readonly manifest?: components["schemas"]["TenantDataExportManifest"];
+            readonly progress: components["schemas"]["TenantDataExportProgress"];
+            /** Format: date-time */
+            readonly purged_at: string | null;
+            /** Format: date-time */
+            readonly ready_at: string | null;
+            readonly status: components["schemas"]["TenantDataExportStatus"];
+            /** Format: date-time */
+            readonly updated_at: string | null;
+        };
+        readonly TenantDataExportDownloadUrl: {
+            /** Format: date-time */
+            readonly expires_at: string;
+            /** Format: uri */
+            readonly url: string;
+        };
+        readonly TenantDataExportDownloadUrlEnvelope: {
+            readonly data: components["schemas"]["TenantDataExportDownloadUrl"];
+        };
+        readonly TenantDataExportEnvelope: {
+            readonly data: components["schemas"]["TenantDataExport"];
+        };
+        readonly TenantDataExportManifest: {
+            readonly application: components["schemas"]["TenantExportApplication"];
+            readonly canonicalization: string;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly datasets: readonly components["schemas"]["TenantExportDatasetManifest"][];
+            readonly excluded_secret_fields: readonly string[];
+            readonly export_id: components["schemas"]["Ulid"];
+            /** @constant */
+            readonly format: "maestro-tenant-portable-archive";
+            /** @constant */
+            readonly format_version: "1.0";
+            readonly manifest_sha256: components["schemas"]["Sha256"];
+            readonly media_inventory_included: boolean;
+            /**
+             * Format: date-time
+             * @description Declared upper timestamp boundary; this scaffold does not yet prove complete point-in-time consistency under concurrent updates.
+             */
+            readonly snapshot_boundary: string;
+            readonly studio: components["schemas"]["TenantExportStudioDefaults"];
+        };
+        readonly TenantDataExportPaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["TenantDataExport"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly TenantDataExportProgress: {
+            readonly completed_datasets: number;
+            readonly next_dataset_index: number;
+        };
+        /** @enum {string} */
+        readonly TenantDataExportStatus: "requested" | "queued" | "exporting" | "ready" | "failed" | "expired" | "purged";
+        readonly TenantDeletionRequest: {
+            /** Format: date-time */
+            readonly approved_at: string | null;
+            /** Format: date-time */
+            readonly cancelled_at: string | null;
+            /** Format: date-time */
+            readonly cooling_off_ends_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string | null;
+            readonly export_id: components["schemas"]["Ulid"] | null;
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly purge_eligible_at: string | null;
+            /** Format: date-time */
+            readonly quarantined_at: string | null;
+            readonly reason: string;
+            /** Format: date-time */
+            readonly restored_at: string | null;
+            readonly status: components["schemas"]["TenantDeletionStatus"];
+            /** Format: date-time */
+            readonly suspended_at: string | null;
+            readonly version: number;
+        };
+        readonly TenantDeletionRequestEnvelope: {
+            readonly data: components["schemas"]["TenantDeletionRequest"];
+        };
+        readonly TenantDeletionRequestPaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["TenantDeletionRequest"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        /** @enum {string} */
+        readonly TenantDeletionStatus: "requested" | "cooling_off" | "approved" | "suspended" | "quarantined" | "purge_eligible" | "cancelled" | "restoring" | "restored" | "failed";
+        readonly TenantExportApplication: {
+            /** @constant */
+            readonly name: "maestro";
+            readonly schema: string;
+        };
+        readonly TenantExportDatasetManifest: {
+            readonly bytes: number;
+            readonly count: number;
+            readonly dependencies: readonly string[];
+            /** @description True only for the optional attachment metadata inventory; the archive contains no attachment bytes. */
+            readonly media: boolean;
+            readonly name: string;
+            readonly path: string;
+            readonly schema_version: string;
+            readonly sha256: components["schemas"]["Sha256"];
+        };
+        readonly TenantExportStudioDefaults: {
+            /** @example USD */
+            readonly currency: string;
+            /** @example en */
+            readonly locale: string;
+            /** @example America/Bogota */
+            readonly timezone: string;
+        };
+        readonly TenantIdRemap: {
+            readonly [key: string]: components["schemas"]["Ulid"];
+        };
+        readonly TenantRestoreDrill: {
+            /** Format: date-time */
+            readonly completed_at: string | null;
+            /** @constant */
+            readonly dry_run: true;
+            readonly error_code: string | null;
+            readonly export_id: components["schemas"]["Ulid"];
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly started_at: string | null;
+            readonly status: components["schemas"]["TenantRestoreDrillStatus"];
+            readonly target_studio_id: components["schemas"]["Ulid"] | null;
+            readonly tenant_id_remap: components["schemas"]["TenantIdRemap"];
+            readonly verification: components["schemas"]["TenantRestoreVerification"] | null;
+        };
+        readonly TenantRestoreDrillEnvelope: {
+            readonly data: components["schemas"]["TenantRestoreDrill"];
+        };
+        /** @enum {string} */
+        readonly TenantRestoreDrillStatus: "requested" | "running" | "verified" | "failed";
+        readonly TenantRestoreVerification: {
+            readonly archive_checksum_valid: boolean;
+            readonly dataset_checksums_valid: boolean;
+            readonly dataset_count: number;
+            /** @constant */
+            readonly dry_run: true;
+            readonly manifest_checksum_valid: boolean;
+            readonly row_count: number;
+            readonly schema_version_supported: boolean;
+            readonly tenant_id_remap_valid: boolean;
+            readonly tenant_invariants_valid: boolean;
+            readonly tenant_reference_count: number;
+        };
+        readonly TenantRetentionPolicy: {
+            readonly audit_retention_days: number;
+            readonly deletion_cooling_off_days: number;
+            readonly deletion_quarantine_days: number;
+            readonly export_ttl_hours: number;
+            readonly id: components["schemas"]["Ulid"];
+            readonly legal_hold: boolean;
+            /** Format: date-time */
+            readonly legal_hold_placed_at: string | null;
+            readonly legal_hold_reason: string | null;
+            /** Format: date-time */
+            readonly legal_hold_released_at: string | null;
+            readonly media_retention_days: number;
+            readonly operational_retention_days: number;
+            readonly version: number;
+        };
+        readonly TenantRetentionPolicyEnvelope: {
+            readonly data: components["schemas"]["TenantRetentionPolicy"];
+        };
         readonly TransitionStudentStatusInput: {
             readonly reason?: string | null;
             readonly status: components["schemas"]["StudentStatus"];
@@ -3617,6 +4503,15 @@ export interface components {
             readonly version: number;
             readonly weekday?: number;
         };
+        readonly UpdateTenantRetentionPolicyInput: {
+            readonly audit_retention_days?: number;
+            readonly deletion_cooling_off_days?: number;
+            readonly deletion_quarantine_days?: number;
+            readonly export_ttl_hours?: number;
+            readonly media_retention_days?: number;
+            readonly operational_retention_days?: number;
+            readonly version: number;
+        };
         readonly UploadLessonNoteAttachmentInput: {
             /**
              * Format: binary
@@ -3726,6 +4621,29 @@ export interface components {
                  *     }
                  */
                 readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The private artifact is not in a currently downloadable state or has expired. */
+        readonly Gone: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "message": "The export is not available."
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description A recent password/passkey confirmation or a recent MFA verification in the current session is required for this high-risk tenant operation. */
+        readonly HighRiskConfirmationRequired: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["HighRiskConfirmationProblem"];
             };
         };
         /**
@@ -3876,6 +4794,33 @@ export interface components {
                 readonly "application/json": components["schemas"]["ValidationProblem"];
             };
         };
+        /** @description The active operator, recent-auth/MFA, grant lifecycle/version, scope, session bearer, ownership, or idempotency boundary rejected the operation. */
+        readonly SupportAccessProblem: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["SupportAccessProblem"];
+            };
+        };
+        /** @description The TOTP input was malformed or did not verify against the authenticated operator's confirmed authenticator. */
+        readonly SupportMfaConfirmationFailed: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["ValidationProblem"] | components["schemas"]["SupportAccessProblem"];
+            };
+        };
+        /** @description An idempotency, legal-hold, cooling-off, export-readiness, deletion-state, confirmation, or restore-drill invariant rejected the operation without a partial lifecycle transition. */
+        readonly TenantDataConflict: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["TenantDataConflictProblem"];
+            };
+        };
         /** @description API rate limit exceeded. */
         readonly TooManyRequests: {
             headers: {
@@ -3926,6 +4871,18 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Correlates safe domain, audit, and outbox activity without exposing payloads. */
+        readonly AuditCorrelationIdFilter: components["schemas"]["Ulid"];
+        /** @description Exact stable audit event type. */
+        readonly AuditEventTypeFilter: string;
+        /** @description Inclusive audit occurrence lower bound. */
+        readonly AuditFromFilter: string;
+        /** @description Audit cursor page size; defaults to 50. */
+        readonly AuditPerPage: number;
+        /** @description Exact safe audit subject type. */
+        readonly AuditSubjectTypeFilter: string;
+        /** @description Inclusive audit occurrence upper bound; cannot precede `from`. */
+        readonly AuditToFilter: string;
         /** @description Opaque Laravel cursor from `links.next` or `links.prev`; clients must not construct or interpret it. */
         readonly CalendarCursor: string | null;
         /** @description Inclusive range start parsed as an absolute date/time by Laravel. */
@@ -3934,6 +4891,8 @@ export interface components {
         readonly CalendarPageSize: number;
         /** @description Exclusive range end after `from`; the calendar range cannot exceed 93 days. */
         readonly CalendarTo: string;
+        /** @description Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set. */
+        readonly Cursor: string;
         /** @description Enrollment ULID constrained to the route studio and event series. */
         readonly EventEnrollmentId: components["schemas"]["Ulid"];
         /** @description Materialized event-occurrence ULID resolved through the route studio. */
@@ -4025,8 +4984,18 @@ export interface components {
          * @example sonora-house
          */
         readonly StudioSlug: components["schemas"]["StudioSlug"];
+        /** @description Support-access-grant ULID, reauthorized for the route tenant or current platform operator. */
+        readonly SupportAccessGrantId: components["schemas"]["Ulid"];
+        /** @description Support-session ULID that must exactly match the current operator and support-session bearer. */
+        readonly SupportAccessSessionId: components["schemas"]["Ulid"];
         /** @description Tenant-owned tag ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers. */
         readonly TagIdFilter: components["schemas"]["Ulid"];
+        /** @description Tenant-data-export ULID resolved through the route studio. */
+        readonly TenantDataExportId: components["schemas"]["Ulid"];
+        /** @description Tenant-deletion-request ULID resolved through the route studio. */
+        readonly TenantDeletionRequestId: components["schemas"]["Ulid"];
+        /** @description Non-writing restore-drill ULID resolved through the route studio. */
+        readonly TenantRestoreDrillId: components["schemas"]["Ulid"];
     };
     requestBodies: never;
     headers: {
@@ -4054,6 +5023,8 @@ export interface components {
          *     OpenAPI represents the header value as a string.
          */
         readonly SetCookie: string;
+        /** @description Safe generated Maestro tenant-export JSON filename; no original upload or storage key is reflected. */
+        readonly TenantExportDisposition: string;
     };
     pathItems: never;
 }
@@ -4983,6 +5954,235 @@ export interface operations {
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
+    readonly listPlatformSupportAccessGrants: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set. */
+                readonly cursor?: components["parameters"]["Cursor"];
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current operator's grants in a cursor collection. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportAccessGrantCursorCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly startSupportAccessSession: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-access-grant ULID, reauthorized for the route tenant or current platform operator. */
+                readonly grant: components["parameters"]["SupportAccessGrantId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Support session started; the bearer appears only in this no-store response. */
+            readonly 201: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportSessionStartedEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SupportAccessProblem"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["SupportAccessProblem"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly confirmSupportAccessMfa: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                /**
+                 * @example {
+                 *       "code": "123456"
+                 *     }
+                 */
+                readonly "application/json": components["schemas"]["SupportMfaConfirmationInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Current browser session has fresh support-access MFA assurance. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "verified": true,
+                     *         "expires_at": "2026-08-13T20:10:00Z"
+                     *       }
+                     *     }
+                     */
+                    readonly "application/json": components["schemas"]["SupportMfaConfirmationEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["SupportMfaConfirmationFailed"];
+            readonly 423: components["responses"]["SupportAccessProblem"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly requestSupportAccess: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RequestSupportAccessInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Support grant request recorded; tenant approval is still required. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportAccessGrantEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SupportAccessProblem"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["SupportAccessProblem"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly endSupportAccessSession: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-session ULID that must exactly match the current operator and support-session bearer. */
+                readonly session: components["parameters"]["SupportAccessSessionId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Terminal support-session banner. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportSessionBannerEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["SupportAccessProblem"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listSupportSessionAuditEvents: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set. */
+                readonly cursor?: components["parameters"]["Cursor"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-session ULID that must exactly match the current operator and support-session bearer. */
+                readonly session: components["parameters"]["SupportAccessSessionId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Tenant audit cursor page under the active delegated support context. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantAuditEventCursorCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["SupportAccessProblem"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getSupportAccessSessionBanner: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-session ULID that must exactly match the current operator and support-session bearer. */
+                readonly session: components["parameters"]["SupportAccessSessionId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Mandatory active-support context for persistent UI display. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    /** @description Explicitly marks a response generated in delegated support mode. */
+                    readonly "X-Maestro-Support-Access"?: "active";
+                    /** @description Exact session expiry for persistent UI display. */
+                    readonly "X-Maestro-Support-Expires-At"?: string;
+                    /** @description Active support-session ULID, never the bearer. */
+                    readonly "X-Maestro-Support-Session-Id"?: components["schemas"]["Ulid"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportSessionBannerEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["SupportAccessProblem"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly listPublicCalendarOccurrences: {
         readonly parameters: {
             readonly query: {
@@ -5137,6 +6337,52 @@ export interface operations {
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
+    readonly listTenantAuditEvents: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Correlates safe domain, audit, and outbox activity without exposing payloads. */
+                readonly correlation_id?: components["parameters"]["AuditCorrelationIdFilter"];
+                /** @description Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set. */
+                readonly cursor?: components["parameters"]["Cursor"];
+                /** @description Exact stable audit event type. */
+                readonly event_type?: components["parameters"]["AuditEventTypeFilter"];
+                /** @description Inclusive audit occurrence lower bound. */
+                readonly from?: components["parameters"]["AuditFromFilter"];
+                /** @description Audit cursor page size; defaults to 50. */
+                readonly per_page?: components["parameters"]["AuditPerPage"];
+                /** @description Exact safe audit subject type. */
+                readonly subject_type?: components["parameters"]["AuditSubjectTypeFilter"];
+                /** @description Inclusive audit occurrence upper bound; cannot precede `from`. */
+                readonly to?: components["parameters"]["AuditToFilter"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Stable descending audit cursor page. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantAuditEventCursorCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly listStudioCalendarOccurrences: {
         readonly parameters: {
             readonly query: {
@@ -5181,6 +6427,441 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listTenantDataExports: {
+        readonly parameters: {
+            readonly query?: {
+                /**
+                 * @description One-based Laravel paginator page number.
+                 * @example 1
+                 */
+                readonly page?: components["parameters"]["Page"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Owner-visible exports in a Laravel paginator. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDataExportPaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly requestTenantDataExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RequestTenantDataExportInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Export queued, or the exact original export returned on idempotent replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDataExportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["TenantDataConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getTenantDataExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-data-export ULID resolved through the route studio. */
+                readonly export: components["parameters"]["TenantDataExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Safe export projection. The manifest is present only when ready. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDataExportEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly downloadTenantDataExport: {
+        readonly parameters: {
+            readonly query: {
+                readonly expires: number;
+                readonly signature: string;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-data-export ULID resolved through the route studio. */
+                readonly export: components["parameters"]["TenantDataExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Decrypted portable JSON envelope. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly "Content-Disposition": components["headers"]["TenantExportDisposition"];
+                    /** @description Browser MIME sniffing disabled. */
+                    readonly "X-Content-Type-Options"?: "nosniff";
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/vnd.maestro.tenant-export+json": string;
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 410: components["responses"]["Gone"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createTenantDataExportDownloadUrl: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-data-export ULID resolved through the route studio. */
+                readonly export: components["parameters"]["TenantDataExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Private no-store response containing a short-lived signed application URL. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDataExportDownloadUrlEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 410: components["responses"]["Gone"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly requestTenantRestoreDrill: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-data-export ULID resolved through the route studio. */
+                readonly export: components["parameters"]["TenantDataExportId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Non-writing verification drill queued. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantRestoreDrillEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["TenantDataConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listTenantDeletionRequests: {
+        readonly parameters: {
+            readonly query?: {
+                /**
+                 * @description One-based Laravel paginator page number.
+                 * @example 1
+                 */
+                readonly page?: components["parameters"]["Page"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Owner-visible deletion history in a Laravel paginator. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDeletionRequestPaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly requestTenantDeletion: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RequestTenantDeletionInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Cooling-off started, or original request returned on exact replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDeletionRequestEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["TenantDataConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getTenantDeletionRequest: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-deletion-request ULID resolved through the route studio. */
+                readonly deletion: components["parameters"]["TenantDeletionRequestId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Owner-visible deletion lifecycle projection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDeletionRequestEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly approveTenantDeletion: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-deletion-request ULID resolved through the route studio. */
+                readonly deletion: components["parameters"]["TenantDeletionRequestId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Deletion approved for scheduled lifecycle progression. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDeletionRequestEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["TenantDataConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly cancelTenantDeletion: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-deletion-request ULID resolved through the route studio. */
+                readonly deletion: components["parameters"]["TenantDeletionRequestId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Deletion cancelled or exact terminal cancellation returned. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDeletionRequestEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["TenantDataConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly restoreTenantDeletion: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Tenant-deletion-request ULID resolved through the route studio. */
+                readonly deletion: components["parameters"]["TenantDeletionRequestId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Tenant statuses restored, or original restored projection returned on replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantDeletionRequestEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["TenantDataConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -6900,6 +8581,174 @@ export interface operations {
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
+    readonly getTenantRestoreDrill: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Non-writing restore-drill ULID resolved through the route studio. */
+                readonly drill: components["parameters"]["TenantRestoreDrillId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Restore-drill state and safe verification summary. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantRestoreDrillEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getTenantRetentionPolicy: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Current owner-visible policy and legal-hold projection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantRetentionPolicyEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateTenantRetentionPolicy: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateTenantRetentionPolicyInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Updated policy with incremented version. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantRetentionPolicyEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly placeTenantLegalHold: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PlaceTenantLegalHoldInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Legal hold active; exact repeated placement is idempotent. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantRetentionPolicyEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly releaseTenantLegalHold: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Legal hold inactive; exact repeated release is idempotent. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["TenantRetentionPolicyEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 423: components["responses"]["HighRiskConfirmationRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly commitEventEnrollment: {
         readonly parameters: {
             readonly query?: never;
@@ -7211,6 +9060,159 @@ export interface operations {
             readonly 404: components["responses"]["NotFound"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listTenantSupportAccessGrants: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Opaque Laravel cursor. Clients must not inspect, synthesize, or reuse it on another collection/filter set. */
+                readonly cursor?: components["parameters"]["Cursor"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Route-studio grants in a cursor collection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportAccessGrantCursorCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly approveSupportAccessGrant: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-access-grant ULID, reauthorized for the route tenant or current platform operator. */
+                readonly grant: components["parameters"]["SupportAccessGrantId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ApproveSupportAccessGrantInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Approved grant with incremented version. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportAccessGrantEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SupportAccessProblem"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["SupportAccessProblem"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly rejectSupportAccessGrant: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-access-grant ULID, reauthorized for the route tenant or current platform operator. */
+                readonly grant: components["parameters"]["SupportAccessGrantId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["DecideSupportAccessGrantInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Rejected grant with incremented version. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportAccessGrantEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SupportAccessProblem"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["SupportAccessProblem"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly revokeSupportAccessGrant: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Support-access-grant ULID, reauthorized for the route tenant or current platform operator. */
+                readonly grant: components["parameters"]["SupportAccessGrantId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["DecideSupportAccessGrantInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Revoked grant with every open support session ended. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SupportAccessGrantEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["SupportAccessProblem"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SupportAccessProblem"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 423: components["responses"]["SupportAccessProblem"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
