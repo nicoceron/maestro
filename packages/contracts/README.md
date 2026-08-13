@@ -1,6 +1,6 @@
 # Maestro API contracts
 
-The OpenAPI 3.1 document in `openapi.yaml` is the source of truth for the implemented Laravel browser identity, onboarding, studio invitation, studio, People/household, scheduling/calendar, attendance, lesson-note, and private lesson-note-attachment APIs. Generated TypeScript declarations live in `generated/schema.d.ts` and can be imported as types from `@maestro/contracts` once this package is added to the workspace.
+The OpenAPI 3.1 document in `openapi.yaml` is the source of truth for the implemented Laravel browser identity, onboarding, studio invitation, studio, People/household, scheduling/calendar, attendance, lesson-note, private lesson-note-attachment, tenant-data lifecycle, immutable audit projection, and delegated-support APIs. Generated TypeScript declarations live in `generated/schema.d.ts` and can be imported as types from `@maestro/contracts` once this package is added to the workspace.
 
 ## Commands
 
@@ -14,7 +14,7 @@ pnpm check
 
 - `lint` validates the description with Redocly's strict ruleset.
 - `generate` deterministically regenerates immutable, alphabetized TypeScript declarations while preserving optional request fields that have server-side defaults.
-- `test` proves the generated declarations are current and audits critical API paths, operation IDs, schemas, privacy boundaries, optimistic versions, and cookie/CSRF invariants.
+- `test` proves the generated declarations are current and audits critical API paths, operation IDs, schemas, privacy boundaries, optimistic versions, cookie/CSRF invariants, and the uniqueness of every stable platform-operations acceptance ID.
 - `check` fails when the schema is invalid, generated declarations are stale, the contract audit fails, or the declarations do not type-check.
 
 Browser clients first call `GET /sanctum/csrf-cookie`. Public Fortify mutations require the XSRF cookie/header pair; authenticated mutations require both that pair and the Sanctum session. Never interpret the UI-only onboarding `workspace_mode` as a membership role.
@@ -36,5 +36,7 @@ Household PATCH treats the household as an optimistic aggregate: it always requi
 Scheduling configuration is a registry-selected tenant API with strict typed request variants, optimistic PATCH-only retirement, and privacy-aware projections. Calendar mutations that can fan out use an actor/studio-bound ten-minute preview and an `Idempotency-Key` commit; commit bodies cannot replace the server-stored command or warning acknowledgement. Hard conflicts are non-overrideable, soft warnings require management acknowledgement, and previews publish billing/payroll/conditional make-up projection intents without claiming financial-ledger effects.
 
 Attendance dispositions are server-derived and cannot be written by clients. Single, bulk, and express capture use actor-scoped idempotency; corrections are optimistic and immutable. Lesson notes and templates sanitize HTML and retain immutable revisions. Delivery preview/commit fingerprints recipients and current clean attachments. Attachments enter private fail-closed quarantine, expose no storage key or public URL, and become downloadable only after a clean scan through a short-lived signed route that rechecks current authorization and recent identity.
+
+Immutable audit/support access, the reusable outbox, and full tenant export/retention/deletion/restore are governed by [`../../docs/product/platform-operations-acceptance.md`](../../docs/product/platform-operations-acceptance.md). That document is a normative release target. OpenAPI operations are added only for live routes and use allowlisted projections; an internal table, job, or scheduled command is not advertised as a public API.
 
 `GET /api/v1/studios` uses Laravel's unpaginated resource collection envelope (`{ "data": [...] }`), while invitation and household lists use Laravel 13's full length-aware paginator (`data`, `links`, and `meta`, including each meta link's `page`). API authentication, envelope, error, authorization, and pagination conventions are documented in [`../../docs/api/README.md`](../../docs/api/README.md).

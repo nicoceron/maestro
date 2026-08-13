@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const source = readFileSync(new URL("../openapi.yaml", import.meta.url), "utf8");
 const generated = readFileSync(new URL("../generated/schema.d.ts", import.meta.url), "utf8");
+const platformOperationsAcceptance = readFileSync(
+  new URL("../../../docs/product/platform-operations-acceptance.md", import.meta.url),
+  "utf8",
+);
 
 const expectedPaths = [
   "/sanctum/csrf-cookie",
@@ -37,12 +41,16 @@ const expectedPaths = [
   "/api/v1/invitations/preview",
   "/api/v1/invitations/accept",
   "/api/v1/onboarding",
+  "/api/v1/studios",
+  "/api/v1/studios/{studio}",
   "/api/v1/studios/{studio}/invitations",
   "/api/v1/studios/{studio}/invitations/{invitation}",
   "/api/v1/studios/{studio}/invitations/{invitation}/resend",
   "/api/v1/studios/{studio}/people",
   "/api/v1/studios/{studio}/people/{person}",
   "/api/v1/studios/{studio}/people/{person}/student-status",
+  "/api/v1/studios/{studio}/households",
+  "/api/v1/studios/{studio}/households/{household}",
   "/api/v1/public/studios/{studio}/calendar",
   "/api/v1/studios/{studio}/scheduling/{resource}",
   "/api/v1/studios/{studio}/scheduling/{resource}/{record}",
@@ -79,6 +87,31 @@ const expectedPaths = [
   "/api/v1/studios/{studio}/note-delivery-previews/{preview}/commit",
   "/api/v1/studios/{studio}/note-templates",
   "/api/v1/studios/{studio}/note-templates/{template}",
+  "/api/v1/studios/{studio}/data-exports",
+  "/api/v1/studios/{studio}/data-exports/{export}",
+  "/api/v1/studios/{studio}/data-exports/{export}/download-url",
+  "/api/v1/studios/{studio}/data-exports/{export}/download",
+  "/api/v1/studios/{studio}/data-exports/{export}/restore-drills",
+  "/api/v1/studios/{studio}/restore-drills/{drill}",
+  "/api/v1/studios/{studio}/retention-policy",
+  "/api/v1/studios/{studio}/retention-policy/legal-hold",
+  "/api/v1/studios/{studio}/deletion-requests",
+  "/api/v1/studios/{studio}/deletion-requests/{deletion}",
+  "/api/v1/studios/{studio}/deletion-requests/{deletion}/approve",
+  "/api/v1/studios/{studio}/deletion-requests/{deletion}/cancel",
+  "/api/v1/studios/{studio}/deletion-requests/{deletion}/restore",
+  "/api/v1/studios/{studio}/audit-events",
+  "/api/v1/studios/{studio}/support-access/grants",
+  "/api/v1/studios/{studio}/support-access/grants/{grant}/approve",
+  "/api/v1/studios/{studio}/support-access/grants/{grant}/reject",
+  "/api/v1/studios/{studio}/support-access/grants/{grant}/revoke",
+  "/api/v1/platform/support-access/grants",
+  "/api/v1/platform/support-access/mfa-confirmation",
+  "/api/v1/platform/support-access/requests",
+  "/api/v1/platform/support-access/grants/{grant}/sessions",
+  "/api/v1/platform/support-access/sessions/{session}",
+  "/api/v1/platform/support-access/sessions/{session}/banner",
+  "/api/v1/platform/support-access/sessions/{session}/audit-events",
 ];
 
 const expectedOperations = [
@@ -115,6 +148,9 @@ const expectedOperations = [
   "previewInvitation",
   "acceptInvitation",
   "completeOnboarding",
+  "listStudios",
+  "createStudio",
+  "getStudio",
   "listStudioInvitations",
   "createStudioInvitation",
   "resendStudioInvitation",
@@ -124,6 +160,9 @@ const expectedOperations = [
   "getPerson",
   "updatePerson",
   "transitionStudentStatus",
+  "listHouseholds",
+  "createHousehold",
+  "getHousehold",
   "updateHousehold",
   "listPublicCalendarOccurrences",
   "listSchedulingRecords",
@@ -165,6 +204,35 @@ const expectedOperations = [
   "listLessonNoteTemplates",
   "createLessonNoteTemplate",
   "updateLessonNoteTemplate",
+  "listTenantDataExports",
+  "requestTenantDataExport",
+  "getTenantDataExport",
+  "createTenantDataExportDownloadUrl",
+  "downloadTenantDataExport",
+  "requestTenantRestoreDrill",
+  "getTenantRestoreDrill",
+  "getTenantRetentionPolicy",
+  "updateTenantRetentionPolicy",
+  "placeTenantLegalHold",
+  "releaseTenantLegalHold",
+  "listTenantDeletionRequests",
+  "requestTenantDeletion",
+  "getTenantDeletionRequest",
+  "approveTenantDeletion",
+  "cancelTenantDeletion",
+  "restoreTenantDeletion",
+  "listTenantAuditEvents",
+  "listTenantSupportAccessGrants",
+  "approveSupportAccessGrant",
+  "rejectSupportAccessGrant",
+  "revokeSupportAccessGrant",
+  "listPlatformSupportAccessGrants",
+  "confirmSupportAccessMfa",
+  "requestSupportAccess",
+  "startSupportAccessSession",
+  "endSupportAccessSession",
+  "getSupportAccessSessionBanner",
+  "listSupportSessionAuditEvents",
 ];
 
 const expectedSchemas = [
@@ -222,6 +290,27 @@ const expectedSchemas = [
   "UploadLessonNoteAttachmentInput",
   "LessonNoteAttachmentDownloadUrl",
   "TypedConflictProblem",
+  "TenantAuditEvent",
+  "TenantAuditEventCursorCollectionEnvelope",
+  "SupportAccessGrant",
+  "RequestSupportAccessInput",
+  "SupportMfaConfirmationInput",
+  "SupportMfaConfirmationResult",
+  "SupportSessionBanner",
+  "SupportSessionStarted",
+  "SupportAccessProblem",
+  "TenantDataExport",
+  "TenantDataExportManifest",
+  "TenantExportDatasetManifest",
+  "TenantDataExportDownloadUrl",
+  "TenantRestoreDrill",
+  "TenantRestoreVerification",
+  "TenantRetentionPolicy",
+  "UpdateTenantRetentionPolicyInput",
+  "TenantDeletionRequest",
+  "RequestTenantDeletionInput",
+  "TenantDataConflictProblem",
+  "HighRiskConfirmationProblem",
 ];
 
 const expectedAcceptanceIds = {
@@ -229,6 +318,7 @@ const expectedAcceptanceIds = {
   completeTwoFactorChallenge: ["IDA-MFA-002", "AUTH-E009"],
   enableTwoFactorAuthentication: ["IDA-MFA-001", "MFA-E001"],
   getTwoFactorQrCode: ["MFA-E006"],
+  confirmSupportAccessMfa: ["OPS-SUP-002", "OPS-SUP-007"],
   registerPasskey: ["IDA-PASSKEY-002", "PASS-E005"],
   listPasskeys: ["PASS-E008"],
   listSessions: ["IDA-SESSION-002", "AUTH-E017"],
@@ -236,6 +326,18 @@ const expectedAcceptanceIds = {
   revokeSession: ["AUTH-E012", "AUTH-E018"],
   createStudioInvitation: ["IDA-STEPUP-001", "INV-E001"],
   resendStudioInvitation: ["IDA-STEPUP-001", "IDA-INVITE-001", "INV-E005", "INV-E008", "INV-E018", "JOB-001", "JOB-002"],
+  requestTenantDataExport: ["OPS-EXP-001", "OPS-EXP-002", "OPS-EXP-004", "OPS-EXP-005"],
+  downloadTenantDataExport: ["OPS-EXP-005", "OPS-EXP-006"],
+  requestTenantRestoreDrill: ["OPS-RST-001", "OPS-RST-002", "OPS-RST-004"],
+  updateTenantRetentionPolicy: ["OPS-RET-001"],
+  placeTenantLegalHold: ["OPS-RET-003", "OPS-RET-004"],
+  requestTenantDeletion: ["OPS-DEL-001", "OPS-DEL-002", "OPS-RET-003"],
+  approveTenantDeletion: ["OPS-DEL-001", "OPS-DEL-002", "OPS-DEL-003"],
+  listTenantAuditEvents: ["OPS-AUD-001", "OPS-AUD-005", "OPS-AUD-006"],
+  approveSupportAccessGrant: ["OPS-SUP-001", "OPS-SUP-002", "OPS-SUP-004", "OPS-SUP-005"],
+  requestSupportAccess: ["OPS-SUP-001", "OPS-SUP-002", "OPS-SUP-004", "OPS-SUP-005", "OPS-SUP-007"],
+  startSupportAccessSession: ["OPS-SUP-002", "OPS-SUP-003", "OPS-SUP-005", "OPS-SUP-007"],
+  getSupportAccessSessionBanner: ["OPS-SUP-002", "OPS-SUP-003", "OPS-SUP-006", "OPS-SUP-007"],
 };
 
 const expectedTypedConflictCodes = [
@@ -255,7 +357,25 @@ const expectedTypedConflictCodes = [
   "attachments_changed_after_preview",
 ];
 
+const expectedPlatformOperationsAcceptanceIds = [
+  ...Array.from({ length: 6 }, (_, index) => `OPS-AUD-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 8 }, (_, index) => `OPS-SUP-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 9 }, (_, index) => `OPS-OUT-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 7 }, (_, index) => `OPS-EXP-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 4 }, (_, index) => `OPS-RET-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 4 }, (_, index) => `OPS-DEL-${String(index + 1).padStart(3, "0")}`),
+  ...Array.from({ length: 7 }, (_, index) => `OPS-RST-${String(index + 1).padStart(3, "0")}`),
+];
+
 const missing = [];
+
+for (const id of expectedPlatformOperationsAcceptanceIds) {
+  const occurrences = platformOperationsAcceptance.split(`\`${id}\``).length - 1;
+
+  if (occurrences !== 1) {
+    missing.push(`platform operations acceptance ID ${id} appears ${occurrences} times instead of once`);
+  }
+}
 
 for (const path of expectedPaths) {
   if (!source.includes(`  ${path}:`)) missing.push(`source path ${path}`);
@@ -348,6 +468,18 @@ const invariants = [
   ["attachment downloads require signed recent-confirmation reauthorization", /operationId: downloadLessonNoteAttachment[\s\S]*?signature[\s\S]*?'423':[\s\S]*?RecentPasswordRequired/],
   ["attachment byte responses are length-bound no-store and sandboxed", /operationId: downloadLessonNoteAttachment[\s\S]*?Cache-Control:[\s\S]*?AttachmentNoStore[\s\S]*?Content-Disposition:[\s\S]*?AttachmentDisposition[\s\S]*?Content-Length:[\s\S]*?AttachmentContentLength[\s\S]*?Content-Security-Policy:[\s\S]*?sandbox/],
   ["unsafe attachment states are nondownloadable", /\/download-url:[\s\S]*?Pending, failed, infected, retired[\s\S]*?return `404`[\s\S]*?operationId: createLessonNoteAttachmentDownloadUrl/],
+  ["tenant export creation requires session CSRF idempotency and high-risk confirmation", /operationId: requestTenantDataExport[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?IdempotencyKey[\s\S]*?'423':[\s\S]*?HighRiskConfirmationRequired/],
+  ["tenant export download is signed reauthorized one-use and no-store", /\/data-exports\/\{export\}\/download:[\s\S]*?current-session MFA[\s\S]*?one-use[\s\S]*?operationId: downloadTenantDataExport[\s\S]*?signature[\s\S]*?Cache-Control:[\s\S]*?NoStore[\s\S]*?TenantExportDisposition/],
+  ["tenant export manifest declares schema checksum and excluded secrets", /TenantDataExportManifest:[\s\S]*?snapshot_boundary[\s\S]*?excluded_secret_fields[\s\S]*?datasets[\s\S]*?manifest_sha256/],
+  ["tenant export datasets declare dependencies counts bytes and checksums", /TenantExportDatasetManifest:[\s\S]*?dependencies[\s\S]*?count[\s\S]*?sha256[\s\S]*?bytes/],
+  ["tenant deletion is explicitly cooling-off and non-immediate", /\/deletion-requests:[\s\S]*?14-day[\s\S]*?No tenant data is deleted by this endpoint[\s\S]*?operationId: requestTenantDeletion/],
+  ["restore drill is explicitly dry-run and non-writing", /\/restore-drills:[\s\S]*?non-writing[\s\S]*?does not[\s\S]*?import, activate, merge, or overwrite[\s\S]*?operationId: requestTenantRestoreDrill/],
+  ["support grants expose only read scopes", /SupportAccessScope:[\s\S]*?audit\.read[\s\S]*?configuration\.read[\s\S]*?people\.read[\s\S]*?schedule\.read[\s\S]*?diagnostics\.read[\s\S]*?Export, credential, billing-secret, legal-hold, deletion, restore, ownership, and arbitrary write scopes do not exist/],
+  ["support MFA is current-session proof with recent identity and CSRF", /\/platform\/support-access\/mfa-confirmation:[\s\S]*?current browser session for ten minutes[\s\S]*?recent[\s\S]*?password or passkey[\s\S]*?operationId: confirmSupportAccessMfa[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?support_mfa_invalid/],
+  ["support request is idempotent stepped-up and never enters tenant", /\/platform\/support-access\/requests:[\s\S]*?current-session MFA[\s\S]*?Idempotency-Key[\s\S]*?does not enter the tenant[\s\S]*?operationId: requestSupportAccess/],
+  ["support session bearer is response-once and combined with operator session", /\/platform\/support-access\/grants\/\{grant\}\/sessions:[\s\S]*?returned exactly once[\s\S]*?X-Maestro-Support-Session[\s\S]*?operationId: startSupportAccessSession[\s\S]*?SupportSessionStartedEnvelope/],
+  ["support audit requires both operator and support-session credentials", /operationId: listSupportSessionAuditEvents[\s\S]*?sanctumSession: \[\][\s\S]*?supportSession: \[\]/],
+  ["support banner communicates visible delegated mode", /SupportSessionBanner:[\s\S]*?Support access is active\. Every view is scoped, visible, and audited\./],
 ];
 
 for (const [label, pattern] of invariants) {
@@ -486,6 +618,59 @@ const attachmentResourceBlock = source.slice(
 for (const forbiddenField of ["studio_id", "actor_id", "disk", "key", "quarantine", "clean_key", "engine", "retired_by"]) {
   if (attachmentResourceBlock.includes(forbiddenField)) {
     missing.push(`LessonNoteAttachment leaks internal field ${forbiddenField}`);
+  }
+}
+
+const tenantDataExportResourceBlock = source.slice(
+  source.indexOf("    TenantDataExport:"),
+  source.indexOf("    TenantDataExportEnvelope:"),
+);
+
+for (const forbiddenField of [
+  "studio_id", "requested_by_id", "idempotency_key", "request_fingerprint",
+  "archive_path", "archive_sha256", "archive_ciphertext_sha256", "failure_digest", "storage_key", "queue_id",
+]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(tenantDataExportResourceBlock)) {
+    missing.push(`TenantDataExport leaks internal field ${forbiddenField}`);
+  }
+}
+
+const tenantAuditResourceBlock = source.slice(
+  source.indexOf("    TenantAuditEvent:"),
+  source.indexOf("    TenantAuditEventCursorCollectionEnvelope:"),
+);
+
+for (const forbiddenField of [
+  "studio_id", "actor_user_id", "support_session_id", "request_id", "request_method",
+  "request_ip_hash", "user_agent_hash", "previous_hash", "integrity_hash", "stream_sequence",
+]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(tenantAuditResourceBlock)) {
+    missing.push(`TenantAuditEvent leaks internal field ${forbiddenField}`);
+  }
+}
+
+const supportGrantResourceBlock = source.slice(
+  source.indexOf("    SupportAccessGrant:"),
+  source.indexOf("    SupportAccessGrantEnvelope:"),
+);
+
+for (const forbiddenField of [
+  "requested_by_user_id", "approved_by_user_id", "revoked_by_user_id", "idempotency_key",
+  "request_id", "correlation_id", "token", "token_hash",
+]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(supportGrantResourceBlock)) {
+    missing.push(`SupportAccessGrant leaks internal field ${forbiddenField}`);
+  }
+}
+
+const supportBannerResourceBlock = source.slice(
+  source.indexOf("    SupportSessionBanner:"),
+  source.indexOf("    SupportSessionBannerEnvelope:"),
+);
+
+for (const forbiddenField of ["access_token", "token_hash", "support_user_id", "approved_by_user_id", "recent_auth_at", "mfa_verified_at"]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(supportBannerResourceBlock)) {
+    missing.push(`SupportSessionBanner leaks internal field ${forbiddenField}`);
   }
 }
 
