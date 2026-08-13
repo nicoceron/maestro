@@ -43,6 +43,42 @@ const expectedPaths = [
   "/api/v1/studios/{studio}/people",
   "/api/v1/studios/{studio}/people/{person}",
   "/api/v1/studios/{studio}/people/{person}/student-status",
+  "/api/v1/public/studios/{studio}/calendar",
+  "/api/v1/studios/{studio}/scheduling/{resource}",
+  "/api/v1/studios/{studio}/scheduling/{resource}/{record}",
+  "/api/v1/studios/{studio}/scheduling/availability-overrides/{record}/approval",
+  "/api/v1/studios/{studio}/calendar",
+  "/api/v1/studios/{studio}/event-series/previews",
+  "/api/v1/studios/{studio}/event-series/previews/{preview}/commit",
+  "/api/v1/studios/{studio}/event-series/{series}",
+  "/api/v1/studios/{studio}/event-series/{series}/clone/previews",
+  "/api/v1/studios/{studio}/event-series/{series}/hold/convert",
+  "/api/v1/studios/{studio}/event-series/{series}/hold",
+  "/api/v1/studios/{studio}/event-series/{series}/enrollments",
+  "/api/v1/studios/{studio}/event-series/{series}/enrollments/previews",
+  "/api/v1/studios/{studio}/event-series/{series}/enrollments/{enrollment}/withdraw/previews",
+  "/api/v1/studios/{studio}/schedule/enrollment-previews/{preview}/commit",
+  "/api/v1/studios/{studio}/schedule/slot-search",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/reschedule/previews",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/cancel/previews",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/restore/previews",
+  "/api/v1/studios/{studio}/schedule/previews/{preview}/commit",
+  "/api/v1/studios/{studio}/attendance/overdue",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/attendance",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/participants/{participant}/attendance",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/attendance/bulk",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/attendance/express-present",
+  "/api/v1/studios/{studio}/occurrences/{occurrence}/notes",
+  "/api/v1/studios/{studio}/notes/{note}",
+  "/api/v1/studios/{studio}/notes/{note}/attachments",
+  "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/scan",
+  "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}",
+  "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/download-url",
+  "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/download",
+  "/api/v1/studios/{studio}/notes/{note}/delivery-previews",
+  "/api/v1/studios/{studio}/note-delivery-previews/{preview}/commit",
+  "/api/v1/studios/{studio}/note-templates",
+  "/api/v1/studios/{studio}/note-templates/{template}",
 ];
 
 const expectedOperations = [
@@ -89,6 +125,46 @@ const expectedOperations = [
   "updatePerson",
   "transitionStudentStatus",
   "updateHousehold",
+  "listPublicCalendarOccurrences",
+  "listSchedulingRecords",
+  "createSchedulingRecord",
+  "getSchedulingRecord",
+  "updateSchedulingRecord",
+  "decideAvailabilityOverride",
+  "listStudioCalendarOccurrences",
+  "previewEventSeriesCreation",
+  "commitEventSeriesCreation",
+  "getEventSeries",
+  "previewEventSeriesClone",
+  "convertEventSeriesHold",
+  "releaseEventSeriesHold",
+  "listEventSeriesEnrollments",
+  "previewEventEnrollment",
+  "previewEventEnrollmentWithdrawal",
+  "commitEventEnrollment",
+  "searchSchedulingSlots",
+  "previewOccurrenceReschedule",
+  "previewOccurrenceCancellation",
+  "previewOccurrenceRestoration",
+  "commitScheduleChange",
+  "listOverdueAttendanceOccurrences",
+  "listOccurrenceAttendance",
+  "recordParticipantAttendance",
+  "recordOccurrenceAttendanceBulk",
+  "expressPresentOccurrenceAttendance",
+  "listOccurrenceLessonNotes",
+  "createLessonNote",
+  "reviseLessonNote",
+  "uploadLessonNoteAttachment",
+  "retryLessonNoteAttachmentScan",
+  "retireLessonNoteAttachment",
+  "createLessonNoteAttachmentDownloadUrl",
+  "downloadLessonNoteAttachment",
+  "previewLessonNoteDelivery",
+  "commitLessonNoteDelivery",
+  "listLessonNoteTemplates",
+  "createLessonNoteTemplate",
+  "updateLessonNoteTemplate",
 ];
 
 const expectedSchemas = [
@@ -121,6 +197,31 @@ const expectedSchemas = [
   "UpdateHouseholdInput",
   "UpdateHouseholdMemberInput",
   "WorkspaceMode",
+  "SchedulingRecord",
+  "CreateSchedulingRecordInput",
+  "UpdateSchedulingRecordInput",
+  "PreviewEventSeriesInput",
+  "PreviewScheduleChangeInput",
+  "ScheduleChangePreview",
+  "ScheduleProjectionIntent",
+  "EventSeries",
+  "EventOccurrence",
+  "EventEnrollment",
+  "SlotSearchResult",
+  "EventOccurrenceCursorCollectionEnvelope",
+  "LaravelCursorPaginationMeta",
+  "AttendanceRecord",
+  "RecordAttendanceInput",
+  "RecordAttendanceBulkInput",
+  "LessonNote",
+  "CreateLessonNoteInput",
+  "LessonNoteTemplate",
+  "LessonNoteDeliveryPreview",
+  "LessonNoteDeliveryIntent",
+  "LessonNoteAttachment",
+  "UploadLessonNoteAttachmentInput",
+  "LessonNoteAttachmentDownloadUrl",
+  "TypedConflictProblem",
 ];
 
 const expectedAcceptanceIds = {
@@ -136,6 +237,23 @@ const expectedAcceptanceIds = {
   createStudioInvitation: ["IDA-STEPUP-001", "INV-E001"],
   resendStudioInvitation: ["IDA-STEPUP-001", "IDA-INVITE-001", "INV-E005", "INV-E008", "INV-E018", "JOB-001", "JOB-002"],
 };
+
+const expectedTypedConflictCodes = [
+  "idempotency_key_reused",
+  "idempotency_claim_incomplete",
+  "preview_consumed",
+  "preview_expired",
+  "preview_command_mismatch",
+  "preview_envelope_mismatch",
+  "hard_scheduling_conflict",
+  "soft_warning_unacknowledged",
+  "soft_warnings_changed",
+  "schedule_changed_after_preview",
+  "participant_capacity",
+  "note_changed_after_preview",
+  "recipients_changed_after_preview",
+  "attachments_changed_after_preview",
+];
 
 const missing = [];
 
@@ -161,6 +279,16 @@ for (const [operation, ids] of Object.entries(expectedAcceptanceIds)) {
   for (const id of ids) {
     if (!operationBlock.includes(id)) missing.push(`acceptance ID ${id} on ${operation}`);
   }
+}
+
+const typedConflictBlock = source.slice(
+  source.indexOf("    TypedConflictProblem:"),
+  source.indexOf("    Problem:"),
+);
+
+for (const code of expectedTypedConflictCodes) {
+  if (!typedConflictBlock.includes(`- ${code}`)) missing.push(`typed conflict code ${code}`);
+  if (!generated.includes(`"${code}"`)) missing.push(`generated typed conflict code ${code}`);
 }
 
 const invariants = [
@@ -196,6 +324,30 @@ const invariants = [
   ["person lookup is route-tenant scoped", /\/people\/\{person\}:[\s\S]*?cross-tenant ULID[\s\S]*?returns `404`[\s\S]*?operationId: getPerson/],
   ["household aggregate update requires optimistic versions and CSRF", /operationId: updateHousehold[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\][\s\S]*?UpdateHouseholdInput/],
   ["household members expose person versions for optimistic edits", /HouseholdPerson:[\s\S]*?required:[\s\S]*?- version[\s\S]*?Current person version required/],
+  ["scheduling configuration mutation requires session and CSRF", /operationId: updateSchedulingRecord[\s\S]*?sanctumSession: \[\][\s\S]*?csrfToken: \[\]/],
+  ["scheduling configuration retires instead of deleting", /\/scheduling\/\{resource\}\/\{record\}:[\s\S]*?no delete operation[\s\S]*?operationId: updateSchedulingRecord/],
+  ["availability approval requires an optimistic version", /AvailabilityOverrideDecisionInput:[\s\S]*?required: \[version, approval_status\]/],
+  ["calendar range is bounded", /\/studios\/\{studio\}\/calendar:[\s\S]*?range is limited to 93 days[\s\S]*?operationId: listStudioCalendarOccurrences/],
+  ["calendar uses bounded cursor pagination without truncation", /operationId: listStudioCalendarOccurrences[\s\S]*?CalendarPageSize[\s\S]*?CalendarCursor[\s\S]*?EventOccurrenceCursorCollectionEnvelope/],
+  ["teacher calendar filters are self-scoped", /\/studios\/\{studio\}\/calendar:[\s\S]*?filter only linked staff profiles[\s\S]*?operationId: listStudioCalendarOccurrences/],
+  ["schedule commits require idempotency", /operationId: commitScheduleChange[\s\S]*?IdempotencyKey/],
+  ["schedule commit bodies cannot replace preview commands", /EmptyCommitInput:[\s\S]*?cannot replace the command or warning acknowledgement/],
+  ["schedule previews expose explicit projection intents", /SchedulePreviewImpact:[\s\S]*?projection_intents:[\s\S]*?ScheduleProjectionIntent/],
+  ["future schedule edits carry recurrence shape", /PreviewScheduleChangeInput:[\s\S]*?dtstart_local:[\s\S]*?rrule:[\s\S]*?rdates:[\s\S]*?exdates:/],
+  ["schedule preview hard conflicts are never overrideable", /SchedulePreviewCapabilities:[\s\S]*?hard_conflicts_overrideable:[\s\S]*?const: false/],
+  ["schedule previews expose no actor tenant or raw command", /ScheduleChangePreview:[\s\S]*?required: \[id, command_type, scope, status, impact, conflicts, soft_warnings_acknowledged, expires_at, capabilities\]/],
+  ["attendance dispositions are server-owned", /RecordAttendanceInput:[\s\S]*?additionalProperties: false(?:(?!billing_disposition|makeup_disposition)[\s\S])*?RecordAttendanceBulkItemInput:/],
+  ["bulk attendance is bounded and atomic by contract", /\/attendance\/bulk:[\s\S]*?complete batch[\s\S]*?operationId: recordOccurrenceAttendanceBulk[\s\S]*?RecordAttendanceBulkInput/],
+  ["billing attendance projection is redacted", /AttendanceRecord:[\s\S]*?person_id:[\s\S]*?Null in the billing projection[\s\S]*?makeup_disposition:[\s\S]*?Null in the billing projection/],
+  ["note HTML is explicitly sanitized", /CreateLessonNoteInput:[\s\S]*?Sanitized to the server allowlist/],
+  ["lesson note revisions are optimistic", /UpdateLessonNoteInput:[\s\S]*?required: \[version\]/],
+  ["note delivery binds clean attachment metadata", /LessonNoteDeliveryPreview:[\s\S]*?attachments:[\s\S]*?LessonNoteDeliveryAttachment/],
+  ["attachment upload is private quarantine", /\/notes\/\{note\}\/attachments:[\s\S]*?private quarantine[\s\S]*?operationId: uploadLessonNoteAttachment[\s\S]*?multipart\/form-data/],
+  ["attachment upload is versioned idempotent and asynchronous", /operationId: uploadLessonNoteAttachment[\s\S]*?IdempotencyKey[\s\S]*?UploadLessonNoteAttachmentInput[\s\S]*?'202':/],
+  ["attachment upload requires the note version and binary file", /UploadLessonNoteAttachmentInput:[\s\S]*?required: \[note_version, file\][\s\S]*?format: binary/],
+  ["attachment downloads require signed recent-confirmation reauthorization", /operationId: downloadLessonNoteAttachment[\s\S]*?signature[\s\S]*?'423':[\s\S]*?RecentPasswordRequired/],
+  ["attachment byte responses are length-bound no-store and sandboxed", /operationId: downloadLessonNoteAttachment[\s\S]*?Cache-Control:[\s\S]*?AttachmentNoStore[\s\S]*?Content-Disposition:[\s\S]*?AttachmentDisposition[\s\S]*?Content-Length:[\s\S]*?AttachmentContentLength[\s\S]*?Content-Security-Policy:[\s\S]*?sandbox/],
+  ["unsafe attachment states are nondownloadable", /\/download-url:[\s\S]*?Pending, failed, infected, retired[\s\S]*?return `404`[\s\S]*?operationId: createLessonNoteAttachmentDownloadUrl/],
 ];
 
 for (const [label, pattern] of invariants) {
@@ -301,6 +453,50 @@ const householdResourceBlock = source.slice(
 for (const forbiddenField of ["studio_id", "user_id", "actor_id", "deleted_at"]) {
   if (householdResourceBlock.includes(forbiddenField)) {
     missing.push(`Household leaks internal field ${forbiddenField}`);
+  }
+}
+
+const schedulePreviewBlock = source.slice(
+  source.indexOf("    ScheduleChangePreview:"),
+  source.indexOf("    ScheduleChangePreviewEnvelope:"),
+);
+
+for (const forbiddenField of ["studio_id", "actor_id", "command", "command_hash", "aggregate_versions", "consumed_at"]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(schedulePreviewBlock)) {
+    missing.push(`ScheduleChangePreview leaks internal field ${forbiddenField}`);
+  }
+}
+
+const attendanceResourceBlock = source.slice(
+  source.indexOf("    AttendanceRecord:"),
+  source.indexOf("    AttendanceRecordEnvelope:"),
+);
+
+for (const forbiddenField of ["studio_id", "actor_id", "recorded_by", "corrected_by", "idempotency_key"]) {
+  if (attendanceResourceBlock.includes(forbiddenField)) {
+    missing.push(`AttendanceRecord leaks internal field ${forbiddenField}`);
+  }
+}
+
+const attachmentResourceBlock = source.slice(
+  source.indexOf("    LessonNoteAttachment:"),
+  source.indexOf("    LessonNoteAttachmentEnvelope:"),
+);
+
+for (const forbiddenField of ["studio_id", "actor_id", "disk", "key", "quarantine", "clean_key", "engine", "retired_by"]) {
+  if (attachmentResourceBlock.includes(forbiddenField)) {
+    missing.push(`LessonNoteAttachment leaks internal field ${forbiddenField}`);
+  }
+}
+
+const publicOccurrenceBlock = source.slice(
+  source.indexOf("    PublicEventOccurrence:"),
+  source.indexOf("    PublicEventOccurrenceCursorCollectionEnvelope:"),
+);
+
+for (const forbiddenField of ["studio_id", "series_id", "person_id", "staff_profile_id", "price_minor", "internal_description", "online_join_url"]) {
+  if (new RegExp(`\\n\\s+${forbiddenField}:`).test(publicOccurrenceBlock)) {
+    missing.push(`PublicEventOccurrence leaks private field ${forbiddenField}`);
   }
 }
 

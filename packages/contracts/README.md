@@ -1,6 +1,6 @@
 # Maestro API contracts
 
-The OpenAPI 3.1 document in `openapi.yaml` is the source of truth for the implemented Laravel browser identity, onboarding, studio invitation, studio, People lifecycle, and household JSON APIs. Generated TypeScript declarations live in `generated/schema.d.ts` and can be imported as types from `@maestro/contracts` once this package is added to the workspace.
+The OpenAPI 3.1 document in `openapi.yaml` is the source of truth for the implemented Laravel browser identity, onboarding, studio invitation, studio, People/household, scheduling/calendar, attendance, lesson-note, and private lesson-note-attachment APIs. Generated TypeScript declarations live in `generated/schema.d.ts` and can be imported as types from `@maestro/contracts` once this package is added to the workspace.
 
 ## Commands
 
@@ -32,5 +32,9 @@ Invitation preview and acceptance are JSON-body POST operations at `/api/v1/invi
 People list/create/detail/PATCH and student-status transition operations are tenant-scoped to the route studio. Person resources keep privacy-sensitive properties structurally stable by returning `null` or empty collections when the caller lacks visibility, never internal studio/global-user/assignment identifiers. Mutations accept typed student, staff, instrument, tag, and custom-field inputs; person PATCH and student lifecycle transition require the current optimistic `version`, and status changes use the dedicated immutable-history transition operation.
 
 Household PATCH treats the household as an optimistic aggregate: it always requires the household `version`, requires current person versions when retaining/updating members, and atomically replaces the nested member/guardian graph only when that graph is supplied.
+
+Scheduling configuration is a registry-selected tenant API with strict typed request variants, optimistic PATCH-only retirement, and privacy-aware projections. Calendar mutations that can fan out use an actor/studio-bound ten-minute preview and an `Idempotency-Key` commit; commit bodies cannot replace the server-stored command or warning acknowledgement. Hard conflicts are non-overrideable, soft warnings require management acknowledgement, and previews publish billing/payroll/conditional make-up projection intents without claiming financial-ledger effects.
+
+Attendance dispositions are server-derived and cannot be written by clients. Single, bulk, and express capture use actor-scoped idempotency; corrections are optimistic and immutable. Lesson notes and templates sanitize HTML and retain immutable revisions. Delivery preview/commit fingerprints recipients and current clean attachments. Attachments enter private fail-closed quarantine, expose no storage key or public URL, and become downloadable only after a clean scan through a short-lived signed route that rechecks current authorization and recent identity.
 
 `GET /api/v1/studios` uses Laravel's unpaginated resource collection envelope (`{ "data": [...] }`), while invitation and household lists use Laravel 13's full length-aware paginator (`data`, `links`, and `meta`, including each meta link's `page`). API authentication, envelope, error, authorization, and pagination conventions are documented in [`../../docs/api/README.md`](../../docs/api/README.md).
