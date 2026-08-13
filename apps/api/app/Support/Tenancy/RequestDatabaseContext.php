@@ -29,6 +29,16 @@ final class RequestDatabaseContext
         $this->set('app.current_studio_id', $studioId, true);
     }
 
+    public function activateStudioIdForSession(string $studioId): void
+    {
+        $this->set('app.current_studio_id', $studioId, false);
+    }
+
+    public function clearStudio(): void
+    {
+        $this->set('app.current_studio_id', '', false);
+    }
+
     private function set(string $key, string $value, bool $local): void
     {
         $connection = $this->database->connection();

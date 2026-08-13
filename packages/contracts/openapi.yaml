@@ -6,9 +6,10 @@ info:
   description: |-
     Contract for Maestro's Laravel JSON API. It covers browser identity and CSRF,
     onboarding, authenticated studio discovery, studio invitations, people and
-    student lifecycle management, and household aggregate management. First-party
-    browser mutations use Sanctum's stateful session together with Laravel's XSRF
-    cookie/header pair.
+    household management, scheduling/calendar preview-commit workflows, attendance,
+    sanitized lesson notes, and private scanned note attachments. First-party browser
+    mutations use Sanctum's stateful session together with Laravel's XSRF cookie/header
+    pair.
   contact:
     name: Maestro engineering
   license:
@@ -30,6 +31,14 @@ tags:
     description: Tenant-scoped people, student/staff profiles, taxonomy assignments, and student lifecycle.
   - name: Households
     description: Tenant-scoped household, learner, guardian, and portal-access management.
+  - name: Scheduling configuration
+    description: Tenant-scoped service, offering, location, equipment, availability, and travel configuration.
+  - name: Calendar
+    description: Role-projected public and studio calendars, recurrence, preview/commit scheduling, rosters, holds, and slot search.
+  - name: Attendance
+    description: Tenant-scoped attendance capture, correction, overdue work, and billing-safe projections.
+  - name: Lesson notes
+    description: Sanitized participant/group notes, immutable revisions, templates, and previewed delivery intent.
 security:
   - sanctumSession: []
 paths:
@@ -1936,6 +1945,1242 @@ paths:
           $ref: '#/components/responses/HouseholdUpdateFailed'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /api/v1/public/studios/{studio}/calendar:
+    get:
+      tags: [Calendar]
+      summary: List public calendar occurrences
+      description: Returns only scheduled, non-hold occurrences whose active series is public. The half-open range may span at most 93 days; stable start-time/ULID ordering and cursor pagination prevent silent truncation.
+      operationId: listPublicCalendarOccurrences
+      x-acceptance-ids: [SCH-05, SCH-06]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CalendarFrom'
+        - $ref: '#/components/parameters/CalendarTo'
+        - $ref: '#/components/parameters/CalendarPageSize'
+        - $ref: '#/components/parameters/CalendarCursor'
+      responses:
+        '200':
+          description: Public occurrence projection with no tenant, participant, assignment, price, internal-note, or join-link fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicEventOccurrenceCursorCollectionEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /api/v1/studios/{studio}/scheduling/{resource}:
+    get:
+      tags: [Scheduling configuration]
+      summary: List scheduling configuration records
+      description: Lists one supported configuration type inside the route studio. Policy scope limits teachers to their linked scheduling records; management-private fields are redacted from non-management projections.
+      operationId: listSchedulingRecords
+      x-acceptance-ids: [SCH-01, SCH-02, SCH-03]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulingResourceType'
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Policy-scoped scheduling records in a Laravel paginator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulingRecordPaginatedCollectionEnvelope'
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Scheduling configuration]
+      summary: Create a scheduling configuration record
+      description: Creates one registry-selected record after tenant-scoped validation and policy authorization. Cross-tenant references and invalid room/location/equipment relationships are rejected atomically.
+      operationId: createSchedulingRecord
+      x-acceptance-ids: [SCH-01, SCH-02, SCH-03]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulingResourceType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchedulingRecordInput'
+      responses:
+        '201':
+          description: Scheduling record created at optimistic version one.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulingRecordEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/scheduling/{resource}/{record}:
+    get:
+      tags: [Scheduling configuration]
+      summary: Get a scheduling configuration record
+      description: Resolves the record through the route studio. Program offerings optionally include the effective per-field price, policy, teacher, and location resolution.
+      operationId: getSchedulingRecord
+      x-acceptance-ids: [SCH-01, SCH-02, SCH-03]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulingResourceType'
+        - $ref: '#/components/parameters/SchedulingRecordId'
+        - name: effective_on
+          in: query
+          description: Program-offering resolution date.
+          schema: { type: string, format: date }
+        - name: staff_profile_id
+          in: query
+          description: Optional tenant teacher scope for program-offering resolution.
+          schema:
+            oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        - name: location_id
+          in: query
+          description: Optional tenant location scope for program-offering resolution.
+          schema:
+            oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+      responses:
+        '200':
+          description: Role-projected scheduling record.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulingRecordEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    patch:
+      tags: [Scheduling configuration]
+      summary: Update or retire a scheduling configuration record
+      description: Applies a partial update with the current optimistic version. History-bearing records are retired with `active=false`; this API intentionally exposes no delete operation.
+      operationId: updateSchedulingRecord
+      x-acceptance-ids: [SCH-01, SCH-02, SCH-03]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulingResourceType'
+        - $ref: '#/components/parameters/SchedulingRecordId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateSchedulingRecordInput' }
+      responses:
+        '200':
+          description: Updated record with incremented optimistic version.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulingRecordEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/scheduling/availability-overrides/{record}/approval:
+    post:
+      tags: [Scheduling configuration]
+      summary: Decide an availability override
+      description: Management-only approval or decline transition with optimistic concurrency. Approved time off is forced to hard enforcement at both the domain and database boundaries.
+      operationId: decideAvailabilityOverride
+      x-acceptance-ids: [SCH-03]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulingRecordId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AvailabilityOverrideDecisionInput' }
+      responses:
+        '200':
+          description: Decided override with incremented optimistic version.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulingRecordEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/calendar:
+    get:
+      tags: [Calendar]
+      summary: List the studio calendar
+      description: Returns a role-projected half-open range of occurrences. Managers can filter any tenant teacher/room; a teacher is scoped to assigned events and may filter only linked staff profiles; billing receives a financial-safe projection. The range is limited to 93 days and stable cursor pagination never silently omits matching events.
+      operationId: listStudioCalendarOccurrences
+      x-acceptance-ids: [SCH-05, SCH-06]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/CalendarFrom'
+        - $ref: '#/components/parameters/CalendarTo'
+        - $ref: '#/components/parameters/CalendarPageSize'
+        - $ref: '#/components/parameters/CalendarCursor'
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 160 }
+        - name: holds
+          in: query
+          schema: { type: string, enum: [include, exclude, only], default: include }
+        - name: teacher_ids[]
+          in: query
+          description: Up to 20 distinct tenant staff-profile ULIDs.
+          schema:
+            type: array
+            maxItems: 20
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/Ulid' }
+        - name: room_ids[]
+          in: query
+          description: Management-only filter of up to 20 distinct tenant room ULIDs.
+          schema:
+            type: array
+            maxItems: 20
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/Ulid' }
+        - name: kinds[]
+          in: query
+          schema:
+            type: array
+            maxItems: 20
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/EventKind' }
+      responses:
+        '200':
+          description: Role-projected studio occurrence collection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventOccurrenceCursorCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview a new event series
+      description: Canonicalizes and expands RFC 5545 recurrence data, snapshots referenced aggregate versions, detects hard conflicts and soft warnings, and stores an actor-bound ten-minute preview without mutating the schedule.
+      operationId: previewEventSeriesCreation
+      x-acceptance-ids: [SCH-04, SCH-05, SCH-07, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewEventSeriesInput' }
+      responses:
+        '201':
+          description: Ready or blocked preview; hard conflicts are never overrideable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/previews/{preview}/commit:
+    post:
+      tags: [Calendar]
+      summary: Commit an event-series preview
+      description: Commits only the server-stored command after reauthorization, preview TTL/actor/command/version checks, conflict revalidation, and idempotency enforcement. A client-supplied command or warning acknowledgement is prohibited.
+      operationId: commitEventSeriesCreation
+      x-acceptance-ids: [SCH-04, SCH-05, SCH-07, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulePreviewId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '201':
+          description: Event series and materialized occurrence horizon created, or the original idempotent creation result replayed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventSeriesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SchedulingConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}:
+    get:
+      tags: [Calendar]
+      summary: Get an event series
+      description: Returns the route-tenant series, materialized occurrences, assignments visible to the caller, and server-derived capabilities. Billing never receives a location or internal description.
+      operationId: getEventSeries
+      x-acceptance-ids: [SCH-04, SCH-05]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+      responses:
+        '200':
+          description: Role-projected series and loaded occurrence horizon.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventSeriesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}/clone/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview an event-series clone
+      description: Clones the source series configuration into a server-stored preview after checking its optimistic version. The server translates inherited UNTIL, RDATE, and EXDATE values by the local-wall-clock anchor delta unless a replacement RRULE is supplied. Roster copying is prohibited.
+      operationId: previewEventSeriesClone
+      x-acceptance-ids: [SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewEventSeriesCloneInput' }
+      responses:
+        '201':
+          description: Actor-bound ready or blocked clone preview.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}/hold/convert:
+    post:
+      tags: [Calendar]
+      summary: Convert an active temporary hold
+      description: Converts a non-expired temporary hold into a durable event series with an optimistic version and actor-scoped idempotency key.
+      operationId: convertEventSeriesHold
+      x-acceptance-ids: [SCH-05, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OptimisticVersionInput' }
+      responses:
+        '200':
+          description: Converted series, or the original conversion projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventSeriesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SchedulingConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}/hold:
+    delete:
+      tags: [Calendar]
+      summary: Release an active temporary hold
+      description: Cancels an active temporary hold while retaining history. It requires the current version and actor-scoped idempotency key; no schedule row is hard-deleted.
+      operationId: releaseEventSeriesHold
+      x-acceptance-ids: [SCH-05, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OptimisticVersionInput' }
+      responses:
+        '200':
+          description: Released hold represented as a retained canceled series.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventSeriesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SchedulingConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}/enrollments:
+    get:
+      tags: [Calendar]
+      summary: List an event-series roster
+      description: Management-only roster projection for enrollments in one route-tenant series. Internal studio and actor identifiers are never returned.
+      operationId: listEventSeriesEnrollments
+      x-acceptance-ids: [SCH-05]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+      responses:
+        '200':
+          description: Ordered enrollment collection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventEnrollmentCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}/enrollments/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview an enrollment change
+      description: Previews confirmation or waitlisting of an active tenant student, snapshots current series/occurrence/participant/enrollment versions, and blocks confirmation when any materialized occurrence lacks capacity.
+      operationId: previewEventEnrollment
+      x-acceptance-ids: [SCH-05, SCH-07]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewEventEnrollmentInput' }
+      responses:
+        '201':
+          description: Ready or capacity-blocked enrollment preview.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/event-series/{series}/enrollments/{enrollment}/withdraw/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview an enrollment withdrawal
+      description: Previews withdrawal of a route-tenant series enrollment using its current optimistic version; no roster mutation occurs until the generic enrollment-preview commit.
+      operationId: previewEventEnrollmentWithdrawal
+      x-acceptance-ids: [SCH-05, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventSeriesId'
+        - $ref: '#/components/parameters/EventEnrollmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OptimisticVersionInput' }
+      responses:
+        '201':
+          description: Actor-bound withdrawal preview.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/schedule/enrollment-previews/{preview}/commit:
+    post:
+      tags: [Calendar]
+      summary: Commit an enrollment preview
+      description: Commits an actor-bound ready roster preview after TTL, command hash, aggregate-version, authorization, and idempotency checks.
+      operationId: commitEventEnrollment
+      x-acceptance-ids: [SCH-05, SCH-07, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulePreviewId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '200':
+          description: Created or withdrawn enrollment, or original projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventEnrollmentEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SchedulingConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/schedule/slot-search:
+    post:
+      tags: [Calendar]
+      summary: Search conflict-ranked schedule slots
+      description: Management-only advisory search over a maximum 31-day instant range and 500-point grid. It validates active tenant resources and requested capacity, excludes hard conflicts, ranks the remaining slots by soft-warning count then start, and returns at most 50; it does not reserve capacity.
+      operationId: searchSchedulingSlots
+      x-acceptance-ids: [SCH-07]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SlotSearchInput' }
+      responses:
+        '200':
+          description: Conflict-free candidates sorted by scan order with warning-count scores.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotSearchResultEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/reschedule/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview an occurrence reschedule
+      description: Previews a one, future, or series edit against the occurrence optimistic version. The stored preview captures projected calendar, notification, billing, payroll, and makeup effects before commit.
+      operationId: previewOccurrenceReschedule
+      x-acceptance-ids: [SCH-04, SCH-07, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewScheduleChangeInput' }
+      responses:
+        '201':
+          description: Ready or blocked reschedule preview.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/cancel/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview an occurrence cancellation
+      description: Previews cancellation at one, future, or series scope against the occurrence version, retaining stable history and projecting downstream effects.
+      operationId: previewOccurrenceCancellation
+      x-acceptance-ids: [SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewScheduleChangeInput' }
+      responses:
+        '201':
+          description: Ready or blocked cancellation preview.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/restore/previews:
+    post:
+      tags: [Calendar]
+      summary: Preview restoration of canceled schedule state
+      description: Previews restoration at one, future, or series scope. Restoration is still conflict-checked and never bypasses hard capacity or resource conflicts.
+      operationId: previewOccurrenceRestoration
+      x-acceptance-ids: [SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewScheduleChangeInput' }
+      responses:
+        '201':
+          description: Ready or blocked restoration preview.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleChangePreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/schedule/previews/{preview}/commit:
+    post:
+      tags: [Calendar]
+      summary: Commit a schedule-change preview
+      description: Commits only a stored reschedule, cancellation, or restoration preview after actor, TTL, command, aggregate-version, warning, reauthorization, and conflict checks. Reusing a key for another command returns typed `409`.
+      operationId: commitScheduleChange
+      x-acceptance-ids: [SCH-04, SCH-07, SCH-08]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/SchedulePreviewId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '200':
+          description: Updated series projection, or the exact original result on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventSeriesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/SchedulingConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/attendance/overdue:
+    get:
+      tags: [Attendance]
+      summary: List occurrences with overdue attendance
+      description: Management-only list of ended scheduled/completed occurrences that still have an active participant without attendance. Defaults to occurrences ended at least 24 hours ago.
+      operationId: listOverdueAttendanceOccurrences
+      x-acceptance-ids: [ATT-01]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - name: before
+          in: query
+          description: Inclusive latest occurrence end; cannot be in the future.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Role-projected overdue occurrences in a Laravel paginator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventOccurrencePaginatedCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/attendance:
+    get:
+      tags: [Attendance]
+      summary: List occurrence attendance
+      description: Returns a role- and relationship-projected paginator. Management sees correction history; billing sees only outcome and billing disposition with learner identity, reason, lateness, and makeup details redacted; authorized learners/guardians see only their linked records.
+      operationId: listOccurrenceAttendance
+      x-acceptance-ids: [ATT-01]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+      responses:
+        '200':
+          description: Attendance records visible to the caller.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceRecordPaginatedCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/participants/{participant}/attendance:
+    put:
+      tags: [Attendance]
+      summary: Record or correct participant attendance
+      description: Creates attendance or records an immutable correction. Billing/makeup dispositions are server-derived from occurrence policy and cannot be supplied. Existing records require the current version and a nonblank correction reason when their normalized state changes.
+      operationId: recordParticipantAttendance
+      x-acceptance-ids: [ATT-01]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+        - $ref: '#/components/parameters/EventParticipantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordAttendanceInput' }
+      responses:
+        '200':
+          description: Corrected attendance or exact original projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceRecordEnvelope' }
+        '201':
+          description: First attendance record created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceRecordEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/attendance/bulk:
+    post:
+      tags: [Attendance]
+      summary: Record attendance in bulk
+      description: Atomically records or corrects 1 to 250 distinct occurrence participants under one idempotency key. A single invalid, unauthorized, stale, or cross-occurrence item rejects the complete batch.
+      operationId: recordOccurrenceAttendanceBulk
+      x-acceptance-ids: [ATT-01]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordAttendanceBulkInput' }
+      responses:
+        '200':
+          description: Ordered attendance projections committed atomically or replayed exactly.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceRecordCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/attendance/express-present:
+    post:
+      tags: [Attendance]
+      summary: Mark remaining participants present
+      description: Atomically marks every eligible participant without attendance as present. Existing attendance is preserved and the operation is actor-scoped and idempotent.
+      operationId: expressPresentOccurrenceAttendance
+      x-acceptance-ids: [ATT-01]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '200':
+          description: Attendance records created by this command, or exact original replay projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceRecordCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/occurrences/{occurrence}/notes:
+    get:
+      tags: [Lesson notes]
+      summary: List occurrence lesson notes
+      description: Billing is forbidden. Management sees compliance-visible notes; assigned teachers see non-author-private notes plus only their own author-private notes; eligible learners/guardians see audience- and participant/group-scoped notes for active roster relationships.
+      operationId: listOccurrenceLessonNotes
+      x-acceptance-ids: [ATT-02]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+      responses:
+        '200':
+          description: Visible notes in a Laravel paginator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNotePaginatedCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Lesson notes]
+      summary: Create a lesson note
+      description: Creates an HTML-sanitized participant or group note with immutable initial revision and actor-scoped idempotency. Participant scope requires a participant in the route occurrence; author-private content remains author-only outside management compliance access.
+      operationId: createLessonNote
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/EventOccurrenceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateLessonNoteInput' }
+      responses:
+        '200':
+          description: Exact original note projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteEnvelope' }
+        '201':
+          description: Sanitized note and initial immutable revision created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}:
+    patch:
+      tags: [Lesson notes]
+      summary: Revise a lesson note
+      description: Sanitizes a partial content update, requires the current optimistic version, appends an immutable revision, and preserves the note identity. Audience and scope are immutable after creation.
+      operationId: reviseLessonNote
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateLessonNoteInput' }
+      responses:
+        '200':
+          description: Revised note, or exact original result on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}/attachments:
+    post:
+      tags: [Lesson notes]
+      summary: Upload a quarantined lesson-note attachment
+      description: Uploads one allowlisted file to private quarantine, validates extension plus Laravel MIME plus server-side file magic, binds it to the current note revision and optimistic note version, and queues fail-closed malware scanning. The file is not downloadable while pending, failed, or infected.
+      operationId: uploadLessonNoteAttachment
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadLessonNoteAttachmentInput' }
+      responses:
+        '202':
+          description: Private quarantined metadata created and scan queued, or exact original attachment projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteAttachmentEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/scan:
+    post:
+      tags: [Lesson notes]
+      summary: Retry lesson-note attachment scanning
+      description: Requeues fail-closed malware scanning for a pending or failed attachment. Only the note author or a scheduling manager may retry; infected, clean, or retired files cannot be retried.
+      operationId: retryLessonNoteAttachmentScan
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+        - $ref: '#/components/parameters/LessonNoteAttachmentId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '202':
+          description: Scan job accepted; current safe metadata projection returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteAttachmentEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}/attachments/{attachment}:
+    delete:
+      tags: [Lesson notes]
+      summary: Retire a lesson-note attachment
+      description: Appends an immutable retirement event with a required reason and revokes all later metadata projection and signed-download use. The record and scan history are retained rather than hard-deleted.
+      operationId: retireLessonNoteAttachment
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+        - $ref: '#/components/parameters/LessonNoteAttachmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RetireLessonNoteAttachmentInput' }
+      responses:
+        '204':
+          description: Attachment retired; response has no body.
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/download-url:
+    post:
+      tags: [Lesson notes]
+      summary: Create a short-lived attachment download URL
+      description: Returns a temporary signed route only for a currently clean, unretired attachment that the caller is still authorized to read. Pending, failed, infected, retired, cross-tenant, and unauthorized resources all return `404`.
+      operationId: createLessonNoteAttachmentDownloadUrl
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+        - $ref: '#/components/parameters/LessonNoteAttachmentId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '200':
+          description: Short-lived signed route; no storage key, disk, or public object URL is disclosed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteAttachmentDownloadUrlEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/download:
+    get:
+      tags: [Lesson notes]
+      summary: Download a clean lesson-note attachment
+      description: Streams from private storage only after studio membership, signature, recent password/passkey confirmation, clean/unretired state, and current note authorization are all rechecked at use time. Responses are no-store, `nosniff`, and CSP-sandboxed; a retired or newly unauthorized URL stops working immediately.
+      operationId: downloadLessonNoteAttachment
+      x-acceptance-ids: [ATT-02]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+        - $ref: '#/components/parameters/LessonNoteAttachmentId'
+        - name: expires
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: signature
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Private attachment bytes with original safe filename and detected MIME.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/AttachmentNoStore' }
+            Content-Disposition: { $ref: '#/components/headers/AttachmentDisposition' }
+            Content-Length: { $ref: '#/components/headers/AttachmentContentLength' }
+            X-Content-Type-Options:
+              description: Browser MIME sniffing disabled.
+              schema: { type: string, const: nosniff }
+            Content-Security-Policy:
+              description: Attachment content executes in a sandbox if rendered by a user agent.
+              schema: { type: string, const: sandbox }
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            audio/mpeg: { schema: { type: string, format: binary } }
+            audio/mp3: { schema: { type: string, format: binary } }
+            audio/mp4: { schema: { type: string, format: binary } }
+            audio/x-m4a: { schema: { type: string, format: binary } }
+            audio/wav: { schema: { type: string, format: binary } }
+            audio/x-wav: { schema: { type: string, format: binary } }
+            audio/vnd.wave: { schema: { type: string, format: binary } }
+            audio/ogg: { schema: { type: string, format: binary } }
+            application/ogg: { schema: { type: string, format: binary } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: Temporary URL signature is absent, invalid, or expired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '423': { $ref: '#/components/responses/RecentPasswordRequired' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/notes/{note}/delivery-previews:
+    post:
+      tags: [Lesson notes]
+      summary: Preview lesson-note delivery
+      description: Resolves eligible recipients without sending, binds their projection and the current note version to the actor, and stores a short-lived one-shot preview. Author-private notes cannot be delivered.
+      operationId: previewLessonNoteDelivery
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '201':
+          description: Actor-bound delivery preview with recipient count and expiry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteDeliveryPreviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/note-delivery-previews/{preview}/commit:
+    post:
+      tags: [Lesson notes]
+      summary: Commit lesson-note delivery intent
+      description: Reauthorizes and commits only the actor-bound server preview after note-version, recipient-fingerprint, TTL, one-shot, and idempotency checks. The endpoint records an outbox-backed delivery intent; provider delivery is asynchronous.
+      operationId: commitLessonNoteDelivery
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteDeliveryPreviewId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyCommitInput' }
+      responses:
+        '200':
+          description: Exact original intent projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteDeliveryIntentEnvelope' }
+        '201':
+          description: Immutable delivery intent and transactional outbox message created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteDeliveryIntentEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/note-templates:
+    get:
+      tags: [Lesson notes]
+      summary: List lesson-note templates
+      description: Lists templates usable by the caller. Management sees active and retired templates; teachers see only active templates; billing is forbidden.
+      operationId: listLessonNoteTemplates
+      x-acceptance-ids: [ATT-02]
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+      responses:
+        '200':
+          description: Visible templates in a Laravel paginator.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteTemplatePaginatedCollectionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Lesson notes]
+      summary: Create a lesson-note template
+      description: Management-only creation with normalized studio-unique name, sanitized readable HTML, immutable initial revision, and actor-scoped idempotency.
+      operationId: createLessonNoteTemplate
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateLessonNoteTemplateInput' }
+      responses:
+        '200':
+          description: Exact original template projection on idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteTemplateEnvelope' }
+        '201':
+          description: Sanitized template and initial immutable revision created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteTemplateEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/studios/{studio}/note-templates/{template}:
+    patch:
+      tags: [Lesson notes]
+      summary: Update or retire a lesson-note template
+      description: Management-only partial update with current optimistic version and a mandatory revision reason. HTML is sanitized and every accepted update appends an immutable revision; retirement uses `active=false`.
+      operationId: updateLessonNoteTemplate
+      x-acceptance-ids: [ATT-02]
+      security:
+        - sanctumSession: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/StudioSlug'
+        - $ref: '#/components/parameters/LessonNoteTemplateId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateLessonNoteTemplateInput' }
+      responses:
+        '200':
+          description: Updated template with incremented version, or exact original replay projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LessonNoteTemplateEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AttendanceConflict' }
+        '419': { $ref: '#/components/responses/CsrfTokenMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 components:
   securitySchemes:
     sanctumSession:
@@ -2114,6 +3359,125 @@ components:
         minimum: 1
         default: 1
       example: 1
+    SchedulingResourceType:
+      name: resource
+      in: path
+      required: true
+      description: Registry key selecting the validated scheduling configuration model and policy.
+      schema:
+        type: string
+        enum:
+          - service-categories
+          - services
+          - service-prices
+          - service-policies
+          - locations
+          - rooms
+          - equipment
+          - room-equipment
+          - program-offerings
+          - program-offering-overrides
+          - program-offering-staff
+          - staff-account-links
+          - staff-scheduling-profiles
+          - availability-windows
+          - availability-overrides
+          - travel-buffers
+    SchedulingRecordId:
+      name: record
+      in: path
+      required: true
+      description: Scheduling record ULID resolved through the route studio and selected registry model.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    EventSeriesId:
+      name: series
+      in: path
+      required: true
+      description: Event-series ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    EventOccurrenceId:
+      name: occurrence
+      in: path
+      required: true
+      description: Materialized event-occurrence ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    EventParticipantId:
+      name: participant
+      in: path
+      required: true
+      description: Occurrence-participant ULID constrained to the route studio and occurrence.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    EventEnrollmentId:
+      name: enrollment
+      in: path
+      required: true
+      description: Enrollment ULID constrained to the route studio and event series.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    SchedulePreviewId:
+      name: preview
+      in: path
+      required: true
+      description: Opaque short-lived scheduling preview ULID. A preview is actor- and studio-bound and cannot be used to commit another command type.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    LessonNoteId:
+      name: note
+      in: path
+      required: true
+      description: Lesson-note ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    LessonNoteTemplateId:
+      name: template
+      in: path
+      required: true
+      description: Lesson-note-template ULID resolved through the route studio.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    LessonNoteDeliveryPreviewId:
+      name: preview
+      in: path
+      required: true
+      description: Opaque actor- and studio-bound lesson-note-delivery preview ULID.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    LessonNoteAttachmentId:
+      name: attachment
+      in: path
+      required: true
+      description: Lesson-note attachment ULID constrained to the route studio and note.
+      schema: { $ref: '#/components/schemas/Ulid' }
+    CalendarFrom:
+      name: from
+      in: query
+      required: true
+      description: Inclusive range start parsed as an absolute date/time by Laravel.
+      schema: { type: string, format: date-time }
+    CalendarTo:
+      name: to
+      in: query
+      required: true
+      description: Exclusive range end after `from`; the calendar range cannot exceed 93 days.
+      schema: { type: string, format: date-time }
+    CalendarPageSize:
+      name: page_size
+      in: query
+      required: false
+      description: Cursor page size; defaults to 200 and never exceeds 500.
+      schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+    CalendarCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque Laravel cursor from `links.next` or `links.prev`; clients must not construct or interpret it.
+      schema:
+        type: [string, 'null']
+        maxLength: 2048
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
   headers:
     SetCookie:
       description: |-
@@ -2142,6 +3506,21 @@ components:
       schema:
         type: string
         const: no-store, private
+    AttachmentNoStore:
+      description: Private attachment bytes must not be stored by a browser or intermediary cache.
+      schema:
+        type: string
+        const: max-age=0, no-store, private
+    AttachmentDisposition:
+      description: Download disposition carrying Symfony's safely encoded original filename.
+      schema:
+        type: string
+        pattern: '^attachment;'
+    AttachmentContentLength:
+      description: Exact attachment size in bytes.
+      schema:
+        type: integer
+        minimum: 0
     PragmaNoCache:
       description: Compatibility directive preventing storage of sensitive identity material.
       schema:
@@ -2806,6 +4185,46 @@ components:
                 errors:
                   members.0.version:
                     - This person changed after you opened the household.
+    SchedulingConflict:
+      description: A short-lived scheduling preview, aggregate snapshot, conflict check, or idempotency binding no longer permits this commit.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/TypedConflictProblem' }
+          examples:
+            expired:
+              value:
+                message: This schedule preview expired. Generate a new preview.
+                code: preview_expired
+            hardConflict:
+              value:
+                message: Hard scheduling conflicts cannot be overridden.
+                code: hard_scheduling_conflict
+            keyReuse:
+              value:
+                message: This Idempotency-Key was already used for a different command.
+                code: idempotency_key_reused
+            warningDrift:
+              value:
+                message: Soft scheduling warnings changed after preview. Generate a new preview.
+                code: soft_warnings_changed
+    AttendanceConflict:
+      description: An attendance/note idempotency binding or lesson-note-delivery preview no longer permits this mutation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/TypedConflictProblem' }
+          examples:
+            keyReuse:
+              value:
+                message: The Idempotency-Key was already used for another command.
+                code: idempotency_key_reused
+            recipientsChanged:
+              value:
+                message: Delivery recipients changed after the preview was created.
+                code: recipients_changed_after_preview
+            noteChanged:
+              value:
+                message: The note changed after delivery was previewed.
+                code: note_changed_after_preview
     TooManyRequests:
       description: API rate limit exceeded.
       headers:
@@ -5264,6 +6683,28 @@ components:
         total:
           type: integer
           minimum: 0
+    LaravelCursorPaginationLinks:
+      type: object
+      additionalProperties: false
+      required: [first, last, prev, next]
+      properties:
+        first: { type: 'null' }
+        last: { type: 'null' }
+        prev: { type: [string, 'null'], format: uri }
+        next: { type: [string, 'null'], format: uri }
+    LaravelCursorPaginationMeta:
+      type: object
+      additionalProperties: false
+      required: [path, per_page, next_cursor, prev_cursor]
+      properties:
+        path: { type: string, format: uri }
+        per_page: { type: integer, minimum: 1, maximum: 500 }
+        next_cursor:
+          type: [string, 'null']
+          description: Opaque cursor for the next page, also embedded in `links.next` when present.
+        prev_cursor:
+          type: [string, 'null']
+          description: Opaque cursor for the previous page, also embedded in `links.prev` when present.
     HouseholdPaginatedCollectionEnvelope:
       type: object
       additionalProperties: false
@@ -5318,6 +6759,1348 @@ components:
           $ref: '#/components/schemas/LaravelPaginationLinks'
         meta:
           $ref: '#/components/schemas/LaravelPaginationMeta'
+    CreateSchedulingRecordInput:
+      description: The object variant must match the `{resource}` registry key; Laravel applies the corresponding tenant-aware validation and rejects fields from another variant.
+      oneOf:
+        - $ref: '#/components/schemas/CreateServiceCategoryInput'
+        - $ref: '#/components/schemas/CreateServiceInput'
+        - $ref: '#/components/schemas/CreateServicePriceInput'
+        - $ref: '#/components/schemas/CreateServicePolicyInput'
+        - $ref: '#/components/schemas/CreateLocationInput'
+        - $ref: '#/components/schemas/CreateRoomInput'
+        - $ref: '#/components/schemas/CreateEquipmentInput'
+        - $ref: '#/components/schemas/CreateRoomEquipmentInput'
+        - $ref: '#/components/schemas/CreateProgramOfferingInput'
+        - $ref: '#/components/schemas/CreateProgramOfferingOverrideInput'
+        - $ref: '#/components/schemas/CreateProgramOfferingStaffInput'
+        - $ref: '#/components/schemas/CreateStaffAccountLinkInput'
+        - $ref: '#/components/schemas/CreateStaffSchedulingProfileInput'
+        - $ref: '#/components/schemas/CreateAvailabilityWindowInput'
+        - $ref: '#/components/schemas/CreateAvailabilityOverrideInput'
+        - $ref: '#/components/schemas/CreateTravelBufferInput'
+    CreateServiceCategoryInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        color: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+        sort_order: { type: integer, minimum: 0, maximum: 65535 }
+        active: { type: boolean, default: true }
+    CreateServiceInput:
+      type: object
+      additionalProperties: false
+      required: [service_category_id, name, default_duration_minutes, default_capacity, default_price_minor, currency]
+      properties:
+        service_category_id: { $ref: '#/components/schemas/Ulid' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        default_duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        default_capacity: { type: integer, minimum: 1, maximum: 1000 }
+        default_price_minor: { type: integer, minimum: 0, maximum: 999999999 }
+        currency: { type: string, pattern: '^[A-Za-z]{3}$' }
+        booking_lead_minutes: { type: integer, minimum: 0, maximum: 525600 }
+        cancellation_notice_minutes: { type: integer, minimum: 0, maximum: 525600 }
+        makeup_policy: { type: string, enum: [none, studio_credit, reschedule] }
+        active: { type: boolean, default: true }
+    CreateServicePriceInput:
+      type: object
+      additionalProperties: false
+      required: [service_id, amount_minor, currency, effective_from]
+      properties:
+        service_id: { $ref: '#/components/schemas/Ulid' }
+        amount_minor: { type: integer, minimum: 0, maximum: 999999999 }
+        currency: { type: string, pattern: '^[A-Za-z]{3}$' }
+        effective_from: { type: string, format: date }
+        effective_until: { type: [string, 'null'], format: date }
+        active: { type: boolean, default: true }
+    CreateServicePolicyInput:
+      type: object
+      additionalProperties: false
+      required: [service_id, booking_lead_minutes, cancellation_notice_minutes, makeup_policy, effective_from]
+      properties:
+        service_id: { $ref: '#/components/schemas/Ulid' }
+        booking_lead_minutes: { type: integer, minimum: 0, maximum: 525600 }
+        cancellation_notice_minutes: { type: integer, minimum: 0, maximum: 525600 }
+        makeup_policy: { type: string, enum: [none, studio_credit, reschedule] }
+        effective_from: { type: string, format: date }
+        effective_until: { type: [string, 'null'], format: date }
+        active: { type: boolean, default: true }
+    CreateLocationInput:
+      type: object
+      additionalProperties: false
+      required: [name, kind, timezone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        kind: { type: string, enum: [physical, online, mobile] }
+        timezone: { type: string, maxLength: 64 }
+        address_line_1: { type: [string, 'null'], maxLength: 160 }
+        address_line_2: { type: [string, 'null'], maxLength: 160 }
+        city: { type: [string, 'null'], maxLength: 100 }
+        region: { type: [string, 'null'], maxLength: 100 }
+        postal_code: { type: [string, 'null'], maxLength: 32 }
+        country_code: { type: [string, 'null'], pattern: '^[A-Za-z]{2}$' }
+        online_url: { type: [string, 'null'], format: uri, maxLength: 2048 }
+        private_instructions: { type: [string, 'null'], maxLength: 5000 }
+        active: { type: boolean, default: true }
+    CreateRoomInput:
+      type: object
+      additionalProperties: false
+      required: [location_id, name, capacity]
+      properties:
+        location_id: { $ref: '#/components/schemas/Ulid' }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        capacity: { type: integer, minimum: 1, maximum: 1000 }
+        active: { type: boolean, default: true }
+    CreateEquipmentInput:
+      type: object
+      additionalProperties: false
+      required: [location_id, name, quantity]
+      properties:
+        location_id: { $ref: '#/components/schemas/Ulid' }
+        room_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        name: { type: string, minLength: 1, maxLength: 120 }
+        quantity: { type: integer, minimum: 1, maximum: 1000 }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        active: { type: boolean, default: true }
+    CreateRoomEquipmentInput:
+      type: object
+      additionalProperties: false
+      required: [location_id, room_id, equipment_id, quantity]
+      properties:
+        location_id: { $ref: '#/components/schemas/Ulid' }
+        room_id: { $ref: '#/components/schemas/Ulid' }
+        equipment_id: { $ref: '#/components/schemas/Ulid' }
+        quantity: { type: integer, minimum: 1, maximum: 1000 }
+        active: { type: boolean, default: true }
+    CreateProgramOfferingInput:
+      type: object
+      additionalProperties: false
+      required: [service_id, name, timezone]
+      properties:
+        service_id: { $ref: '#/components/schemas/Ulid' }
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        room_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        name: { type: string, minLength: 1, maxLength: 140 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        timezone: { type: string, maxLength: 64 }
+        duration_minutes: { type: [integer, 'null'], minimum: 5, maximum: 1440 }
+        capacity: { type: [integer, 'null'], minimum: 1, maximum: 1000 }
+        price_minor: { type: [integer, 'null'], minimum: 0, maximum: 999999999 }
+        currency: { type: [string, 'null'], pattern: '^[A-Za-z]{3}$' }
+        starts_on: { type: [string, 'null'], format: date }
+        ends_on: { type: [string, 'null'], format: date }
+        enrollment_open: { type: boolean, default: true }
+        active: { type: boolean, default: true }
+    CreateProgramOfferingOverrideInput:
+      type: object
+      additionalProperties: false
+      required: [program_offering_id, effective_from]
+      properties:
+        program_offering_id: { $ref: '#/components/schemas/Ulid' }
+        staff_profile_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        duration_minutes: { type: [integer, 'null'], minimum: 5, maximum: 1440 }
+        capacity: { type: [integer, 'null'], minimum: 1, maximum: 1000 }
+        price_minor: { type: [integer, 'null'], minimum: 0, maximum: 999999999 }
+        currency: { type: [string, 'null'], pattern: '^[A-Za-z]{3}$' }
+        booking_lead_minutes: { type: [integer, 'null'], minimum: 0, maximum: 525600 }
+        cancellation_notice_minutes: { type: [integer, 'null'], minimum: 0, maximum: 525600 }
+        makeup_policy:
+          type: [string, 'null']
+          enum: [none, studio_credit, reschedule, null]
+        effective_from: { type: string, format: date }
+        effective_until: { type: [string, 'null'], format: date }
+        active: { type: boolean, default: true }
+    CreateProgramOfferingStaffInput:
+      type: object
+      additionalProperties: false
+      required: [program_offering_id, staff_profile_id]
+      properties:
+        program_offering_id: { $ref: '#/components/schemas/Ulid' }
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        is_primary: { type: boolean, default: false }
+        active: { type: boolean, default: true }
+    CreateStaffAccountLinkInput:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id, studio_membership_id]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        studio_membership_id: { $ref: '#/components/schemas/Ulid' }
+        active: { type: boolean, default: true }
+    CreateStaffSchedulingProfileInput:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id, timezone]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        timezone: { type: string, maxLength: 64 }
+        default_buffer_before_minutes: { type: integer, minimum: 0, maximum: 240 }
+        default_buffer_after_minutes: { type: integer, minimum: 0, maximum: 240 }
+        default_travel_buffer_minutes: { type: integer, minimum: 0, maximum: 240 }
+        max_daily_minutes: { type: [integer, 'null'], minimum: 1, maximum: 1440 }
+        max_weekly_minutes: { type: [integer, 'null'], minimum: 1, maximum: 10080 }
+        active: { type: boolean, default: true }
+    CreateAvailabilityWindowInput:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id, weekday, start_time, end_time, timezone]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        weekday: { type: integer, minimum: 1, maximum: 7 }
+        start_time: { type: string, pattern: '^\d{2}:\d{2}:\d{2}$' }
+        end_time: { type: string, pattern: '^\d{2}:\d{2}:\d{2}$' }
+        timezone: { type: string, maxLength: 64 }
+        enforcement: { type: string, enum: [hard, soft] }
+        active: { type: boolean, default: true }
+    CreateAvailabilityOverrideInput:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id, kind, starts_at, ends_at, timezone]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        kind: { type: string, enum: [available, time_off] }
+        starts_at:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        ends_at:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        timezone: { type: string, maxLength: 64 }
+        reason: { type: [string, 'null'], maxLength: 500 }
+        active: { type: boolean, default: true }
+    CreateTravelBufferInput:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id, from_location_id, to_location_id, minutes]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        from_location_id: { $ref: '#/components/schemas/Ulid' }
+        to_location_id: { $ref: '#/components/schemas/Ulid' }
+        minutes: { type: integer, minimum: 0, maximum: 240 }
+        active: { type: boolean, default: true }
+    UpdateSchedulingRecordInput:
+      type: object
+      additionalProperties: false
+      required: [version]
+      description: Partial fields are selected by the `{resource}` registry key. Resource-specific required-together rules, tenant references, overlap checks, and management-only fields remain server-enforced.
+      properties:
+        version: { type: integer, minimum: 1 }
+        active: { type: boolean }
+        name: { type: string, minLength: 1, maxLength: 140 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        color: { type: [string, 'null'], pattern: '^#[0-9A-Fa-f]{6}$' }
+        sort_order: { type: integer, minimum: 0, maximum: 65535 }
+        service_category_id: { $ref: '#/components/schemas/Ulid' }
+        service_id: { $ref: '#/components/schemas/Ulid' }
+        program_offering_id: { $ref: '#/components/schemas/Ulid' }
+        staff_profile_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        studio_membership_id: { $ref: '#/components/schemas/Ulid' }
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        room_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        equipment_id: { $ref: '#/components/schemas/Ulid' }
+        from_location_id: { $ref: '#/components/schemas/Ulid' }
+        to_location_id: { $ref: '#/components/schemas/Ulid' }
+        kind: { type: string, enum: [physical, online, mobile, available, time_off] }
+        timezone: { type: string, maxLength: 64 }
+        address_line_1: { type: [string, 'null'], maxLength: 160 }
+        address_line_2: { type: [string, 'null'], maxLength: 160 }
+        city: { type: [string, 'null'], maxLength: 100 }
+        region: { type: [string, 'null'], maxLength: 100 }
+        postal_code: { type: [string, 'null'], maxLength: 32 }
+        country_code: { type: [string, 'null'], pattern: '^[A-Za-z]{2}$' }
+        online_url: { type: [string, 'null'], format: uri, maxLength: 2048 }
+        private_instructions: { type: [string, 'null'], maxLength: 5000 }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        default_duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        default_capacity: { type: integer, minimum: 1, maximum: 1000 }
+        default_price_minor: { type: integer, minimum: 0, maximum: 999999999 }
+        duration_minutes: { type: [integer, 'null'], minimum: 5, maximum: 1440 }
+        capacity: { type: [integer, 'null'], minimum: 1, maximum: 1000 }
+        quantity: { type: integer, minimum: 1, maximum: 1000 }
+        amount_minor: { type: integer, minimum: 0, maximum: 999999999 }
+        price_minor: { type: [integer, 'null'], minimum: 0, maximum: 999999999 }
+        currency: { type: [string, 'null'], pattern: '^[A-Za-z]{3}$' }
+        booking_lead_minutes: { type: [integer, 'null'], minimum: 0, maximum: 525600 }
+        cancellation_notice_minutes: { type: [integer, 'null'], minimum: 0, maximum: 525600 }
+        makeup_policy:
+          type: [string, 'null']
+          enum: [none, studio_credit, reschedule, null]
+        effective_from: { type: string, format: date }
+        effective_until: { type: [string, 'null'], format: date }
+        starts_on: { type: [string, 'null'], format: date }
+        ends_on: { type: [string, 'null'], format: date }
+        enrollment_open: { type: boolean }
+        is_primary: { type: boolean }
+        default_buffer_before_minutes: { type: integer, minimum: 0, maximum: 240 }
+        default_buffer_after_minutes: { type: integer, minimum: 0, maximum: 240 }
+        default_travel_buffer_minutes: { type: integer, minimum: 0, maximum: 240 }
+        max_daily_minutes: { type: [integer, 'null'], minimum: 1, maximum: 1440 }
+        max_weekly_minutes: { type: [integer, 'null'], minimum: 1, maximum: 10080 }
+        weekday: { type: integer, minimum: 1, maximum: 7 }
+        start_time: { type: string, pattern: '^\d{2}:\d{2}:\d{2}$' }
+        end_time: { type: string, pattern: '^\d{2}:\d{2}:\d{2}$' }
+        enforcement: { type: string, enum: [hard, soft] }
+        starts_at:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        ends_at:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        reason: { type: [string, 'null'], maxLength: 500 }
+        minutes: { type: integer, minimum: 0, maximum: 240 }
+    AvailabilityOverrideDecisionInput:
+      type: object
+      additionalProperties: false
+      required: [version, approval_status]
+      properties:
+        version: { type: integer, minimum: 1 }
+        approval_status: { type: string, enum: [approved, declined, canceled] }
+        enforcement: { type: string, enum: [hard, soft] }
+    SchedulingRecordPermissions:
+      type: object
+      additionalProperties: false
+      required: [edit, retire]
+      properties:
+        edit: { type: boolean }
+        retire: { type: boolean }
+    ResolvedOfferingConfiguration:
+      type: object
+      additionalProperties: false
+      required: [effective_on, duration_minutes, capacity, price_minor, currency, booking_lead_minutes, cancellation_notice_minutes, makeup_policy, sources]
+      properties:
+        effective_on: { type: string, format: date }
+        duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        capacity: { type: integer, minimum: 1, maximum: 1000 }
+        price_minor: { type: integer, minimum: 0 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        booking_lead_minutes: { type: integer, minimum: 0 }
+        cancellation_notice_minutes: { type: integer, minimum: 0 }
+        makeup_policy: { type: string, enum: [none, studio_credit, reschedule] }
+        sources:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [service_default, program_offering, service_effective_price, service_effective_policy, teacher_location_override, teacher_override, location_override]
+    SchedulingRecord:
+      type: object
+      additionalProperties: false
+      required: [id, active, version, created_at, updated_at, resolved, permissions]
+      description: Registry-selected response. Only fields belonging to the selected resource are present; management-private location/equipment/approval fields are null or omitted according to the live resource policy.
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        service_category_id: { $ref: '#/components/schemas/Ulid' }
+        service_id: { $ref: '#/components/schemas/Ulid' }
+        program_offering_id: { $ref: '#/components/schemas/Ulid' }
+        staff_profile_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        studio_membership_id: { $ref: '#/components/schemas/Ulid' }
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        room_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        equipment_id: { $ref: '#/components/schemas/Ulid' }
+        from_location_id: { $ref: '#/components/schemas/Ulid' }
+        to_location_id: { $ref: '#/components/schemas/Ulid' }
+        name: { type: string, maxLength: 140 }
+        description: { type: [string, 'null'] }
+        color: { type: [string, 'null'], pattern: '^#[0-9A-F]{6}$' }
+        sort_order: { type: integer, minimum: 0, maximum: 65535 }
+        kind: { type: string, enum: [physical, online, mobile, available, time_off] }
+        timezone: { type: string, maxLength: 64 }
+        address_line_1: { type: [string, 'null'] }
+        address_line_2: { type: [string, 'null'] }
+        city: { type: [string, 'null'] }
+        region: { type: [string, 'null'] }
+        postal_code: { type: [string, 'null'] }
+        country_code: { type: [string, 'null'], pattern: '^[A-Z]{2}$' }
+        online_url: { type: [string, 'null'], format: uri }
+        private_instructions: { type: [string, 'null'] }
+        notes: { type: [string, 'null'] }
+        default_duration_minutes: { type: integer, minimum: 5 }
+        default_capacity: { type: integer, minimum: 1 }
+        default_price_minor: { type: integer, minimum: 0 }
+        duration_minutes: { type: [integer, 'null'], minimum: 5 }
+        capacity: { type: [integer, 'null'], minimum: 1 }
+        quantity: { type: integer, minimum: 1 }
+        amount_minor: { type: integer, minimum: 0 }
+        price_minor: { type: [integer, 'null'], minimum: 0 }
+        currency: { type: [string, 'null'], pattern: '^[A-Z]{3}$' }
+        booking_lead_minutes: { type: [integer, 'null'], minimum: 0 }
+        cancellation_notice_minutes: { type: [integer, 'null'], minimum: 0 }
+        makeup_policy:
+          type: [string, 'null']
+          enum: [none, studio_credit, reschedule, null]
+        effective_from: { type: string }
+        effective_until: { type: [string, 'null'] }
+        starts_on: { type: [string, 'null'] }
+        ends_on: { type: [string, 'null'] }
+        enrollment_open: { type: boolean }
+        is_primary: { type: boolean }
+        default_buffer_before_minutes: { type: integer, minimum: 0 }
+        default_buffer_after_minutes: { type: integer, minimum: 0 }
+        default_travel_buffer_minutes: { type: integer, minimum: 0 }
+        max_daily_minutes: { type: [integer, 'null'], minimum: 1 }
+        max_weekly_minutes: { type: [integer, 'null'], minimum: 1 }
+        weekday: { type: integer, minimum: 1, maximum: 7 }
+        start_time: { type: string }
+        end_time: { type: string }
+        approval_status: { type: string, enum: [pending, approved, declined, canceled] }
+        enforcement: { type: string, enum: [hard, soft] }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        reason: { type: [string, 'null'] }
+        minutes: { type: integer, minimum: 0 }
+        active: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        resolved:
+          oneOf: [{ $ref: '#/components/schemas/ResolvedOfferingConfiguration' }, { type: 'null' }]
+        permissions: { $ref: '#/components/schemas/SchedulingRecordPermissions' }
+    SchedulingRecordEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SchedulingRecord' }
+    SchedulingRecordPaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulingRecord' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    EventKind:
+      type: string
+      enum: [general, private_lesson, group_class, open_class, workshop, camp, recital, closure]
+    EventVisibility:
+      type: string
+      enum: [private, studio, portal, public]
+    EventSeriesStatus:
+      type: string
+      enum: [draft, active, paused, ended, canceled]
+    EventOccurrenceStatus:
+      type: string
+      enum: [tentative, scheduled, completed, canceled]
+    EventEnrollmentStatus:
+      type: string
+      enum: [pending, confirmed, waitlisted, withdrawn]
+    ScheduleEditScope:
+      type: string
+      enum: [one, future, series]
+    LocalTimeResolution:
+      type: string
+      enum: [reject, earlier, later]
+    EventAssignmentInput:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        role:
+          type: string
+          enum: [lead, assistant, substitute]
+          default: lead
+    EventAssignment:
+      type: object
+      additionalProperties: false
+      required: [staff_profile_id, role]
+      properties:
+        staff_profile_id: { $ref: '#/components/schemas/Ulid' }
+        role:
+          type: string
+          enum: [lead, assistant, substitute]
+    EquipmentRequirementInput:
+      type: object
+      additionalProperties: false
+      required: [equipment_id, quantity]
+      properties:
+        equipment_id: { $ref: '#/components/schemas/Ulid' }
+        quantity: { type: integer, minimum: 1, maximum: 1000 }
+    LocalRecurrenceDateInput:
+      type: object
+      additionalProperties: false
+      required: [local, resolution]
+      properties:
+        local:
+          type: string
+          description: IANA-zone local wall time in `Y-m-dTH:i:s` form, without an offset.
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        resolution: { $ref: '#/components/schemas/LocalTimeResolution' }
+    PreviewEventSeriesInput:
+      type: object
+      additionalProperties: false
+      required: [kind, title, timezone, dtstart_local, duration_minutes, capacity]
+      properties:
+        service_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        program_offering_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        pricing_staff_profile_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        kind: { $ref: '#/components/schemas/EventKind' }
+        visibility:
+          allOf: [{ $ref: '#/components/schemas/EventVisibility' }]
+          default: studio
+        title: { type: string, minLength: 1, maxLength: 160 }
+        shared_description:
+          type: [string, 'null']
+          maxLength: 10000
+        internal_description:
+          type: [string, 'null']
+          maxLength: 10000
+        timezone: { type: string, maxLength: 64, example: America/Bogota }
+        dtstart_local:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        dtstart_resolution:
+          allOf: [{ $ref: '#/components/schemas/LocalTimeResolution' }]
+          default: reject
+        duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        rrule:
+          type: [string, 'null']
+          maxLength: 1000
+          description: Optional RFC 5545 recurrence rule accepted by the server's bounded canonical recurrence engine.
+        rdates:
+          type: array
+          maxItems: 200
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/LocalRecurrenceDateInput' }
+        exdates:
+          type: array
+          maxItems: 200
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        capacity: { type: integer, minimum: 1, maximum: 1000 }
+        hold_expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Future expiry no more than seven days from preview creation.
+        teachers:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/EventAssignmentInput' }
+        room_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Ulid' }
+        equipment:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/EquipmentRequirementInput' }
+        acknowledge_soft_warnings:
+          type: boolean
+          default: false
+          description: May be true only for a scheduling manager when this exact preview has active soft warnings.
+    PreviewEventSeriesCloneInput:
+      type: object
+      additionalProperties: false
+      required: [version, title, dtstart_local, dtstart_resolution]
+      properties:
+        version: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        dtstart_local:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        dtstart_resolution: { $ref: '#/components/schemas/LocalTimeResolution' }
+        timezone: { type: string, maxLength: 64 }
+        rrule: { type: [string, 'null'], maxLength: 1000 }
+        acknowledge_soft_warnings: { type: boolean, default: false }
+    PreviewScheduleChangeInput:
+      type: object
+      additionalProperties: false
+      required: [version, scope]
+      properties:
+        version: { type: integer, minimum: 1 }
+        scope: { $ref: '#/components/schemas/ScheduleEditScope' }
+        starts_at_local:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        start_resolution: { $ref: '#/components/schemas/LocalTimeResolution' }
+        dtstart_local:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+          description: Alias used when changing recurrence shape; mutually exclusive with `starts_at_local`.
+        dtstart_resolution:
+          allOf: [{ $ref: '#/components/schemas/LocalTimeResolution' }]
+          description: Required with `dtstart_local` and mutually exclusive with `start_resolution`.
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        timezone: { type: string, maxLength: 64 }
+        duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        capacity: { type: integer, minimum: 1, maximum: 1000 }
+        visibility: { $ref: '#/components/schemas/EventVisibility' }
+        shared_description: { type: [string, 'null'], maxLength: 10000 }
+        internal_description: { type: [string, 'null'], maxLength: 10000 }
+        makeup_required: { type: boolean }
+        makeup_reference: { type: [string, 'null'], maxLength: 120 }
+        reason: { type: [string, 'null'], maxLength: 500 }
+        teachers:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/EventAssignmentInput' }
+        room_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Ulid' }
+        equipment:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/EquipmentRequirementInput' }
+        acknowledge_soft_warnings: { type: boolean, default: false }
+        rrule:
+          type: [string, 'null']
+          maxLength: 1000
+          description: Future/series recurrence replacement; forbidden for one-occurrence edits.
+        rdates:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/LocalRecurrenceDateInput' }
+        exdates:
+          type: array
+          maxItems: 200
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+    EmptyCommitInput:
+      type: object
+      additionalProperties: false
+      maxProperties: 0
+      description: Commit bodies cannot replace the command or warning acknowledgement stored in the preview.
+    OptimisticVersionInput:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+    PreviewEventEnrollmentInput:
+      type: object
+      additionalProperties: false
+      required: [person_id, status]
+      properties:
+        person_id: { $ref: '#/components/schemas/Ulid' }
+        status:
+          type: string
+          enum: [confirmed, waitlisted]
+    SlotSearchInput:
+      type: object
+      additionalProperties: false
+      required: [from, to, duration_minutes]
+      properties:
+        from: { type: string, format: date-time }
+        to:
+          type: string
+          format: date-time
+          description: Must be after `from` and no more than 31 days later.
+        duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 1
+          description: Requested participant capacity included in room-capacity conflict checks.
+        step_minutes: { type: integer, enum: [5, 10, 15, 30, 60], default: 15 }
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        staff_profile_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Ulid' }
+        room_ids:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Ulid' }
+        equipment:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/EquipmentRequirementInput' }
+    ScheduleConflictItem:
+      type: object
+      additionalProperties: false
+      required: [severity, code, message]
+      properties:
+        severity: { type: string, enum: [hard, soft] }
+        code: { type: string, minLength: 1, maxLength: 100 }
+        message: { type: string, minLength: 1, maxLength: 1000 }
+    ScheduleProjectionIntent:
+      type: object
+      additionalProperties: false
+      required: [type, mode]
+      properties:
+        type:
+          type: string
+          enum: [billing_recalculation, payroll_recalculation, makeup_reconciliation]
+        mode:
+          type: string
+          enum: [project_only]
+    SchedulePreviewImpact:
+      type: object
+      additionalProperties: false
+      required: [affected_occurrences, effects]
+      properties:
+        affected_occurrences: { type: integer, minimum: 0 }
+        effects:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [calendar_created, calendar_changed, calendar_roster_changed, notifications_projected, billing_projection, payroll_projection, makeup_projection]
+        projection_intents:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/ScheduleProjectionIntent' }
+    SchedulePreviewCapabilities:
+      type: object
+      additionalProperties: false
+      required: [can_commit, can_acknowledge_soft_warnings, hard_conflicts_overrideable]
+      properties:
+        can_commit: { type: boolean }
+        can_acknowledge_soft_warnings: { type: boolean }
+        hard_conflicts_overrideable:
+          type: boolean
+          const: false
+    ScheduleChangePreview:
+      type: object
+      additionalProperties: false
+      required: [id, command_type, scope, status, impact, conflicts, soft_warnings_acknowledged, expires_at, capabilities]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        command_type:
+          type: string
+          enum: [create_event_series, clone_event_series, reschedule, cancel, restore, enrollment_change]
+        scope: { $ref: '#/components/schemas/ScheduleEditScope' }
+        status: { type: string, enum: [ready, blocked] }
+        impact: { $ref: '#/components/schemas/SchedulePreviewImpact' }
+        conflicts:
+          type: array
+          items: { $ref: '#/components/schemas/ScheduleConflictItem' }
+        soft_warnings_acknowledged: { type: boolean }
+        expires_at: { type: string, format: date-time }
+        capabilities: { $ref: '#/components/schemas/SchedulePreviewCapabilities' }
+    ScheduleChangePreviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ScheduleChangePreview' }
+    EventOccurrenceParticipant:
+      type: object
+      additionalProperties: false
+      required: [person_id, role, status]
+      properties:
+        person_id: { $ref: '#/components/schemas/Ulid' }
+        role: { type: string, minLength: 1, maxLength: 32 }
+        status: { type: string, enum: [reserved, confirmed] }
+    EventOccurrenceCapabilities:
+      type: object
+      additionalProperties: false
+      required: [can_reschedule, can_cancel, can_restore]
+      properties:
+        can_reschedule: { type: boolean }
+        can_cancel: { type: boolean }
+        can_restore: { type: boolean }
+    EventOccurrence:
+      type: object
+      additionalProperties: false
+      required: [id, series_id, public_uid, recurrence_id_local, starts_at, ends_at, timezone, utc_offset_minutes, status, kind, title, capacity, online_join_url, teachers, room_ids, equipment, participants, is_hold, hold_expires_at, version, capabilities]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        series_id: { $ref: '#/components/schemas/Ulid' }
+        public_uid: { type: string, format: uuid }
+        recurrence_id_local:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        timezone: { type: string, maxLength: 64 }
+        utc_offset_minutes: { type: integer, minimum: -1440, maximum: 1440 }
+        status: { $ref: '#/components/schemas/EventOccurrenceStatus' }
+        kind: { $ref: '#/components/schemas/EventKind' }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        capacity: { type: integer, minimum: 1, maximum: 1000 }
+        price_minor: { type: [integer, 'null'], minimum: 0 }
+        currency: { type: [string, 'null'], pattern: '^[A-Z]{3}$' }
+        policy:
+          type: [object, 'null']
+          additionalProperties: true
+          description: Immutable management-only policy snapshot captured when the occurrence materializes.
+        location_id: { $ref: '#/components/schemas/Ulid' }
+        online_join_url: { type: [string, 'null'], format: uri }
+        teachers:
+          type: array
+          items: { $ref: '#/components/schemas/EventAssignment' }
+        room_ids:
+          type: array
+          items: { $ref: '#/components/schemas/Ulid' }
+        equipment:
+          type: array
+          items: { $ref: '#/components/schemas/EquipmentRequirementInput' }
+        participants:
+          type: array
+          items: { $ref: '#/components/schemas/EventOccurrenceParticipant' }
+        is_hold: { type: boolean }
+        hold_expires_at: { type: [string, 'null'], format: date-time }
+        makeup_required: { type: boolean }
+        makeup_reference: { type: [string, 'null'], maxLength: 120 }
+        version: { type: integer, minimum: 1 }
+        capabilities: { $ref: '#/components/schemas/EventOccurrenceCapabilities' }
+    EventSeriesCapabilities:
+      type: object
+      additionalProperties: false
+      required: [can_edit, can_cancel, can_clone, can_manage_roster, can_convert_hold, can_release_hold]
+      properties:
+        can_edit: { type: boolean }
+        can_cancel: { type: boolean }
+        can_clone: { type: boolean }
+        can_manage_roster: { type: boolean }
+        can_convert_hold: { type: boolean }
+        can_release_hold: { type: boolean }
+    EventSeries:
+      type: object
+      additionalProperties: false
+      required: [id, kind, status, visibility, service_id, program_offering_id, location_id, title, shared_description, internal_description, timezone, dtstart_local, dtstart_resolution, duration_minutes, rrule, rdates, exdates, capacity, hold_expires_at, version, teachers, room_ids, equipment, capabilities]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        kind: { $ref: '#/components/schemas/EventKind' }
+        status: { $ref: '#/components/schemas/EventSeriesStatus' }
+        visibility: { $ref: '#/components/schemas/EventVisibility' }
+        service_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        program_offering_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        location_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        title: { type: string, minLength: 1, maxLength: 160 }
+        shared_description: { type: [string, 'null'], maxLength: 10000 }
+        internal_description:
+          type: [string, 'null']
+          maxLength: 10000
+          description: Present but null outside scheduling management.
+        timezone: { type: string, maxLength: 64 }
+        dtstart_local:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        dtstart_resolution: { $ref: '#/components/schemas/LocalTimeResolution' }
+        duration_minutes: { type: integer, minimum: 5, maximum: 1440 }
+        rrule: { type: [string, 'null'], maxLength: 1000 }
+        rdates:
+          type: array
+          items: { $ref: '#/components/schemas/LocalRecurrenceDateInput' }
+        exdates:
+          type: array
+          items:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+        capacity: { type: integer, minimum: 1, maximum: 1000 }
+        hold_expires_at: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+        teachers:
+          type: array
+          items: { $ref: '#/components/schemas/EventAssignment' }
+        room_ids:
+          type: array
+          items: { $ref: '#/components/schemas/Ulid' }
+        equipment:
+          type: array
+          items: { $ref: '#/components/schemas/EquipmentRequirementInput' }
+        capabilities: { $ref: '#/components/schemas/EventSeriesCapabilities' }
+        occurrences:
+          type: array
+          items: { $ref: '#/components/schemas/EventOccurrence' }
+    EventSeriesEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventSeries' }
+    PublicEventOccurrence:
+      type: object
+      additionalProperties: false
+      required: [uid, starts_at, ends_at, timezone, utc_offset_minutes, title, kind, shared_description]
+      properties:
+        uid: { type: string, format: uuid }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        timezone: { type: string, maxLength: 64 }
+        utc_offset_minutes: { type: integer, minimum: -1440, maximum: 1440 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        kind: { $ref: '#/components/schemas/EventKind' }
+        shared_description: { type: [string, 'null'], maxLength: 10000 }
+    PublicEventOccurrenceCursorCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PublicEventOccurrence' }
+        links: { $ref: '#/components/schemas/LaravelCursorPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelCursorPaginationMeta' }
+    EventOccurrenceCursorCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/EventOccurrence' }
+        links: { $ref: '#/components/schemas/LaravelCursorPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelCursorPaginationMeta' }
+    EventOccurrencePaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/EventOccurrence' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    EventEnrollment:
+      type: object
+      additionalProperties: false
+      required: [id, series_id, person_id, status, version]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        series_id: { $ref: '#/components/schemas/Ulid' }
+        person_id: { $ref: '#/components/schemas/Ulid' }
+        role: { type: string, minLength: 1, maxLength: 32 }
+        status: { $ref: '#/components/schemas/EventEnrollmentStatus' }
+        version: { type: integer, minimum: 1 }
+    EventEnrollmentEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventEnrollment' }
+    EventEnrollmentCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/EventEnrollment' }
+    SlotSearchWarning:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 100 }
+        message: { type: string, minLength: 1, maxLength: 1000 }
+    SlotSearchResult:
+      type: object
+      additionalProperties: false
+      required: [starts_at, ends_at, score, warnings]
+      properties:
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        score: { type: integer, minimum: 0 }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/SlotSearchWarning' }
+    SlotSearchResultEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/SlotSearchResult' }
+    AttendanceOutcome:
+      type: string
+      enum: [present, late, absent_excused, absent_unexcused, no_show, teacher_cancelled]
+    AttendanceBillingDisposition:
+      type: string
+      enum: [bill, no_charge, credit, pending_review]
+    AttendanceMakeupDisposition:
+      type: string
+      enum: [none, required, waived, pending_review]
+    RecordAttendanceInput:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome: { $ref: '#/components/schemas/AttendanceOutcome' }
+        minutes_late: { type: integer, minimum: 0, maximum: 1440 }
+        reason: { type: [string, 'null'], maxLength: 500 }
+        version:
+          type: integer
+          minimum: 1
+          description: Required by the domain when correcting an existing record.
+        correction_reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Required and nonblank when an existing normalized attendance state changes.
+    RecordAttendanceBulkItemInput:
+      type: object
+      additionalProperties: false
+      required: [participant_id, outcome]
+      properties:
+        participant_id: { $ref: '#/components/schemas/Ulid' }
+        outcome: { $ref: '#/components/schemas/AttendanceOutcome' }
+        minutes_late: { type: integer, minimum: 0, maximum: 1440 }
+        reason: { type: [string, 'null'], maxLength: 500 }
+        version: { type: integer, minimum: 1 }
+        correction_reason: { type: string, minLength: 1, maxLength: 500 }
+    RecordAttendanceBulkInput:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 250
+          items: { $ref: '#/components/schemas/RecordAttendanceBulkItemInput' }
+    AttendanceCorrection:
+      type: object
+      additionalProperties: false
+      required: [id, previous_version, reason, occurred_at]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        previous_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        occurred_at: { type: string, format: date-time }
+    AttendanceRecord:
+      type: object
+      additionalProperties: false
+      required: [id, occurrence_id, participant_id, person_id, outcome, minutes_late, reason, makeup_disposition, recorded_at, version]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        occurrence_id: { $ref: '#/components/schemas/Ulid' }
+        participant_id: { $ref: '#/components/schemas/Ulid' }
+        person_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+          description: Null in the billing projection.
+        outcome: { $ref: '#/components/schemas/AttendanceOutcome' }
+        minutes_late:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 1440
+        reason: { type: [string, 'null'], maxLength: 500 }
+        billing_disposition:
+          $ref: '#/components/schemas/AttendanceBillingDisposition'
+          description: Present only for management and billing.
+        makeup_disposition:
+          oneOf: [{ $ref: '#/components/schemas/AttendanceMakeupDisposition' }, { type: 'null' }]
+          description: Null in the billing projection.
+        recorded_at: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        corrections:
+          type: array
+          description: Present only for management.
+          items: { $ref: '#/components/schemas/AttendanceCorrection' }
+    AttendanceRecordEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AttendanceRecord' }
+    AttendanceRecordCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AttendanceRecord' }
+    AttendanceRecordPaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AttendanceRecord' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    LessonNoteScope:
+      type: string
+      enum: [participant, group]
+    LessonNoteAudience:
+      type: string
+      enum: [student, guardian, author_private]
+    CreateLessonNoteInput:
+      type: object
+      additionalProperties: false
+      required: [scope, audience, body_html]
+      properties:
+        scope: { $ref: '#/components/schemas/LessonNoteScope' }
+        participant_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+          description: Required for participant scope and prohibited for group scope.
+        audience: { $ref: '#/components/schemas/LessonNoteAudience' }
+        title: { type: [string, 'null'], maxLength: 160 }
+        body_html:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          pattern: '\S'
+          description: Sanitized to the server allowlist; scripts, remote images, tracking markup, and unsafe attributes are removed.
+    UpdateLessonNoteInput:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        title: { type: [string, 'null'], maxLength: 160 }
+        body_html: { type: string, minLength: 1, maxLength: 20000, pattern: '\S' }
+        reason: { type: [string, 'null'], maxLength: 500 }
+    LessonNotePermissions:
+      type: object
+      additionalProperties: false
+      required: [edit, preview_delivery]
+      properties:
+        edit: { type: boolean }
+        preview_delivery: { type: boolean }
+    LessonNote:
+      type: object
+      additionalProperties: false
+      required: [id, occurrence_id, participant_id, scope, audience, title, body_html, current_revision, version, attachments, permissions]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        occurrence_id: { $ref: '#/components/schemas/Ulid' }
+        participant_id:
+          oneOf: [{ $ref: '#/components/schemas/Ulid' }, { type: 'null' }]
+        scope: { $ref: '#/components/schemas/LessonNoteScope' }
+        audience: { $ref: '#/components/schemas/LessonNoteAudience' }
+        title: { type: [string, 'null'], maxLength: 160 }
+        body_html: { type: string, maxLength: 20000 }
+        current_revision: { type: integer, minimum: 1 }
+        version: { type: integer, minimum: 1 }
+        attachments:
+          type: array
+          description: Editors see retained current-revision metadata, including pending/failed/infected/retired status; authorized learner/guardian projections contain only current, clean, active attachments.
+          items: { $ref: '#/components/schemas/LessonNoteAttachment' }
+        permissions: { $ref: '#/components/schemas/LessonNotePermissions' }
+    LessonNoteEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LessonNote' }
+    LessonNotePaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/LessonNote' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    LessonNoteDeliveryPreview:
+      type: object
+      additionalProperties: false
+      required: [id, note_id, note_version, recipient_count, attachments, expires_at, can_commit]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        note_id: { $ref: '#/components/schemas/Ulid' }
+        note_version: { type: integer, minimum: 1 }
+        recipient_count: { type: integer, minimum: 1 }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/LessonNoteDeliveryAttachment' }
+        expires_at: { type: string, format: date-time }
+        can_commit: { type: boolean }
+    LessonNoteDeliveryPreviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LessonNoteDeliveryPreview' }
+    LessonNoteDeliveryIntent:
+      type: object
+      additionalProperties: false
+      required: [id, note_id, note_version, recipient_count, attachments, status, committed_at]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        note_id: { $ref: '#/components/schemas/Ulid' }
+        note_version: { type: integer, minimum: 1 }
+        recipient_count: { type: integer, minimum: 1 }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/LessonNoteDeliveryAttachment' }
+        status: { type: string, enum: [pending, committed, canceled] }
+        committed_at: { type: string, format: date-time }
+    LessonNoteDeliveryIntentEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LessonNoteDeliveryIntent' }
+    CreateLessonNoteTemplateInput:
+      type: object
+      additionalProperties: false
+      required: [name, audience, body_html]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120, pattern: '\S' }
+        audience: { $ref: '#/components/schemas/LessonNoteAudience' }
+        body_html: { type: string, minLength: 1, maxLength: 20000, pattern: '\S' }
+    UpdateLessonNoteTemplateInput:
+      type: object
+      additionalProperties: false
+      required: [version, reason]
+      properties:
+        version: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 120, pattern: '\S' }
+        audience: { $ref: '#/components/schemas/LessonNoteAudience' }
+        body_html: { type: string, minLength: 1, maxLength: 20000, pattern: '\S' }
+        active: { type: boolean }
+        reason: { type: string, minLength: 1, maxLength: 500, pattern: '\S' }
+    LessonNoteTemplate:
+      type: object
+      additionalProperties: false
+      required: [id, name, audience, body_html, active, version]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        audience: { $ref: '#/components/schemas/LessonNoteAudience' }
+        body_html: { type: string, maxLength: 20000 }
+        active: { type: boolean }
+        version: { type: integer, minimum: 1 }
+    LessonNoteTemplateEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LessonNoteTemplate' }
+    LessonNoteTemplatePaginatedCollectionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/LessonNoteTemplate' }
+        links: { $ref: '#/components/schemas/LaravelPaginationLinks' }
+        meta: { $ref: '#/components/schemas/LaravelPaginationMeta' }
+    LessonNoteAttachmentPermissions:
+      type: object
+      additionalProperties: false
+      required: [download, retire, rescan]
+      properties:
+        download: { type: boolean }
+        retire: { type: boolean }
+        rescan: { type: boolean }
+    LessonNoteAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, note_id, note_revision, name, mime, size_bytes, sha256, status, created_at, permissions]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        note_id: { $ref: '#/components/schemas/Ulid' }
+        note_revision: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        mime:
+          type: string
+          enum: [application/pdf, image/png, image/jpeg, image/webp, audio/mpeg, audio/mp3, audio/mp4, audio/x-m4a, audio/wav, audio/x-wav, audio/vnd.wave, audio/ogg, application/ogg]
+        size_bytes: { type: integer, minimum: 1, maximum: 26214400 }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        status: { type: string, enum: [pending, clean, infected, failed, retired] }
+        created_at: { type: string, format: date-time }
+        permissions: { $ref: '#/components/schemas/LessonNoteAttachmentPermissions' }
+    LessonNoteAttachmentEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LessonNoteAttachment' }
+    UploadLessonNoteAttachmentInput:
+      type: object
+      additionalProperties: false
+      required: [note_version, file]
+      properties:
+        note_version:
+          type: integer
+          minimum: 1
+          description: Current optimistic version of the lesson note and revision that will own the attachment.
+        file:
+          type: string
+          format: binary
+          description: At most 25 MiB by default. Allowed extensions and detected content are PDF, PNG, JPEG, WebP, MP3, M4A, WAV, and OGG.
+    RetireLessonNoteAttachmentInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    LessonNoteAttachmentDownloadUrl:
+      type: object
+      additionalProperties: false
+      required: [url, expires_at]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Short-lived signed application route, never a public storage URL.
+        expires_at: { type: string, format: date-time }
+    LessonNoteAttachmentDownloadUrlEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/LessonNoteAttachmentDownloadUrl' }
+    LessonNoteDeliveryAttachment:
+      type: object
+      additionalProperties: false
+      required: [id, name, mime, size_bytes, sha256]
+      properties:
+        id: { $ref: '#/components/schemas/Ulid' }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        mime: { type: string, minLength: 1, maxLength: 127 }
+        size_bytes: { type: integer, minimum: 1 }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+    TypedConflictProblem:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message: { type: string, minLength: 1 }
+        code:
+          type: string
+          enum:
+            - idempotency_key_reused
+            - preview_consumed
+            - preview_expired
+            - preview_command_mismatch
+            - preview_envelope_mismatch
+            - hard_scheduling_conflict
+            - soft_warning_unacknowledged
+            - soft_warnings_changed
+            - schedule_changed_after_preview
+            - participant_capacity
+            - idempotency_claim_incomplete
+            - note_changed_after_preview
+            - recipients_changed_after_preview
+            - attachments_changed_after_preview
     Problem:
       type: object
       description: Laravel JSON error envelope for API exceptions.

@@ -655,6 +655,26 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/public/studios/{studio}/calendar": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List public calendar occurrences
+         * @description Returns only scheduled, non-hold occurrences whose active series is public. The half-open range may span at most 93 days; stable start-time/ULID ordering and cursor pagination prevent silent truncation.
+         */
+        readonly get: operations["listPublicCalendarOccurrences"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/studios": {
         readonly parameters: {
             readonly query?: never;
@@ -705,6 +725,226 @@ export interface paths {
         readonly get: operations["getStudio"];
         readonly put?: never;
         readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/attendance/overdue": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List occurrences with overdue attendance
+         * @description Management-only list of ended scheduled/completed occurrences that still have an active participant without attendance. Defaults to occurrences ended at least 24 hours ago.
+         */
+        readonly get: operations["listOverdueAttendanceOccurrences"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/calendar": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List the studio calendar
+         * @description Returns a role-projected half-open range of occurrences. Managers can filter any tenant teacher/room; a teacher is scoped to assigned events and may filter only linked staff profiles; billing receives a financial-safe projection. The range is limited to 93 days and stable cursor pagination never silently omits matching events.
+         */
+        readonly get: operations["listStudioCalendarOccurrences"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get an event series
+         * @description Returns the route-tenant series, materialized occurrences, assignments visible to the caller, and server-derived capabilities. Billing never receives a location or internal description.
+         */
+        readonly get: operations["getEventSeries"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}/clone/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview an event-series clone
+         * @description Clones the source series configuration into a server-stored preview after checking its optimistic version. The server translates inherited UNTIL, RDATE, and EXDATE values by the local-wall-clock anchor delta unless a replacement RRULE is supplied. Roster copying is prohibited.
+         */
+        readonly post: operations["previewEventSeriesClone"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}/enrollments": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List an event-series roster
+         * @description Management-only roster projection for enrollments in one route-tenant series. Internal studio and actor identifiers are never returned.
+         */
+        readonly get: operations["listEventSeriesEnrollments"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}/enrollments/{enrollment}/withdraw/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview an enrollment withdrawal
+         * @description Previews withdrawal of a route-tenant series enrollment using its current optimistic version; no roster mutation occurs until the generic enrollment-preview commit.
+         */
+        readonly post: operations["previewEventEnrollmentWithdrawal"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}/enrollments/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview an enrollment change
+         * @description Previews confirmation or waitlisting of an active tenant student, snapshots current series/occurrence/participant/enrollment versions, and blocks confirmation when any materialized occurrence lacks capacity.
+         */
+        readonly post: operations["previewEventEnrollment"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}/hold": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Release an active temporary hold
+         * @description Cancels an active temporary hold while retaining history. It requires the current version and actor-scoped idempotency key; no schedule row is hard-deleted.
+         */
+        readonly delete: operations["releaseEventSeriesHold"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/{series}/hold/convert": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Convert an active temporary hold
+         * @description Converts a non-expired temporary hold into a durable event series with an optimistic version and actor-scoped idempotency key.
+         */
+        readonly post: operations["convertEventSeriesHold"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview a new event series
+         * @description Canonicalizes and expands RFC 5545 recurrence data, snapshots referenced aggregate versions, detects hard conflicts and soft warnings, and stores an actor-bound ten-minute preview without mutating the schedule.
+         */
+        readonly post: operations["previewEventSeriesCreation"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/event-series/previews/{preview}/commit": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Commit an event-series preview
+         * @description Commits only the server-stored command after reauthorization, preview TTL/actor/command/version checks, conflict revalidation, and idempotency enforcement. A client-supplied command or warning acknowledgement is prohibited.
+         */
+        readonly post: operations["commitEventSeriesCreation"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -905,6 +1145,374 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/note-delivery-previews/{preview}/commit": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Commit lesson-note delivery intent
+         * @description Reauthorizes and commits only the actor-bound server preview after note-version, recipient-fingerprint, TTL, one-shot, and idempotency checks. The endpoint records an outbox-backed delivery intent; provider delivery is asynchronous.
+         */
+        readonly post: operations["commitLessonNoteDelivery"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/note-templates": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List lesson-note templates
+         * @description Lists templates usable by the caller. Management sees active and retired templates; teachers see only active templates; billing is forbidden.
+         */
+        readonly get: operations["listLessonNoteTemplates"];
+        readonly put?: never;
+        /**
+         * Create a lesson-note template
+         * @description Management-only creation with normalized studio-unique name, sanitized readable HTML, immutable initial revision, and actor-scoped idempotency.
+         */
+        readonly post: operations["createLessonNoteTemplate"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/note-templates/{template}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        /**
+         * Update or retire a lesson-note template
+         * @description Management-only partial update with current optimistic version and a mandatory revision reason. HTML is sanitized and every accepted update appends an immutable revision; retirement uses `active=false`.
+         */
+        readonly patch: operations["updateLessonNoteTemplate"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        /**
+         * Revise a lesson note
+         * @description Sanitizes a partial content update, requires the current optimistic version, appends an immutable revision, and preserves the note identity. Audience and scope are immutable after creation.
+         */
+        readonly patch: operations["reviseLessonNote"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}/attachments": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Upload a quarantined lesson-note attachment
+         * @description Uploads one allowlisted file to private quarantine, validates extension plus Laravel MIME plus server-side file magic, binds it to the current note revision and optimistic note version, and queues fail-closed malware scanning. The file is not downloadable while pending, failed, or infected.
+         */
+        readonly post: operations["uploadLessonNoteAttachment"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Retire a lesson-note attachment
+         * @description Appends an immutable retirement event with a required reason and revokes all later metadata projection and signed-download use. The record and scan history are retained rather than hard-deleted.
+         */
+        readonly delete: operations["retireLessonNoteAttachment"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/download": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Download a clean lesson-note attachment
+         * @description Streams from private storage only after studio membership, signature, recent password/passkey confirmation, clean/unretired state, and current note authorization are all rechecked at use time. Responses are no-store, `nosniff`, and CSP-sandboxed; a retired or newly unauthorized URL stops working immediately.
+         */
+        readonly get: operations["downloadLessonNoteAttachment"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/download-url": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Create a short-lived attachment download URL
+         * @description Returns a temporary signed route only for a currently clean, unretired attachment that the caller is still authorized to read. Pending, failed, infected, retired, cross-tenant, and unauthorized resources all return `404`.
+         */
+        readonly post: operations["createLessonNoteAttachmentDownloadUrl"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}/attachments/{attachment}/scan": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Retry lesson-note attachment scanning
+         * @description Requeues fail-closed malware scanning for a pending or failed attachment. Only the note author or a scheduling manager may retry; infected, clean, or retired files cannot be retried.
+         */
+        readonly post: operations["retryLessonNoteAttachmentScan"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/notes/{note}/delivery-previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview lesson-note delivery
+         * @description Resolves eligible recipients without sending, binds their projection and the current note version to the actor, and stores a short-lived one-shot preview. Author-private notes cannot be delivered.
+         */
+        readonly post: operations["previewLessonNoteDelivery"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/attendance": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List occurrence attendance
+         * @description Returns a role- and relationship-projected paginator. Management sees correction history; billing sees only outcome and billing disposition with learner identity, reason, lateness, and makeup details redacted; authorized learners/guardians see only their linked records.
+         */
+        readonly get: operations["listOccurrenceAttendance"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/attendance/bulk": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Record attendance in bulk
+         * @description Atomically records or corrects 1 to 250 distinct occurrence participants under one idempotency key. A single invalid, unauthorized, stale, or cross-occurrence item rejects the complete batch.
+         */
+        readonly post: operations["recordOccurrenceAttendanceBulk"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/attendance/express-present": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Mark remaining participants present
+         * @description Atomically marks every eligible participant without attendance as present. Existing attendance is preserved and the operation is actor-scoped and idempotent.
+         */
+        readonly post: operations["expressPresentOccurrenceAttendance"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/cancel/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview an occurrence cancellation
+         * @description Previews cancellation at one, future, or series scope against the occurrence version, retaining stable history and projecting downstream effects.
+         */
+        readonly post: operations["previewOccurrenceCancellation"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/notes": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List occurrence lesson notes
+         * @description Billing is forbidden. Management sees compliance-visible notes; assigned teachers see non-author-private notes plus only their own author-private notes; eligible learners/guardians see audience- and participant/group-scoped notes for active roster relationships.
+         */
+        readonly get: operations["listOccurrenceLessonNotes"];
+        readonly put?: never;
+        /**
+         * Create a lesson note
+         * @description Creates an HTML-sanitized participant or group note with immutable initial revision and actor-scoped idempotency. Participant scope requires a participant in the route occurrence; author-private content remains author-only outside management compliance access.
+         */
+        readonly post: operations["createLessonNote"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/participants/{participant}/attendance": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /**
+         * Record or correct participant attendance
+         * @description Creates attendance or records an immutable correction. Billing/makeup dispositions are server-derived from occurrence policy and cannot be supplied. Existing records require the current version and a nonblank correction reason when their normalized state changes.
+         */
+        readonly put: operations["recordParticipantAttendance"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/reschedule/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview an occurrence reschedule
+         * @description Previews a one, future, or series edit against the occurrence optimistic version. The stored preview captures projected calendar, notification, billing, payroll, and makeup effects before commit.
+         */
+        readonly post: operations["previewOccurrenceReschedule"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/occurrences/{occurrence}/restore/previews": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Preview restoration of canceled schedule state
+         * @description Previews restoration at one, future, or series scope. Restoration is still conflict-checked and never bypasses hard capacity or resource conflicts.
+         */
+        readonly post: operations["previewOccurrenceRestoration"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/api/v1/studios/{studio}/people": {
         readonly parameters: {
             readonly query?: never;
@@ -1032,6 +1640,134 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api/v1/studios/{studio}/schedule/enrollment-previews/{preview}/commit": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Commit an enrollment preview
+         * @description Commits an actor-bound ready roster preview after TTL, command hash, aggregate-version, authorization, and idempotency checks.
+         */
+        readonly post: operations["commitEventEnrollment"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/schedule/previews/{preview}/commit": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Commit a schedule-change preview
+         * @description Commits only a stored reschedule, cancellation, or restoration preview after actor, TTL, command, aggregate-version, warning, reauthorization, and conflict checks. Reusing a key for another command returns typed `409`.
+         */
+        readonly post: operations["commitScheduleChange"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/schedule/slot-search": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Search conflict-ranked schedule slots
+         * @description Management-only advisory search over a maximum 31-day instant range and 500-point grid. It validates active tenant resources and requested capacity, excludes hard conflicts, ranks the remaining slots by soft-warning count then start, and returns at most 50; it does not reserve capacity.
+         */
+        readonly post: operations["searchSchedulingSlots"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/scheduling/{resource}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List scheduling configuration records
+         * @description Lists one supported configuration type inside the route studio. Policy scope limits teachers to their linked scheduling records; management-private fields are redacted from non-management projections.
+         */
+        readonly get: operations["listSchedulingRecords"];
+        readonly put?: never;
+        /**
+         * Create a scheduling configuration record
+         * @description Creates one registry-selected record after tenant-scoped validation and policy authorization. Cross-tenant references and invalid room/location/equipment relationships are rejected atomically.
+         */
+        readonly post: operations["createSchedulingRecord"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/scheduling/{resource}/{record}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get a scheduling configuration record
+         * @description Resolves the record through the route studio. Program offerings optionally include the effective per-field price, policy, teacher, and location resolution.
+         */
+        readonly get: operations["getSchedulingRecord"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        /**
+         * Update or retire a scheduling configuration record
+         * @description Applies a partial update with the current optimistic version. History-bearing records are retired with `active=false`; this API intentionally exposes no delete operation.
+         */
+        readonly patch: operations["updateSchedulingRecord"];
+        readonly trace?: never;
+    };
+    readonly "/api/v1/studios/{studio}/scheduling/availability-overrides/{record}/approval": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Decide an availability override
+         * @description Management-only approval or decline transition with optimistic concurrency. Approved time off is forced to hard enforcement at both the domain and database boundaries.
+         */
+        readonly post: operations["decideAvailabilityOverride"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/sanctum/csrf-cookie": {
         readonly parameters: {
             readonly query?: never;
@@ -1059,6 +1795,56 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        readonly AttendanceBillingDisposition: "bill" | "no_charge" | "credit" | "pending_review";
+        readonly AttendanceCorrection: {
+            readonly id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly occurred_at: string;
+            readonly previous_version: number;
+            readonly reason: string;
+        };
+        /** @enum {string} */
+        readonly AttendanceMakeupDisposition: "none" | "required" | "waived" | "pending_review";
+        /** @enum {string} */
+        readonly AttendanceOutcome: "present" | "late" | "absent_excused" | "absent_unexcused" | "no_show" | "teacher_cancelled";
+        readonly AttendanceRecord: {
+            /** @description Present only for management and billing. */
+            readonly billing_disposition?: components["schemas"]["AttendanceBillingDisposition"];
+            /** @description Present only for management. */
+            readonly corrections?: readonly components["schemas"]["AttendanceCorrection"][];
+            readonly id: components["schemas"]["Ulid"];
+            /** @description Null in the billing projection. */
+            readonly makeup_disposition: components["schemas"]["AttendanceMakeupDisposition"] | null;
+            readonly minutes_late: number | null;
+            readonly occurrence_id: components["schemas"]["Ulid"];
+            readonly outcome: components["schemas"]["AttendanceOutcome"];
+            readonly participant_id: components["schemas"]["Ulid"];
+            /** @description Null in the billing projection. */
+            readonly person_id: components["schemas"]["Ulid"] | null;
+            readonly reason: string | null;
+            /** Format: date-time */
+            readonly recorded_at: string;
+            readonly version: number;
+        };
+        readonly AttendanceRecordCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["AttendanceRecord"][];
+        };
+        readonly AttendanceRecordEnvelope: {
+            readonly data: components["schemas"]["AttendanceRecord"];
+        };
+        readonly AttendanceRecordPaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["AttendanceRecord"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly AvailabilityOverrideDecisionInput: {
+            /** @enum {string} */
+            readonly approval_status: "approved" | "declined" | "canceled";
+            /** @enum {string} */
+            readonly enforcement?: "hard" | "soft";
+            readonly version: number;
+        };
         readonly BrowserSession: {
             /** @description Coarsened network prefix for display, never the full observed source address. */
             readonly approximate_location: string | null;
@@ -1074,6 +1860,37 @@ export interface components {
         readonly ConfirmPasswordInput: {
             /** Format: password */
             readonly password: string;
+        };
+        readonly CreateAvailabilityOverrideInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly ends_at: string;
+            /** @enum {string} */
+            readonly kind: "available" | "time_off";
+            readonly reason?: string | null;
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+            readonly starts_at: string;
+            readonly timezone: string;
+        };
+        readonly CreateAvailabilityWindowInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly end_time: string;
+            /** @enum {string} */
+            readonly enforcement?: "hard" | "soft";
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+            readonly start_time: string;
+            readonly timezone: string;
+            readonly weekday: number;
+        };
+        readonly CreateEquipmentInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly location_id: components["schemas"]["Ulid"];
+            readonly name: string;
+            readonly notes?: string | null;
+            readonly quantity: number;
+            readonly room_id?: components["schemas"]["Ulid"] | null;
         };
         /**
          * @description Keys must reference a guardian member and a learner member in the same request.
@@ -1119,11 +1936,170 @@ export interface components {
             readonly receives_billing: boolean;
             readonly student?: components["schemas"]["CreateStudentProfileInput"] | null;
         };
+        readonly CreateLessonNoteInput: {
+            readonly audience: components["schemas"]["LessonNoteAudience"];
+            /** @description Sanitized to the server allowlist; scripts, remote images, tracking markup, and unsafe attributes are removed. */
+            readonly body_html: string;
+            /** @description Required for participant scope and prohibited for group scope. */
+            readonly participant_id?: components["schemas"]["Ulid"] | null;
+            readonly scope: components["schemas"]["LessonNoteScope"];
+            readonly title?: string | null;
+        };
+        readonly CreateLessonNoteTemplateInput: {
+            readonly audience: components["schemas"]["LessonNoteAudience"];
+            readonly body_html: string;
+            readonly name: string;
+        };
+        readonly CreateLocationInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly address_line_1?: string | null;
+            readonly address_line_2?: string | null;
+            readonly city?: string | null;
+            readonly country_code?: string | null;
+            /** @enum {string} */
+            readonly kind: "physical" | "online" | "mobile";
+            readonly name: string;
+            /** Format: uri */
+            readonly online_url?: string | null;
+            readonly postal_code?: string | null;
+            readonly private_instructions?: string | null;
+            readonly region?: string | null;
+            readonly timezone: string;
+        };
         readonly CreatePersonInput: components["schemas"]["PersonWritableFields"] & {
             readonly student?: components["schemas"]["CreatePersonStudentInput"] | null;
         };
         readonly CreatePersonStudentInput: components["schemas"]["PersonStudentInput"] & {
             readonly status: components["schemas"]["StudentStatus"];
+        };
+        readonly CreateProgramOfferingInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly capacity?: number | null;
+            readonly currency?: string | null;
+            readonly description?: string | null;
+            readonly duration_minutes?: number | null;
+            /** Format: date */
+            readonly ends_on?: string | null;
+            /** @default true */
+            readonly enrollment_open?: boolean;
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            readonly name: string;
+            readonly price_minor?: number | null;
+            readonly room_id?: components["schemas"]["Ulid"] | null;
+            readonly service_id: components["schemas"]["Ulid"];
+            /** Format: date */
+            readonly starts_on?: string | null;
+            readonly timezone: string;
+        };
+        readonly CreateProgramOfferingOverrideInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly booking_lead_minutes?: number | null;
+            readonly cancellation_notice_minutes?: number | null;
+            readonly capacity?: number | null;
+            readonly currency?: string | null;
+            readonly duration_minutes?: number | null;
+            /** Format: date */
+            readonly effective_from: string;
+            /** Format: date */
+            readonly effective_until?: string | null;
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            /** @enum {string|null} */
+            readonly makeup_policy?: "none" | "studio_credit" | "reschedule" | null;
+            readonly price_minor?: number | null;
+            readonly program_offering_id: components["schemas"]["Ulid"];
+            readonly staff_profile_id?: components["schemas"]["Ulid"] | null;
+        };
+        readonly CreateProgramOfferingStaffInput: {
+            /** @default true */
+            readonly active?: boolean;
+            /** @default false */
+            readonly is_primary?: boolean;
+            readonly program_offering_id: components["schemas"]["Ulid"];
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+        };
+        readonly CreateRoomEquipmentInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly equipment_id: components["schemas"]["Ulid"];
+            readonly location_id: components["schemas"]["Ulid"];
+            readonly quantity: number;
+            readonly room_id: components["schemas"]["Ulid"];
+        };
+        readonly CreateRoomInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly capacity: number;
+            readonly location_id: components["schemas"]["Ulid"];
+            readonly name: string;
+        };
+        /** @description The object variant must match the `{resource}` registry key; Laravel applies the corresponding tenant-aware validation and rejects fields from another variant. */
+        readonly CreateSchedulingRecordInput: components["schemas"]["CreateServiceCategoryInput"] | components["schemas"]["CreateServiceInput"] | components["schemas"]["CreateServicePriceInput"] | components["schemas"]["CreateServicePolicyInput"] | components["schemas"]["CreateLocationInput"] | components["schemas"]["CreateRoomInput"] | components["schemas"]["CreateEquipmentInput"] | components["schemas"]["CreateRoomEquipmentInput"] | components["schemas"]["CreateProgramOfferingInput"] | components["schemas"]["CreateProgramOfferingOverrideInput"] | components["schemas"]["CreateProgramOfferingStaffInput"] | components["schemas"]["CreateStaffAccountLinkInput"] | components["schemas"]["CreateStaffSchedulingProfileInput"] | components["schemas"]["CreateAvailabilityWindowInput"] | components["schemas"]["CreateAvailabilityOverrideInput"] | components["schemas"]["CreateTravelBufferInput"];
+        readonly CreateServiceCategoryInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly color?: string | null;
+            readonly description?: string | null;
+            readonly name: string;
+            readonly sort_order?: number;
+        };
+        readonly CreateServiceInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly booking_lead_minutes?: number;
+            readonly cancellation_notice_minutes?: number;
+            readonly currency: string;
+            readonly default_capacity: number;
+            readonly default_duration_minutes: number;
+            readonly default_price_minor: number;
+            readonly description?: string | null;
+            /** @enum {string} */
+            readonly makeup_policy?: "none" | "studio_credit" | "reschedule";
+            readonly name: string;
+            readonly service_category_id: components["schemas"]["Ulid"];
+        };
+        readonly CreateServicePolicyInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly booking_lead_minutes: number;
+            readonly cancellation_notice_minutes: number;
+            /** Format: date */
+            readonly effective_from: string;
+            /** Format: date */
+            readonly effective_until?: string | null;
+            /** @enum {string} */
+            readonly makeup_policy: "none" | "studio_credit" | "reschedule";
+            readonly service_id: components["schemas"]["Ulid"];
+        };
+        readonly CreateServicePriceInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly amount_minor: number;
+            readonly currency: string;
+            /** Format: date */
+            readonly effective_from: string;
+            /** Format: date */
+            readonly effective_until?: string | null;
+            readonly service_id: components["schemas"]["Ulid"];
+        };
+        readonly CreateStaffAccountLinkInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+            readonly studio_membership_id: components["schemas"]["Ulid"];
+        };
+        readonly CreateStaffSchedulingProfileInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly default_buffer_after_minutes?: number;
+            readonly default_buffer_before_minutes?: number;
+            readonly default_travel_buffer_minutes?: number;
+            readonly max_daily_minutes?: number | null;
+            readonly max_weekly_minutes?: number | null;
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+            readonly timezone: string;
         };
         readonly CreateStudentProfileInput: {
             /** Format: date */
@@ -1157,6 +2133,14 @@ export interface components {
             readonly email: components["schemas"]["NormalizedEmail"];
             readonly role: components["schemas"]["InvitableMembershipRole"];
         };
+        readonly CreateTravelBufferInput: {
+            /** @default true */
+            readonly active?: boolean;
+            readonly from_location_id: components["schemas"]["Ulid"];
+            readonly minutes: number;
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+            readonly to_location_id: components["schemas"]["Ulid"];
+        };
         readonly CurrentUser: {
             readonly email: components["schemas"]["NormalizedEmail"];
             /** Format: date-time */
@@ -1178,6 +2162,147 @@ export interface components {
         };
         /** @enum {string} */
         readonly EmploymentType: "employee" | "contractor" | "volunteer";
+        /** @description Commit bodies cannot replace the command or warning acknowledgement stored in the preview. */
+        readonly EmptyCommitInput: Record<string, never>;
+        readonly EquipmentRequirementInput: {
+            readonly equipment_id: components["schemas"]["Ulid"];
+            readonly quantity: number;
+        };
+        readonly EventAssignment: {
+            /** @enum {string} */
+            readonly role: "lead" | "assistant" | "substitute";
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+        };
+        readonly EventAssignmentInput: {
+            /**
+             * @default lead
+             * @enum {string}
+             */
+            readonly role?: "lead" | "assistant" | "substitute";
+            readonly staff_profile_id: components["schemas"]["Ulid"];
+        };
+        readonly EventEnrollment: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly person_id: components["schemas"]["Ulid"];
+            readonly role?: string;
+            readonly series_id: components["schemas"]["Ulid"];
+            readonly status: components["schemas"]["EventEnrollmentStatus"];
+            readonly version: number;
+        };
+        readonly EventEnrollmentCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["EventEnrollment"][];
+        };
+        readonly EventEnrollmentEnvelope: {
+            readonly data: components["schemas"]["EventEnrollment"];
+        };
+        /** @enum {string} */
+        readonly EventEnrollmentStatus: "pending" | "confirmed" | "waitlisted" | "withdrawn";
+        /** @enum {string} */
+        readonly EventKind: "general" | "private_lesson" | "group_class" | "open_class" | "workshop" | "camp" | "recital" | "closure";
+        readonly EventOccurrence: {
+            readonly capabilities: components["schemas"]["EventOccurrenceCapabilities"];
+            readonly capacity: number;
+            readonly currency?: string | null;
+            /** Format: date-time */
+            readonly ends_at: string;
+            readonly equipment: readonly components["schemas"]["EquipmentRequirementInput"][];
+            /** Format: date-time */
+            readonly hold_expires_at: string | null;
+            readonly id: components["schemas"]["Ulid"];
+            readonly is_hold: boolean;
+            readonly kind: components["schemas"]["EventKind"];
+            readonly location_id?: components["schemas"]["Ulid"];
+            readonly makeup_reference?: string | null;
+            readonly makeup_required?: boolean;
+            /** Format: uri */
+            readonly online_join_url: string | null;
+            readonly participants: readonly components["schemas"]["EventOccurrenceParticipant"][];
+            /** @description Immutable management-only policy snapshot captured when the occurrence materializes. */
+            readonly policy?: {
+                readonly [key: string]: unknown;
+            } | null;
+            readonly price_minor?: number | null;
+            /** Format: uuid */
+            readonly public_uid: string;
+            readonly recurrence_id_local: string;
+            readonly room_ids: readonly components["schemas"]["Ulid"][];
+            readonly series_id: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly starts_at: string;
+            readonly status: components["schemas"]["EventOccurrenceStatus"];
+            readonly teachers: readonly components["schemas"]["EventAssignment"][];
+            readonly timezone: string;
+            readonly title: string;
+            readonly utc_offset_minutes: number;
+            readonly version: number;
+        };
+        readonly EventOccurrenceCapabilities: {
+            readonly can_cancel: boolean;
+            readonly can_reschedule: boolean;
+            readonly can_restore: boolean;
+        };
+        readonly EventOccurrenceCursorCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["EventOccurrence"][];
+            readonly links: components["schemas"]["LaravelCursorPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelCursorPaginationMeta"];
+        };
+        readonly EventOccurrencePaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["EventOccurrence"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly EventOccurrenceParticipant: {
+            readonly person_id: components["schemas"]["Ulid"];
+            readonly role: string;
+            /** @enum {string} */
+            readonly status: "reserved" | "confirmed";
+        };
+        /** @enum {string} */
+        readonly EventOccurrenceStatus: "tentative" | "scheduled" | "completed" | "canceled";
+        readonly EventSeries: {
+            readonly capabilities: components["schemas"]["EventSeriesCapabilities"];
+            readonly capacity: number;
+            readonly dtstart_local: string;
+            readonly dtstart_resolution: components["schemas"]["LocalTimeResolution"];
+            readonly duration_minutes: number;
+            readonly equipment: readonly components["schemas"]["EquipmentRequirementInput"][];
+            readonly exdates: readonly string[];
+            /** Format: date-time */
+            readonly hold_expires_at: string | null;
+            readonly id: components["schemas"]["Ulid"];
+            /** @description Present but null outside scheduling management. */
+            readonly internal_description: string | null;
+            readonly kind: components["schemas"]["EventKind"];
+            readonly location_id: components["schemas"]["Ulid"] | null;
+            readonly occurrences?: readonly components["schemas"]["EventOccurrence"][];
+            readonly program_offering_id: components["schemas"]["Ulid"] | null;
+            readonly rdates: readonly components["schemas"]["LocalRecurrenceDateInput"][];
+            readonly room_ids: readonly components["schemas"]["Ulid"][];
+            readonly rrule: string | null;
+            readonly service_id: components["schemas"]["Ulid"] | null;
+            readonly shared_description: string | null;
+            readonly status: components["schemas"]["EventSeriesStatus"];
+            readonly teachers: readonly components["schemas"]["EventAssignment"][];
+            readonly timezone: string;
+            readonly title: string;
+            readonly version: number;
+            readonly visibility: components["schemas"]["EventVisibility"];
+        };
+        readonly EventSeriesCapabilities: {
+            readonly can_cancel: boolean;
+            readonly can_clone: boolean;
+            readonly can_convert_hold: boolean;
+            readonly can_edit: boolean;
+            readonly can_manage_roster: boolean;
+            readonly can_release_hold: boolean;
+        };
+        readonly EventSeriesEnvelope: {
+            readonly data: components["schemas"]["EventSeries"];
+        };
+        /** @enum {string} */
+        readonly EventSeriesStatus: "draft" | "active" | "paused" | "ended" | "canceled";
+        /** @enum {string} */
+        readonly EventVisibility: "private" | "studio" | "portal" | "public";
         readonly ForgotPasswordResult: {
             /** @constant */
             readonly message: "If an account matches that email, a password reset link will be sent.";
@@ -1309,6 +2434,23 @@ export interface components {
         readonly InvitationTokenInput: {
             readonly invitation_token: components["schemas"]["InvitationToken"];
         };
+        readonly LaravelCursorPaginationLinks: {
+            readonly first: null;
+            readonly last: null;
+            /** Format: uri */
+            readonly next: string | null;
+            /** Format: uri */
+            readonly prev: string | null;
+        };
+        readonly LaravelCursorPaginationMeta: {
+            /** @description Opaque cursor for the next page, also embedded in `links.next` when present. */
+            readonly next_cursor: string | null;
+            /** Format: uri */
+            readonly path: string;
+            readonly per_page: number;
+            /** @description Opaque cursor for the previous page, also embedded in `links.prev` when present. */
+            readonly prev_cursor: string | null;
+        };
         readonly LaravelPaginationLink: {
             readonly active: boolean;
             readonly label: string;
@@ -1334,8 +2476,130 @@ export interface components {
             readonly to: number | null;
             readonly total: number;
         };
+        readonly LessonNote: {
+            /** @description Editors see retained current-revision metadata, including pending/failed/infected/retired status; authorized learner/guardian projections contain only current, clean, active attachments. */
+            readonly attachments: readonly components["schemas"]["LessonNoteAttachment"][];
+            readonly audience: components["schemas"]["LessonNoteAudience"];
+            readonly body_html: string;
+            readonly current_revision: number;
+            readonly id: components["schemas"]["Ulid"];
+            readonly occurrence_id: components["schemas"]["Ulid"];
+            readonly participant_id: components["schemas"]["Ulid"] | null;
+            readonly permissions: components["schemas"]["LessonNotePermissions"];
+            readonly scope: components["schemas"]["LessonNoteScope"];
+            readonly title: string | null;
+            readonly version: number;
+        };
+        readonly LessonNoteAttachment: {
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            /** @enum {string} */
+            readonly mime: "application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "audio/mpeg" | "audio/mp3" | "audio/mp4" | "audio/x-m4a" | "audio/wav" | "audio/x-wav" | "audio/vnd.wave" | "audio/ogg" | "application/ogg";
+            readonly name: string;
+            readonly note_id: components["schemas"]["Ulid"];
+            readonly note_revision: number;
+            readonly permissions: components["schemas"]["LessonNoteAttachmentPermissions"];
+            readonly sha256: string;
+            readonly size_bytes: number;
+            /** @enum {string} */
+            readonly status: "pending" | "clean" | "infected" | "failed" | "retired";
+        };
+        readonly LessonNoteAttachmentDownloadUrl: {
+            /** Format: date-time */
+            readonly expires_at: string;
+            /**
+             * Format: uri
+             * @description Short-lived signed application route, never a public storage URL.
+             */
+            readonly url: string;
+        };
+        readonly LessonNoteAttachmentDownloadUrlEnvelope: {
+            readonly data: components["schemas"]["LessonNoteAttachmentDownloadUrl"];
+        };
+        readonly LessonNoteAttachmentEnvelope: {
+            readonly data: components["schemas"]["LessonNoteAttachment"];
+        };
+        readonly LessonNoteAttachmentPermissions: {
+            readonly download: boolean;
+            readonly rescan: boolean;
+            readonly retire: boolean;
+        };
+        /** @enum {string} */
+        readonly LessonNoteAudience: "student" | "guardian" | "author_private";
+        readonly LessonNoteDeliveryAttachment: {
+            readonly id: components["schemas"]["Ulid"];
+            readonly mime: string;
+            readonly name: string;
+            readonly sha256: string;
+            readonly size_bytes: number;
+        };
+        readonly LessonNoteDeliveryIntent: {
+            readonly attachments: readonly components["schemas"]["LessonNoteDeliveryAttachment"][];
+            /** Format: date-time */
+            readonly committed_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly note_id: components["schemas"]["Ulid"];
+            readonly note_version: number;
+            readonly recipient_count: number;
+            /** @enum {string} */
+            readonly status: "pending" | "committed" | "canceled";
+        };
+        readonly LessonNoteDeliveryIntentEnvelope: {
+            readonly data: components["schemas"]["LessonNoteDeliveryIntent"];
+        };
+        readonly LessonNoteDeliveryPreview: {
+            readonly attachments: readonly components["schemas"]["LessonNoteDeliveryAttachment"][];
+            readonly can_commit: boolean;
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly note_id: components["schemas"]["Ulid"];
+            readonly note_version: number;
+            readonly recipient_count: number;
+        };
+        readonly LessonNoteDeliveryPreviewEnvelope: {
+            readonly data: components["schemas"]["LessonNoteDeliveryPreview"];
+        };
+        readonly LessonNoteEnvelope: {
+            readonly data: components["schemas"]["LessonNote"];
+        };
+        readonly LessonNotePaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["LessonNote"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly LessonNotePermissions: {
+            readonly edit: boolean;
+            readonly preview_delivery: boolean;
+        };
+        /** @enum {string} */
+        readonly LessonNoteScope: "participant" | "group";
+        readonly LessonNoteTemplate: {
+            readonly active: boolean;
+            readonly audience: components["schemas"]["LessonNoteAudience"];
+            readonly body_html: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly name: string;
+            readonly version: number;
+        };
+        readonly LessonNoteTemplateEnvelope: {
+            readonly data: components["schemas"]["LessonNoteTemplate"];
+        };
+        readonly LessonNoteTemplatePaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["LessonNoteTemplate"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
         /** @enum {string} */
         readonly Locale: "de" | "en" | "es" | "fr" | "ja" | "nl";
+        readonly LocalRecurrenceDateInput: {
+            /** @description IANA-zone local wall time in `Y-m-dTH:i:s` form, without an offset. */
+            readonly local: string;
+            readonly resolution: components["schemas"]["LocalTimeResolution"];
+        };
+        /** @enum {string} */
+        readonly LocalTimeResolution: "reject" | "earlier" | "later";
         readonly LoginInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
             /** Format: password */
@@ -1410,6 +2674,9 @@ export interface components {
             readonly timezone?: string;
             /** @default 1 */
             readonly week_starts_on?: number;
+        };
+        readonly OptimisticVersionInput: {
+            readonly version: number;
         };
         readonly Passkey: {
             /** @description Safe best-effort authenticator label derived from the AAGUID. */
@@ -1712,6 +2979,87 @@ export interface components {
         };
         /** @enum {string} */
         readonly PortalPermission: "calendar" | "attendance" | "learning" | "billing" | "booking" | "messages";
+        readonly PreviewEventEnrollmentInput: {
+            readonly person_id: components["schemas"]["Ulid"];
+            /** @enum {string} */
+            readonly status: "confirmed" | "waitlisted";
+        };
+        readonly PreviewEventSeriesCloneInput: {
+            /** @default false */
+            readonly acknowledge_soft_warnings?: boolean;
+            readonly dtstart_local: string;
+            readonly dtstart_resolution: components["schemas"]["LocalTimeResolution"];
+            readonly rrule?: string | null;
+            readonly timezone?: string;
+            readonly title: string;
+            readonly version: number;
+        };
+        readonly PreviewEventSeriesInput: {
+            /**
+             * @description May be true only for a scheduling manager when this exact preview has active soft warnings.
+             * @default false
+             */
+            readonly acknowledge_soft_warnings?: boolean;
+            readonly capacity: number;
+            readonly dtstart_local: string;
+            /** @default reject */
+            readonly dtstart_resolution?: components["schemas"]["LocalTimeResolution"];
+            readonly duration_minutes: number;
+            readonly equipment?: readonly components["schemas"]["EquipmentRequirementInput"][];
+            readonly exdates?: readonly string[];
+            /**
+             * Format: date-time
+             * @description Future expiry no more than seven days from preview creation.
+             */
+            readonly hold_expires_at?: string | null;
+            readonly internal_description?: string | null;
+            readonly kind: components["schemas"]["EventKind"];
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            readonly pricing_staff_profile_id?: components["schemas"]["Ulid"] | null;
+            readonly program_offering_id?: components["schemas"]["Ulid"] | null;
+            readonly rdates?: readonly components["schemas"]["LocalRecurrenceDateInput"][];
+            readonly room_ids?: readonly components["schemas"]["Ulid"][];
+            /** @description Optional RFC 5545 recurrence rule accepted by the server's bounded canonical recurrence engine. */
+            readonly rrule?: string | null;
+            readonly service_id?: components["schemas"]["Ulid"] | null;
+            readonly shared_description?: string | null;
+            readonly teachers?: readonly components["schemas"]["EventAssignmentInput"][];
+            /** @example America/Bogota */
+            readonly timezone: string;
+            readonly title: string;
+            /** @default studio */
+            readonly visibility?: components["schemas"]["EventVisibility"];
+        };
+        readonly PreviewScheduleChangeInput: {
+            /** @default false */
+            readonly acknowledge_soft_warnings?: boolean;
+            readonly capacity?: number;
+            /** @description Alias used when changing recurrence shape; mutually exclusive with `starts_at_local`. */
+            readonly dtstart_local?: string;
+            /** @description Required with `dtstart_local` and mutually exclusive with `start_resolution`. */
+            readonly dtstart_resolution?: components["schemas"]["LocalTimeResolution"];
+            readonly duration_minutes?: number;
+            readonly equipment?: readonly components["schemas"]["EquipmentRequirementInput"][];
+            readonly exdates?: readonly string[];
+            readonly internal_description?: string | null;
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            readonly makeup_reference?: string | null;
+            readonly makeup_required?: boolean;
+            readonly rdates?: readonly components["schemas"]["LocalRecurrenceDateInput"][];
+            readonly reason?: string | null;
+            readonly room_ids?: readonly components["schemas"]["Ulid"][];
+            /** @description Future/series recurrence replacement; forbidden for one-occurrence edits. */
+            readonly rrule?: string | null;
+            readonly scope: components["schemas"]["ScheduleEditScope"];
+            readonly shared_description?: string | null;
+            readonly start_resolution?: components["schemas"]["LocalTimeResolution"];
+            readonly starts_at_local?: string;
+            readonly teachers?: readonly components["schemas"]["EventAssignmentInput"][];
+            readonly timezone?: string;
+            readonly title?: string;
+            readonly version: number;
+            readonly visibility?: components["schemas"]["EventVisibility"];
+        };
         /** @enum {string} */
         readonly PrimaryGoal: "schedule" | "billing" | "teaching" | "growth";
         /** @description Laravel JSON error envelope for API exceptions. */
@@ -1722,6 +3070,44 @@ export interface components {
         };
         /** @enum {string} */
         readonly ProficiencyLevel: "beginner" | "intermediate" | "advanced" | "professional";
+        readonly PublicEventOccurrence: {
+            /** Format: date-time */
+            readonly ends_at: string;
+            readonly kind: components["schemas"]["EventKind"];
+            readonly shared_description: string | null;
+            /** Format: date-time */
+            readonly starts_at: string;
+            readonly timezone: string;
+            readonly title: string;
+            /** Format: uuid */
+            readonly uid: string;
+            readonly utc_offset_minutes: number;
+        };
+        readonly PublicEventOccurrenceCursorCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["PublicEventOccurrence"][];
+            readonly links: components["schemas"]["LaravelCursorPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelCursorPaginationMeta"];
+        };
+        readonly RecordAttendanceBulkInput: {
+            readonly items: readonly components["schemas"]["RecordAttendanceBulkItemInput"][];
+        };
+        readonly RecordAttendanceBulkItemInput: {
+            readonly correction_reason?: string;
+            readonly minutes_late?: number;
+            readonly outcome: components["schemas"]["AttendanceOutcome"];
+            readonly participant_id: components["schemas"]["Ulid"];
+            readonly reason?: string | null;
+            readonly version?: number;
+        };
+        readonly RecordAttendanceInput: {
+            /** @description Required and nonblank when an existing normalized attendance state changes. */
+            readonly correction_reason?: string;
+            readonly minutes_late?: number;
+            readonly outcome: components["schemas"]["AttendanceOutcome"];
+            readonly reason?: string | null;
+            /** @description Required by the domain when correcting an existing record. */
+            readonly version?: number;
+        };
         readonly RegisterInput: {
             readonly email: components["schemas"]["NormalizedEmail"];
             /** @description Optional bearer considered during account creation. Unusable or email-mismatched tokens receive the generic accepted response and create nothing; registration never verifies the user, consumes the invitation, or creates a membership. */
@@ -1746,8 +3132,195 @@ export interface components {
             /** @description Single-use Laravel password-broker token received in a URL fragment, scrubbed by the browser, and submitted only in this JSON body. */
             readonly token: string;
         };
+        readonly ResolvedOfferingConfiguration: {
+            readonly booking_lead_minutes: number;
+            readonly cancellation_notice_minutes: number;
+            readonly capacity: number;
+            readonly currency: string;
+            readonly duration_minutes: number;
+            /** Format: date */
+            readonly effective_on: string;
+            /** @enum {string} */
+            readonly makeup_policy: "none" | "studio_credit" | "reschedule";
+            readonly price_minor: number;
+            readonly sources: {
+                readonly [key: string]: "service_default" | "program_offering" | "service_effective_price" | "service_effective_policy" | "teacher_location_override" | "teacher_override" | "location_override";
+            };
+        };
+        readonly RetireLessonNoteAttachmentInput: {
+            readonly reason: string;
+        };
+        readonly ScheduleChangePreview: {
+            readonly capabilities: components["schemas"]["SchedulePreviewCapabilities"];
+            /** @enum {string} */
+            readonly command_type: "create_event_series" | "clone_event_series" | "reschedule" | "cancel" | "restore" | "enrollment_change";
+            readonly conflicts: readonly components["schemas"]["ScheduleConflictItem"][];
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly id: components["schemas"]["Ulid"];
+            readonly impact: components["schemas"]["SchedulePreviewImpact"];
+            readonly scope: components["schemas"]["ScheduleEditScope"];
+            readonly soft_warnings_acknowledged: boolean;
+            /** @enum {string} */
+            readonly status: "ready" | "blocked";
+        };
+        readonly ScheduleChangePreviewEnvelope: {
+            readonly data: components["schemas"]["ScheduleChangePreview"];
+        };
+        readonly ScheduleConflictItem: {
+            readonly code: string;
+            readonly message: string;
+            /** @enum {string} */
+            readonly severity: "hard" | "soft";
+        };
+        /** @enum {string} */
+        readonly ScheduleEditScope: "one" | "future" | "series";
+        readonly SchedulePreviewCapabilities: {
+            readonly can_acknowledge_soft_warnings: boolean;
+            readonly can_commit: boolean;
+            /** @constant */
+            readonly hard_conflicts_overrideable: false;
+        };
+        readonly SchedulePreviewImpact: {
+            readonly affected_occurrences: number;
+            readonly effects: readonly ("calendar_created" | "calendar_changed" | "calendar_roster_changed" | "notifications_projected" | "billing_projection" | "payroll_projection" | "makeup_projection")[];
+            readonly projection_intents?: readonly components["schemas"]["ScheduleProjectionIntent"][];
+        };
+        readonly ScheduleProjectionIntent: {
+            /** @enum {string} */
+            readonly mode: "project_only";
+            /** @enum {string} */
+            readonly type: "billing_recalculation" | "payroll_recalculation" | "makeup_reconciliation";
+        };
+        /** @description Registry-selected response. Only fields belonging to the selected resource are present; management-private location/equipment/approval fields are null or omitted according to the live resource policy. */
+        readonly SchedulingRecord: {
+            readonly active: boolean;
+            readonly address_line_1?: string | null;
+            readonly address_line_2?: string | null;
+            readonly amount_minor?: number;
+            /** @enum {string} */
+            readonly approval_status?: "pending" | "approved" | "declined" | "canceled";
+            readonly booking_lead_minutes?: number | null;
+            readonly cancellation_notice_minutes?: number | null;
+            readonly capacity?: number | null;
+            readonly city?: string | null;
+            readonly color?: string | null;
+            readonly country_code?: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly currency?: string | null;
+            readonly default_buffer_after_minutes?: number;
+            readonly default_buffer_before_minutes?: number;
+            readonly default_capacity?: number;
+            readonly default_duration_minutes?: number;
+            readonly default_price_minor?: number;
+            readonly default_travel_buffer_minutes?: number;
+            readonly description?: string | null;
+            readonly duration_minutes?: number | null;
+            readonly effective_from?: string;
+            readonly effective_until?: string | null;
+            readonly end_time?: string;
+            /** Format: date-time */
+            readonly ends_at?: string;
+            readonly ends_on?: string | null;
+            /** @enum {string} */
+            readonly enforcement?: "hard" | "soft";
+            readonly enrollment_open?: boolean;
+            readonly equipment_id?: components["schemas"]["Ulid"];
+            readonly from_location_id?: components["schemas"]["Ulid"];
+            readonly id: components["schemas"]["Ulid"];
+            readonly is_primary?: boolean;
+            /** @enum {string} */
+            readonly kind?: "physical" | "online" | "mobile" | "available" | "time_off";
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            /** @enum {string|null} */
+            readonly makeup_policy?: "none" | "studio_credit" | "reschedule" | null;
+            readonly max_daily_minutes?: number | null;
+            readonly max_weekly_minutes?: number | null;
+            readonly minutes?: number;
+            readonly name?: string;
+            readonly notes?: string | null;
+            /** Format: uri */
+            readonly online_url?: string | null;
+            readonly permissions: components["schemas"]["SchedulingRecordPermissions"];
+            readonly postal_code?: string | null;
+            readonly price_minor?: number | null;
+            readonly private_instructions?: string | null;
+            readonly program_offering_id?: components["schemas"]["Ulid"];
+            readonly quantity?: number;
+            readonly reason?: string | null;
+            readonly region?: string | null;
+            readonly resolved: components["schemas"]["ResolvedOfferingConfiguration"] | null;
+            readonly room_id?: components["schemas"]["Ulid"] | null;
+            readonly service_category_id?: components["schemas"]["Ulid"];
+            readonly service_id?: components["schemas"]["Ulid"];
+            readonly sort_order?: number;
+            readonly staff_profile_id?: components["schemas"]["Ulid"] | null;
+            readonly start_time?: string;
+            /** Format: date-time */
+            readonly starts_at?: string;
+            readonly starts_on?: string | null;
+            readonly studio_membership_id?: components["schemas"]["Ulid"];
+            readonly timezone?: string;
+            readonly to_location_id?: components["schemas"]["Ulid"];
+            /** Format: date-time */
+            readonly updated_at: string;
+            readonly version: number;
+            readonly weekday?: number;
+        };
+        readonly SchedulingRecordEnvelope: {
+            readonly data: components["schemas"]["SchedulingRecord"];
+        };
+        readonly SchedulingRecordPaginatedCollectionEnvelope: {
+            readonly data: readonly components["schemas"]["SchedulingRecord"][];
+            readonly links: components["schemas"]["LaravelPaginationLinks"];
+            readonly meta: components["schemas"]["LaravelPaginationMeta"];
+        };
+        readonly SchedulingRecordPermissions: {
+            readonly edit: boolean;
+            readonly retire: boolean;
+        };
         readonly SessionCollectionEnvelope: {
             readonly data: readonly components["schemas"]["BrowserSession"][];
+        };
+        readonly SlotSearchInput: {
+            /**
+             * @description Requested participant capacity included in room-capacity conflict checks.
+             * @default 1
+             */
+            readonly capacity?: number;
+            readonly duration_minutes: number;
+            readonly equipment?: readonly components["schemas"]["EquipmentRequirementInput"][];
+            /** Format: date-time */
+            readonly from: string;
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            readonly room_ids?: readonly components["schemas"]["Ulid"][];
+            readonly staff_profile_ids?: readonly components["schemas"]["Ulid"][];
+            /**
+             * @default 15
+             * @enum {integer}
+             */
+            readonly step_minutes?: 5 | 10 | 15 | 30 | 60;
+            /**
+             * Format: date-time
+             * @description Must be after `from` and no more than 31 days later.
+             */
+            readonly to: string;
+        };
+        readonly SlotSearchResult: {
+            /** Format: date-time */
+            readonly ends_at: string;
+            readonly score: number;
+            /** Format: date-time */
+            readonly starts_at: string;
+            readonly warnings: readonly components["schemas"]["SlotSearchWarning"][];
+        };
+        readonly SlotSearchResultEnvelope: {
+            readonly data: readonly components["schemas"]["SlotSearchResult"][];
+        };
+        readonly SlotSearchWarning: {
+            readonly code: string;
+            readonly message: string;
         };
         /** @enum {string} */
         readonly StaffRole: "teacher" | "office" | "substitute";
@@ -1901,6 +3474,11 @@ export interface components {
             /** @description Decrypted manual-entry TOTP secret returned only during recently confirmed setup. */
             readonly secretKey: string;
         };
+        readonly TypedConflictProblem: {
+            /** @enum {string} */
+            readonly code: "idempotency_key_reused" | "preview_consumed" | "preview_expired" | "preview_command_mismatch" | "preview_envelope_mismatch" | "hard_scheduling_conflict" | "soft_warning_unacknowledged" | "soft_warnings_changed" | "schedule_changed_after_preview" | "participant_capacity" | "idempotency_claim_incomplete" | "note_changed_after_preview" | "recipients_changed_after_preview" | "attachments_changed_after_preview";
+            readonly message: string;
+        };
         /**
          * @description Canonical 26-character Crockford Base32 ULID.
          * @example 01KZN5W3P3507MV3FBN2BG5WKF
@@ -1946,6 +3524,20 @@ export interface components {
             /** @description Required when `person_id` identifies a retained person. */
             readonly version?: number;
         };
+        readonly UpdateLessonNoteInput: {
+            readonly body_html?: string;
+            readonly reason?: string | null;
+            readonly title?: string | null;
+            readonly version: number;
+        };
+        readonly UpdateLessonNoteTemplateInput: {
+            readonly active?: boolean;
+            readonly audience?: components["schemas"]["LessonNoteAudience"];
+            readonly body_html?: string;
+            readonly name?: string;
+            readonly reason: string;
+            readonly version: number;
+        };
         readonly UpdatePersonInput: components["schemas"]["PersonWritableFields"] & {
             readonly student?: components["schemas"]["UpdatePersonStudentInput"] | null;
             readonly version: number;
@@ -1956,6 +3548,84 @@ export interface components {
          *     operation to change lifecycle state.
          */
         readonly UpdatePersonStudentInput: components["schemas"]["PersonStudentInput"];
+        /** @description Partial fields are selected by the `{resource}` registry key. Resource-specific required-together rules, tenant references, overlap checks, and management-only fields remain server-enforced. */
+        readonly UpdateSchedulingRecordInput: {
+            readonly active?: boolean;
+            readonly address_line_1?: string | null;
+            readonly address_line_2?: string | null;
+            readonly amount_minor?: number;
+            readonly booking_lead_minutes?: number | null;
+            readonly cancellation_notice_minutes?: number | null;
+            readonly capacity?: number | null;
+            readonly city?: string | null;
+            readonly color?: string | null;
+            readonly country_code?: string | null;
+            readonly currency?: string | null;
+            readonly default_buffer_after_minutes?: number;
+            readonly default_buffer_before_minutes?: number;
+            readonly default_capacity?: number;
+            readonly default_duration_minutes?: number;
+            readonly default_price_minor?: number;
+            readonly default_travel_buffer_minutes?: number;
+            readonly description?: string | null;
+            readonly duration_minutes?: number | null;
+            /** Format: date */
+            readonly effective_from?: string;
+            /** Format: date */
+            readonly effective_until?: string | null;
+            readonly end_time?: string;
+            readonly ends_at?: string;
+            /** Format: date */
+            readonly ends_on?: string | null;
+            /** @enum {string} */
+            readonly enforcement?: "hard" | "soft";
+            readonly enrollment_open?: boolean;
+            readonly equipment_id?: components["schemas"]["Ulid"];
+            readonly from_location_id?: components["schemas"]["Ulid"];
+            readonly is_primary?: boolean;
+            /** @enum {string} */
+            readonly kind?: "physical" | "online" | "mobile" | "available" | "time_off";
+            readonly location_id?: components["schemas"]["Ulid"] | null;
+            /** @enum {string|null} */
+            readonly makeup_policy?: "none" | "studio_credit" | "reschedule" | null;
+            readonly max_daily_minutes?: number | null;
+            readonly max_weekly_minutes?: number | null;
+            readonly minutes?: number;
+            readonly name?: string;
+            readonly notes?: string | null;
+            /** Format: uri */
+            readonly online_url?: string | null;
+            readonly postal_code?: string | null;
+            readonly price_minor?: number | null;
+            readonly private_instructions?: string | null;
+            readonly program_offering_id?: components["schemas"]["Ulid"];
+            readonly quantity?: number;
+            readonly reason?: string | null;
+            readonly region?: string | null;
+            readonly room_id?: components["schemas"]["Ulid"] | null;
+            readonly service_category_id?: components["schemas"]["Ulid"];
+            readonly service_id?: components["schemas"]["Ulid"];
+            readonly sort_order?: number;
+            readonly staff_profile_id?: components["schemas"]["Ulid"] | null;
+            readonly start_time?: string;
+            readonly starts_at?: string;
+            /** Format: date */
+            readonly starts_on?: string | null;
+            readonly studio_membership_id?: components["schemas"]["Ulid"];
+            readonly timezone?: string;
+            readonly to_location_id?: components["schemas"]["Ulid"];
+            readonly version: number;
+            readonly weekday?: number;
+        };
+        readonly UploadLessonNoteAttachmentInput: {
+            /**
+             * Format: binary
+             * @description At most 25 MiB by default. Allowed extensions and detected content are PDF, PNG, JPEG, WebP, MP3, M4A, WAV, and OGG.
+             */
+            readonly file: string;
+            /** @description Current optimistic version of the lesson note and revision that will own the attachment. */
+            readonly note_version: number;
+        };
         readonly ValidationProblem: components["schemas"]["Problem"] & {
             /** @description Validation messages keyed by request field path. */
             readonly errors: {
@@ -1993,6 +3663,15 @@ export interface components {
         readonly WorkspaceMode: "owner" | "administrator" | "teacher";
     };
     responses: {
+        /** @description An attendance/note idempotency binding or lesson-note-delivery preview no longer permits this mutation. */
+        readonly AttendanceConflict: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["TypedConflictProblem"];
+            };
+        };
         /** @description Session management requires the configured database session driver. */
         readonly Conflict: {
             headers: {
@@ -2176,6 +3855,15 @@ export interface components {
                 readonly "application/json": components["schemas"]["Problem"];
             };
         };
+        /** @description A short-lived scheduling preview, aggregate snapshot, conflict check, or idempotency binding no longer permits this commit. */
+        readonly SchedulingConflict: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/json": components["schemas"]["TypedConflictProblem"];
+            };
+        };
         /**
          * @description Input validation, stale optimistic version, or the server-owned lifecycle graph
          *     rejected the requested transition. No version or history effect is committed.
@@ -2238,6 +3926,22 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Opaque Laravel cursor from `links.next` or `links.prev`; clients must not construct or interpret it. */
+        readonly CalendarCursor: string | null;
+        /** @description Inclusive range start parsed as an absolute date/time by Laravel. */
+        readonly CalendarFrom: string;
+        /** @description Cursor page size; defaults to 200 and never exceeds 500. */
+        readonly CalendarPageSize: number;
+        /** @description Exclusive range end after `from`; the calendar range cannot exceed 93 days. */
+        readonly CalendarTo: string;
+        /** @description Enrollment ULID constrained to the route studio and event series. */
+        readonly EventEnrollmentId: components["schemas"]["Ulid"];
+        /** @description Materialized event-occurrence ULID resolved through the route studio. */
+        readonly EventOccurrenceId: components["schemas"]["Ulid"];
+        /** @description Occurrence-participant ULID constrained to the route studio and occurrence. */
+        readonly EventParticipantId: components["schemas"]["Ulid"];
+        /** @description Event-series ULID resolved through the route studio. */
+        readonly EventSeriesId: components["schemas"]["Ulid"];
         /**
          * @description Household ULID resolved inside the active studio tenant.
          * @example 01KZN6AKC49V3YM8ZJ7T2R5QWD
@@ -2248,6 +3952,8 @@ export interface components {
          * @example rivera
          */
         readonly HouseholdSearch: string | null;
+        /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+        readonly IdempotencyKey: string;
         /** @description Tenant-owned instrument ULID; a foreign or unavailable ID matches no people. Forbidden for billing callers. */
         readonly InstrumentIdFilter: components["schemas"]["Ulid"];
         /** @description Studio invitation ULID, constrained to the route studio before policy evaluation. */
@@ -2261,6 +3967,14 @@ export interface components {
         readonly InvitationSearch: string;
         /** @description Return only invitations in this server-derived lifecycle state. */
         readonly InvitationStatusFilter: components["schemas"]["InvitationStatus"];
+        /** @description Lesson-note attachment ULID constrained to the route studio and note. */
+        readonly LessonNoteAttachmentId: components["schemas"]["Ulid"];
+        /** @description Opaque actor- and studio-bound lesson-note-delivery preview ULID. */
+        readonly LessonNoteDeliveryPreviewId: components["schemas"]["Ulid"];
+        /** @description Lesson-note ULID resolved through the route studio. */
+        readonly LessonNoteId: components["schemas"]["Ulid"];
+        /** @description Lesson-note-template ULID resolved through the route studio. */
+        readonly LessonNoteTemplateId: components["schemas"]["Ulid"];
         /**
          * @description One-based Laravel paginator page number.
          * @example 1
@@ -2291,6 +4005,12 @@ export interface components {
         readonly PersonSourceFilter: string | null;
         /** @description Return only people in this person-record status. */
         readonly PersonStatusFilter: components["schemas"]["PersonStatus"];
+        /** @description Opaque short-lived scheduling preview ULID. A preview is actor- and studio-bound and cannot be used to commit another command type. */
+        readonly SchedulePreviewId: components["schemas"]["Ulid"];
+        /** @description Scheduling record ULID resolved through the route studio and selected registry model. */
+        readonly SchedulingRecordId: components["schemas"]["Ulid"];
+        /** @description Registry key selecting the validated scheduling configuration model and policy. */
+        readonly SchedulingResourceType: "service-categories" | "services" | "service-prices" | "service-policies" | "locations" | "rooms" | "equipment" | "room-equipment" | "program-offerings" | "program-offering-overrides" | "program-offering-staff" | "staff-account-links" | "staff-scheduling-profiles" | "availability-windows" | "availability-overrides" | "travel-buffers";
         /**
          * @description Opaque public identifier for a browser session; it is not the session cookie value or storage key.
          * @example 01KZN7C5V3EVQW9G2FN8X6MP4R
@@ -2310,6 +4030,12 @@ export interface components {
     };
     requestBodies: never;
     headers: {
+        /** @description Exact attachment size in bytes. */
+        readonly AttachmentContentLength: number;
+        /** @description Download disposition carrying Symfony's safely encoded original filename. */
+        readonly AttachmentDisposition: string;
+        /** @description Private attachment bytes must not be stored by a browser or intermediary cache. */
+        readonly AttachmentNoStore: "max-age=0, no-store, private";
         /** @description Compatibility directive marking sensitive identity material immediately stale. */
         readonly ExpiresImmediately: "0";
         /** @description Sensitive identity material must not be stored by a browser or intermediary cache. */
@@ -3257,6 +4983,44 @@ export interface operations {
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
+    readonly listPublicCalendarOccurrences: {
+        readonly parameters: {
+            readonly query: {
+                /** @description Opaque Laravel cursor from `links.next` or `links.prev`; clients must not construct or interpret it. */
+                readonly cursor?: components["parameters"]["CalendarCursor"];
+                /** @description Inclusive range start parsed as an absolute date/time by Laravel. */
+                readonly from: components["parameters"]["CalendarFrom"];
+                /** @description Cursor page size; defaults to 200 and never exceeds 500. */
+                readonly page_size?: components["parameters"]["CalendarPageSize"];
+                /** @description Exclusive range end after `from`; the calendar range cannot exceed 93 days. */
+                readonly to: components["parameters"]["CalendarTo"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Public occurrence projection with no tenant, participant, assignment, price, internal-note, or join-link fields. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["PublicEventOccurrenceCursorCollectionEnvelope"];
+                };
+            };
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly listStudios: {
         readonly parameters: {
             readonly query?: never;
@@ -3336,6 +5100,429 @@ export interface operations {
             readonly 401: components["responses"]["Unauthenticated"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listOverdueAttendanceOccurrences: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Inclusive latest occurrence end; cannot be in the future. */
+                readonly before?: string;
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Role-projected overdue occurrences in a Laravel paginator. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventOccurrencePaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listStudioCalendarOccurrences: {
+        readonly parameters: {
+            readonly query: {
+                /** @description Opaque Laravel cursor from `links.next` or `links.prev`; clients must not construct or interpret it. */
+                readonly cursor?: components["parameters"]["CalendarCursor"];
+                /** @description Inclusive range start parsed as an absolute date/time by Laravel. */
+                readonly from: components["parameters"]["CalendarFrom"];
+                readonly holds?: "include" | "exclude" | "only";
+                readonly "kinds[]"?: readonly components["schemas"]["EventKind"][];
+                /** @description Cursor page size; defaults to 200 and never exceeds 500. */
+                readonly page_size?: components["parameters"]["CalendarPageSize"];
+                readonly q?: string;
+                /** @description Management-only filter of up to 20 distinct tenant room ULIDs. */
+                readonly "room_ids[]"?: readonly components["schemas"]["Ulid"][];
+                /** @description Up to 20 distinct tenant staff-profile ULIDs. */
+                readonly "teacher_ids[]"?: readonly components["schemas"]["Ulid"][];
+                /** @description Exclusive range end after `from`; the calendar range cannot exceed 93 days. */
+                readonly to: components["parameters"]["CalendarTo"];
+            };
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Role-projected studio occurrence collection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventOccurrenceCursorCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getEventSeries: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Role-projected series and loaded occurrence horizon. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventSeriesEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewEventSeriesClone: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewEventSeriesCloneInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Actor-bound ready or blocked clone preview. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listEventSeriesEnrollments: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Ordered enrollment collection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventEnrollmentCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewEventEnrollmentWithdrawal: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Enrollment ULID constrained to the route studio and event series. */
+                readonly enrollment: components["parameters"]["EventEnrollmentId"];
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["OptimisticVersionInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Actor-bound withdrawal preview. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewEventEnrollment: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewEventEnrollmentInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Ready or capacity-blocked enrollment preview. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly releaseEventSeriesHold: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["OptimisticVersionInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Released hold represented as a retained canceled series. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventSeriesEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SchedulingConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly convertEventSeriesHold: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Event-series ULID resolved through the route studio. */
+                readonly series: components["parameters"]["EventSeriesId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["OptimisticVersionInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Converted series, or the original conversion projection on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventSeriesEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SchedulingConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewEventSeriesCreation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewEventSeriesInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Ready or blocked preview; hard conflicts are never overrideable. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly commitEventSeriesCreation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Opaque short-lived scheduling preview ULID. A preview is actor- and studio-bound and cannot be used to commit another command type. */
+                readonly preview: components["parameters"]["SchedulePreviewId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Event series and materialized occurrence horizon created, or the original idempotent creation result replayed. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventSeriesEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SchedulingConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
@@ -3655,6 +5842,848 @@ export interface operations {
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };
+    readonly commitLessonNoteDelivery: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Opaque actor- and studio-bound lesson-note-delivery preview ULID. */
+                readonly preview: components["parameters"]["LessonNoteDeliveryPreviewId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Exact original intent projection on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteDeliveryIntentEnvelope"];
+                };
+            };
+            /** @description Immutable delivery intent and transactional outbox message created. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteDeliveryIntentEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listLessonNoteTemplates: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Visible templates in a Laravel paginator. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteTemplatePaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createLessonNoteTemplate: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateLessonNoteTemplateInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Exact original template projection on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteTemplateEnvelope"];
+                };
+            };
+            /** @description Sanitized template and initial immutable revision created. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteTemplateEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateLessonNoteTemplate: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+                /** @description Lesson-note-template ULID resolved through the route studio. */
+                readonly template: components["parameters"]["LessonNoteTemplateId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateLessonNoteTemplateInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Updated template with incremented version, or exact original replay projection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteTemplateEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly reviseLessonNote: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateLessonNoteInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Revised note, or exact original result on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly uploadLessonNoteAttachment: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "multipart/form-data": components["schemas"]["UploadLessonNoteAttachmentInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Private quarantined metadata created and scan queued, or exact original attachment projection on idempotent replay. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteAttachmentEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly retireLessonNoteAttachment: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Lesson-note attachment ULID constrained to the route studio and note. */
+                readonly attachment: components["parameters"]["LessonNoteAttachmentId"];
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RetireLessonNoteAttachmentInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Attachment retired; response has no body. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly downloadLessonNoteAttachment: {
+        readonly parameters: {
+            readonly query: {
+                readonly expires: number;
+                readonly signature: string;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Lesson-note attachment ULID constrained to the route studio and note. */
+                readonly attachment: components["parameters"]["LessonNoteAttachmentId"];
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Private attachment bytes with original safe filename and detected MIME. */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["AttachmentNoStore"];
+                    readonly "Content-Disposition": components["headers"]["AttachmentDisposition"];
+                    readonly "Content-Length": components["headers"]["AttachmentContentLength"];
+                    /** @description Attachment content executes in a sandbox if rendered by a user agent. */
+                    readonly "Content-Security-Policy"?: "sandbox";
+                    /** @description Browser MIME sniffing disabled. */
+                    readonly "X-Content-Type-Options"?: "nosniff";
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/ogg": string;
+                    readonly "application/pdf": string;
+                    readonly "audio/mp3": string;
+                    readonly "audio/mp4": string;
+                    readonly "audio/mpeg": string;
+                    readonly "audio/ogg": string;
+                    readonly "audio/vnd.wave": string;
+                    readonly "audio/wav": string;
+                    readonly "audio/x-m4a": string;
+                    readonly "audio/x-wav": string;
+                    readonly "image/jpeg": string;
+                    readonly "image/png": string;
+                    readonly "image/webp": string;
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            /** @description Temporary URL signature is absent, invalid, or expired. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["Problem"];
+                };
+            };
+            readonly 404: components["responses"]["NotFound"];
+            readonly 423: components["responses"]["RecentPasswordRequired"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createLessonNoteAttachmentDownloadUrl: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Lesson-note attachment ULID constrained to the route studio and note. */
+                readonly attachment: components["parameters"]["LessonNoteAttachmentId"];
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Short-lived signed route; no storage key, disk, or public object URL is disclosed. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteAttachmentDownloadUrlEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly retryLessonNoteAttachmentScan: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Lesson-note attachment ULID constrained to the route studio and note. */
+                readonly attachment: components["parameters"]["LessonNoteAttachmentId"];
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Scan job accepted; current safe metadata projection returned. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteAttachmentEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewLessonNoteDelivery: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Lesson-note ULID resolved through the route studio. */
+                readonly note: components["parameters"]["LessonNoteId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Actor-bound delivery preview with recipient count and expiry. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteDeliveryPreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listOccurrenceAttendance: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Attendance records visible to the caller. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AttendanceRecordPaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly recordOccurrenceAttendanceBulk: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RecordAttendanceBulkInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Ordered attendance projections committed atomically or replayed exactly. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AttendanceRecordCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly expressPresentOccurrenceAttendance: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Attendance records created by this command, or exact original replay projection. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AttendanceRecordCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewOccurrenceCancellation: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewScheduleChangeInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Ready or blocked cancellation preview. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listOccurrenceLessonNotes: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Visible notes in a Laravel paginator. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNotePaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createLessonNote: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateLessonNoteInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Exact original note projection on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteEnvelope"];
+                };
+            };
+            /** @description Sanitized note and initial immutable revision created. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["LessonNoteEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly recordParticipantAttendance: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /** @description Occurrence-participant ULID constrained to the route studio and occurrence. */
+                readonly participant: components["parameters"]["EventParticipantId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RecordAttendanceInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Corrected attendance or exact original projection on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AttendanceRecordEnvelope"];
+                };
+            };
+            /** @description First attendance record created. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AttendanceRecordEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["AttendanceConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewOccurrenceReschedule: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewScheduleChangeInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Ready or blocked reschedule preview. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly previewOccurrenceRestoration: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Materialized event-occurrence ULID resolved through the route studio. */
+                readonly occurrence: components["parameters"]["EventOccurrenceId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewScheduleChangeInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Ready or blocked restoration preview. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ScheduleChangePreviewEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly listPeople: {
         readonly parameters: {
             readonly query?: {
@@ -3868,6 +6897,320 @@ export interface operations {
             readonly 404: components["responses"]["NotFound"];
             readonly 419: components["responses"]["CsrfTokenMismatch"];
             readonly 422: components["responses"]["StudentStatusTransitionFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly commitEventEnrollment: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Opaque short-lived scheduling preview ULID. A preview is actor- and studio-bound and cannot be used to commit another command type. */
+                readonly preview: components["parameters"]["SchedulePreviewId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Created or withdrawn enrollment, or original projection on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventEnrollmentEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SchedulingConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly commitScheduleChange: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Opaque caller-generated key scoped to the authenticated actor and tenant. Reuse for the same normalized command replays its original projection; reuse for another command returns typed `409`. */
+                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            readonly path: {
+                /** @description Opaque short-lived scheduling preview ULID. A preview is actor- and studio-bound and cannot be used to commit another command type. */
+                readonly preview: components["parameters"]["SchedulePreviewId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["EmptyCommitInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Updated series projection, or the exact original result on idempotent replay. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["EventSeriesEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["SchedulingConflict"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly searchSchedulingSlots: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["SlotSearchInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Conflict-free candidates sorted by scan order with warning-count scores. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SlotSearchResultEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listSchedulingRecords: {
+        readonly parameters: {
+            readonly query?: {
+                readonly active?: boolean;
+                readonly per_page?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Registry key selecting the validated scheduling configuration model and policy. */
+                readonly resource: components["parameters"]["SchedulingResourceType"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Policy-scoped scheduling records in a Laravel paginator. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SchedulingRecordPaginatedCollectionEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createSchedulingRecord: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Registry key selecting the validated scheduling configuration model and policy. */
+                readonly resource: components["parameters"]["SchedulingResourceType"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateSchedulingRecordInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Scheduling record created at optimistic version one. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SchedulingRecordEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getSchedulingRecord: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Program-offering resolution date. */
+                readonly effective_on?: string;
+                /** @description Optional tenant location scope for program-offering resolution. */
+                readonly location_id?: components["schemas"]["Ulid"] | null;
+                /** @description Optional tenant teacher scope for program-offering resolution. */
+                readonly staff_profile_id?: components["schemas"]["Ulid"] | null;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Scheduling record ULID resolved through the route studio and selected registry model. */
+                readonly record: components["parameters"]["SchedulingRecordId"];
+                /** @description Registry key selecting the validated scheduling configuration model and policy. */
+                readonly resource: components["parameters"]["SchedulingResourceType"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Role-projected scheduling record. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SchedulingRecordEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateSchedulingRecord: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Scheduling record ULID resolved through the route studio and selected registry model. */
+                readonly record: components["parameters"]["SchedulingRecordId"];
+                /** @description Registry key selecting the validated scheduling configuration model and policy. */
+                readonly resource: components["parameters"]["SchedulingResourceType"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateSchedulingRecordInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Updated record with incremented optimistic version. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SchedulingRecordEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly decideAvailabilityOverride: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Scheduling record ULID resolved through the route studio and selected registry model. */
+                readonly record: components["parameters"]["SchedulingRecordId"];
+                /**
+                 * @description Unique studio slug used by Laravel route-model binding.
+                 * @example sonora-house
+                 */
+                readonly studio: components["parameters"]["StudioSlug"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["AvailabilityOverrideDecisionInput"];
+            };
+        };
+        readonly responses: {
+            /** @description Decided override with incremented optimistic version. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SchedulingRecordEnvelope"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthenticated"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 419: components["responses"]["CsrfTokenMismatch"];
+            readonly 422: components["responses"]["ValidationFailed"];
             readonly 429: components["responses"]["TooManyRequests"];
         };
     };

@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\SchedulingConflict;
 use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\ApplyNamedRateLimiter;
 use App\Http\Middleware\AuthorizeInvitationMutation;
@@ -46,4 +47,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+        $exceptions->render(fn (SchedulingConflict $exception, Request $request) => response()->json([
+            'message' => $exception->getMessage(),
+            'code' => $exception->codeName,
+        ], 409));
     })->create();

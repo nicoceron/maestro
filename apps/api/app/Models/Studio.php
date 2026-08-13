@@ -73,6 +73,26 @@ class Studio extends Model
         return $this->hasMany(CustomFieldDefinition::class);
     }
 
+    public function serviceCategories(): HasMany
+    {
+        return $this->hasMany(ServiceCategory::class);
+    }
+
+    public function services(): HasMany
+    {
+        return $this->hasMany(Service::class);
+    }
+
+    public function programOfferings(): HasMany
+    {
+        return $this->hasMany(ProgramOffering::class);
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(Location::class);
+    }
+
     public function getRouteKeyName(): string
     {
         return 'slug';
