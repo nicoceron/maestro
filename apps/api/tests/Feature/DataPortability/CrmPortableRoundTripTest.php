@@ -155,7 +155,7 @@ final class CrmPortableRoundTripTest extends TestCase
         return [$guardian, $student];
     }
 
-    private function membership(Studio $studio,User $actor): StudioMembership
+    private function membership(Studio $studio, User $actor): StudioMembership
     {
         return StudioMembership::factory()->create(['studio_id' => $studio->getKey(), 'user_id' => $actor->getKey(), 'role' => 'owner', 'status' => 'active']);
     }

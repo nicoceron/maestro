@@ -103,7 +103,7 @@ final readonly class ApplyCrmPortableBundle
             throw ValidationException::withMessages(['file' => 'CRM_IMPORT_SOURCE_INTEGRITY_FAILED']);
         }
 
-return $this->bundles->parse($bytes);
+        return $this->bundles->parse($bytes);
     }
 
     private function map(CrmImportBatch $batch, string $type, string $source, string $target): void
@@ -113,15 +113,15 @@ return $this->bundles->parse($bytes);
 
     private function ref(CrmImportBatch $batch, string $type, string $source): string
     {
-        return (string) CrmPortableRefMap::query()->where('studio_id', $batch->studio_id)->where('import_batch_id', $batch->getKey())->where('source_type',$type)->where('source_ref',$source)->firstOrFail()->target_id;
+        return (string) CrmPortableRefMap::query()->where('studio_id', $batch->studio_id)->where('import_batch_id', $batch->getKey())->where('source_type', $type)->where('source_ref', $source)->firstOrFail()->target_id;
     }
 
     private function bool(string $value): bool
     {
-        if (! in_array($value,['true', 'false'],true)) {
+        if (! in_array($value, ['true', 'false'], true)) {
             throw ValidationException::withMessages(['bundle' => 'CRM_BUNDLE_BOOLEAN_INVALID']);
         }
 
-return $value === 'true';
+        return $value === 'true';
     }
 }

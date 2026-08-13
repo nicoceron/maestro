@@ -170,7 +170,7 @@ final readonly class BuildCrmPortableExport
     {
         $latest = '1970-01-01T00:00:00+00:00';
         foreach (['instruments', 'tags', 'custom_field_definitions', 'households', 'people', 'student_profiles', 'staff_profiles', 'person_instruments', 'person_tags', 'custom_field_values', 'household_members', 'guardian_relationships'] as $table) {
-            $value = DB::table($table)->where('studio_id',$studio->getKey())->max('updated_at');
+            $value = DB::table($table)->where('studio_id', $studio->getKey())->max('updated_at');
             if ($value !== null && $value > $latest) {
                 $latest = (string) $value;
             }
