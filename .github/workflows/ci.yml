@@ -76,7 +76,14 @@ jobs:
           persist-credentials: false
 
       - name: Verify backend manifest
-        run: test -f composer.json -a -f composer.lock
+        run: test -f composer.json -a -f composer.lock -a -f package.json -a -f package-lock.json
+
+      - name: Set up Node.js for Filament assets
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
 
       - name: Set up PHP
         uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
@@ -106,6 +113,15 @@ jobs:
 
       - name: Audit PHP dependencies
         run: composer audit --locked --no-interaction
+
+      - name: Install Filament JavaScript dependencies
+        run: npm ci
+
+      - name: Audit Filament JavaScript dependencies
+        run: npm audit --audit-level high
+
+      - name: Build Filament assets
+        run: npm run build
 
       - name: Check PHP formatting
         run: vendor/bin/pint --test

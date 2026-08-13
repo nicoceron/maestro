@@ -542,6 +542,11 @@ class IdentitySecurityTest extends TestCase
             'services.invitations.token_secret' => str_repeat('i', 32),
             'fortify.passkeys.relying_party_id' => 'app.example.com',
             'fortify.passkeys.allowed_origins' => ['https://app.example.com'],
+            'lesson-notes.attachments.disk' => 'lesson_attachments',
+            'lesson-notes.attachments.scanner.driver' => 'clamav',
+            'lesson-notes.attachments.scanner.clamav.host' => 'clamav',
+            'lesson-notes.attachments.scanner.clamav.port' => 3310,
+            'lesson-notes.attachments.scanner.clamav.timeout_seconds' => 15,
         ]);
 
         $method = new \ReflectionMethod(AppServiceProvider::class, 'assertProductionSecurityLimits');
@@ -562,6 +567,28 @@ class IdentitySecurityTest extends TestCase
         ]);
         $method->invoke(new AppServiceProvider($this->app));
         $this->addToAssertionCount(1);
+
+        foreach ([
+            ['lesson-notes.attachments.scanner.driver', 'unknown', 'LESSON_ATTACHMENT_SCANNER', 'clamav'],
+            ['lesson-notes.attachments.disk', 'missing-private-disk', 'LESSON_ATTACHMENT_DISK', 'lesson_attachments'],
+            ['lesson-notes.attachments.maximum_active_per_note', 0, 'per-note bounds', 20],
+            ['lesson-notes.attachments.pending_retention_hours', 0, 'retention', 336],
+            ['lesson-notes.attachments.download_url_minutes', 16, 'DOWNLOAD_URL_MINUTES', 5],
+        ] as [$key, $invalid, $message, $valid]) {
+            config([$key => $invalid]);
+
+            try {
+                $method->invoke(new AppServiceProvider($this->app));
+                $this->fail("Invalid attachment production setting {$key} was accepted.");
+            } catch (\ReflectionException $exception) {
+                throw $exception;
+            } catch (\Throwable $exception) {
+                $this->assertInstanceOf(LogicException::class, $exception);
+                $this->assertStringContainsString($message, $exception->getMessage());
+            } finally {
+                config([$key => $valid]);
+            }
+        }
 
         foreach (['', (string) config('app.key'), 'too-short'] as $invalidSecret) {
             config(['services.invitations.token_secret' => $invalidSecret]);

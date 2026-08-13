@@ -2,7 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\Attachments\MalwareScanner;
+use App\Contracts\Scheduling\RecurrenceEngine;
+use App\Support\Attachments\ClamAvMalwareScanner;
+use App\Support\Attachments\FailClosedMalwareScanner;
 use App\Support\Auth\SensitiveRateLimitKey;
+use App\Support\Scheduling\RlanvinRecurrenceEngine;
 use App\Support\Tenancy\RequestDatabaseContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -19,6 +24,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(MalwareScanner::class, function (): MalwareScanner {
+            return config('lesson-notes.attachments.scanner.driver') === 'clamav'
+                ? new ClamAvMalwareScanner
+                : new FailClosedMalwareScanner;
+        });
+        $this->app->singleton(RecurrenceEngine::class, RlanvinRecurrenceEngine::class);
         $this->app->scoped(
             TenantContext::class,
             fn (): TenantContext => new TenantContext($this->app['db']->connection()),
@@ -40,6 +51,15 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(120)
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        RateLimiter::for('attachment-scans', function (Request $request): Limit {
+            $studio = $request->route('studio');
+
+            return Limit::perMinute(5)->by(implode(':', [
+                $request->user()?->getAuthIdentifier() ?? 'guest',
+                $studio instanceof UrlRoutable ? $studio->getRouteKey() : (string) $studio,
+                (string) $request->route('attachment'),
+            ]));
+        });
         RateLimiter::for('invitation-create', function (Request $request): array {
             $studio = $request->route('studio')
                 ?? $request->attributes->get('invitation_rate_limit_studio');
@@ -130,6 +150,43 @@ class AppServiceProvider extends ServiceProvider
                 || rtrim($origin, '/') !== $origin) {
                 throw new LogicException('PASSKEYS_ALLOWED_ORIGINS must contain exact HTTPS origins without trailing slashes in production.');
             }
+        }
+
+        $minimumAttachmentBytes = (int) config('lesson-notes.attachments.minimum_bytes');
+        $maximumAttachmentBytes = (int) config('lesson-notes.attachments.maximum_bytes');
+        $maximumAttachmentsPerNote = (int) config('lesson-notes.attachments.maximum_active_per_note');
+        $maximumAttachmentBytesPerNote = (int) config('lesson-notes.attachments.maximum_active_bytes_per_note');
+        $downloadMinutes = (int) config('lesson-notes.attachments.download_url_minutes');
+        $attachmentDisk = (string) config('lesson-notes.attachments.disk');
+        $scannerDriver = (string) config('lesson-notes.attachments.scanner.driver');
+        $quarantineRetentionHours = (int) config('lesson-notes.attachments.quarantine_retention_hours');
+        $pendingRetentionHours = (int) config('lesson-notes.attachments.pending_retention_hours');
+        $retiredRetentionHours = (int) config('lesson-notes.attachments.retired_retention_hours');
+        $purgeBatchSize = (int) config('lesson-notes.attachments.purge_batch_size');
+        if ($minimumAttachmentBytes < 1 || $maximumAttachmentBytes < $minimumAttachmentBytes) {
+            throw new LogicException('Lesson attachment size bounds are invalid.');
+        }
+        if ($maximumAttachmentsPerNote < 1 || $maximumAttachmentBytesPerNote < $maximumAttachmentBytes) {
+            throw new LogicException('Lesson attachment per-note bounds are invalid.');
+        }
+        if ($downloadMinutes < 1 || $downloadMinutes > 15) {
+            throw new LogicException('LESSON_ATTACHMENT_DOWNLOAD_URL_MINUTES must be between 1 and 15.');
+        }
+        if ($quarantineRetentionHours < 1 || $pendingRetentionHours < 1 || $retiredRetentionHours < 1
+            || $purgeBatchSize < 1 || $purgeBatchSize > 1000) {
+            throw new LogicException('Lesson attachment retention and purge batch settings are invalid.');
+        }
+        if ($attachmentDisk === '' || config("filesystems.disks.{$attachmentDisk}") === null) {
+            throw new LogicException('LESSON_ATTACHMENT_DISK must name a configured private filesystem disk.');
+        }
+        if ($scannerDriver !== 'clamav') {
+            throw new LogicException('LESSON_ATTACHMENT_SCANNER must be clamav in production.');
+        }
+        if (trim((string) config('lesson-notes.attachments.scanner.clamav.host')) === ''
+            || (int) config('lesson-notes.attachments.scanner.clamav.port') < 1
+            || (int) config('lesson-notes.attachments.scanner.clamav.port') > 65535
+            || (float) config('lesson-notes.attachments.scanner.clamav.timeout_seconds') <= 0) {
+            throw new LogicException('ClamAV host, port, and timeout must be configured safely in production.');
         }
     }
 

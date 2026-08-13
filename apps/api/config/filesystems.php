@@ -38,6 +38,14 @@ return [
             'report' => false,
         ],
 
+        'lesson_attachments' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/lesson-attachments'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

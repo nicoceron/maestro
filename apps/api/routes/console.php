@@ -17,3 +17,18 @@ Schedule::command('invitations:redact-terminal-digests')
     ->dailyAt('03:20')
     ->onOneServer()
     ->withoutOverlapping(60);
+
+Schedule::command('scheduling:expire-holds')
+    ->everyMinute()
+    ->onOneServer()
+    ->withoutOverlapping(5);
+
+Schedule::command('scheduling:extend-horizon')
+    ->dailyAt('02:40')
+    ->onOneServer()
+    ->withoutOverlapping(60);
+
+Schedule::command('attachments:purge')
+    ->dailyAt('03:00')
+    ->onOneServer()
+    ->withoutOverlapping(60);

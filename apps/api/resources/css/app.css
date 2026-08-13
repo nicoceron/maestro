@@ -1,9 +1,492 @@
-@import 'tailwindcss';
+@import '../../vendor/filament/filament/resources/css/theme.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../vendor/filament/**/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../../app/Filament/**/*.php';
+@source '../views/filament/**/*.blade.php';
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+.maestro-calendar-shell {
+    --maestro-border: color-mix(in srgb, currentColor 14%, transparent);
+    display: grid;
+    gap: 1rem;
+}
+
+.maestro-calendar-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--maestro-border);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--color-white, white) 96%, transparent);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+
+.dark .maestro-calendar-filters {
+    background: rgb(15 23 42 / 0.45);
+}
+
+.maestro-calendar-filters label {
+    display: grid;
+    gap: 0.35rem;
+    color: rgb(71 85 105);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.dark .maestro-calendar-filters label {
+    color: rgb(203 213 225);
+}
+
+.maestro-calendar-filters input,
+.maestro-calendar-filters select {
+    min-height: 2.5rem;
+    width: 100%;
+    border: 1px solid var(--maestro-border);
+    border-radius: 0.65rem;
+    background: transparent;
+    padding: 0.5rem 0.7rem;
+    color: inherit;
+    font: inherit;
+}
+
+.maestro-calendar-status {
+    min-height: 1.25rem;
+    color: rgb(100 116 139);
+    font-size: 0.8rem;
+}
+
+.maestro-calendar-shell [data-calendar-root] {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--maestro-border);
+    border-radius: 1rem;
+    background: var(--color-white, white);
+    padding: clamp(0.5rem, 1vw, 1rem);
+}
+
+.maestro-calendar-shell [data-calendar-root] h2 {
+    color: rgb(30 41 59);
+}
+
+.dark .maestro-calendar-shell [data-calendar-root] h2 {
+    color: rgb(226 232 240);
+}
+
+.maestro-calendar-shell [data-calendar-root] button:focus-visible {
+    outline: 3px solid rgb(99 102 241 / 0.55);
+    outline-offset: 2px;
+}
+
+.dark .maestro-calendar-shell [data-calendar-root] {
+    background: rgb(15 23 42 / 0.5);
+}
+
+.maestro-calendar-shell .maestro-hold {
+    opacity: 0.75;
+    border-style: dashed !important;
+}
+
+.maestro-calendar-shell .maestro-status-canceled {
+    opacity: 0.55;
+    text-decoration: line-through;
+}
+
+.maestro-calendar-dialog {
+    width: min(34rem, calc(100% - 2rem));
+    border: 0;
+    border-radius: 1rem;
+    padding: 0;
+    color: rgb(15 23 42);
+    box-shadow: 0 30px 80px rgb(15 23 42 / 0.28);
+}
+
+.dark .maestro-calendar-dialog {
+    background: rgb(15 23 42);
+    color: rgb(241 245 249);
+}
+
+.maestro-calendar-dialog::backdrop {
+    background: rgb(15 23 42 / 0.55);
+    backdrop-filter: blur(3px);
+}
+
+.maestro-calendar-dialog form {
+    position: relative;
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.maestro-calendar-dialog-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    font-size: 1.5rem;
+}
+
+.maestro-calendar-kicker {
+    color: rgb(79 70 229);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.maestro-calendar-dialog h2 {
+    padding-right: 2rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+}
+
+.maestro-calendar-dialog dl {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.maestro-calendar-dialog dl > div {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.4fr) 1fr;
+    gap: 0.75rem;
+}
+
+.maestro-calendar-dialog dt {
+    color: rgb(100 116 139);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.maestro-calendar-dialog dd a {
+    color: rgb(79 70 229);
+    font-weight: 650;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+}
+
+.maestro-calendar-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.maestro-calendar-dialog-actions[hidden],
+.maestro-calendar-dialog-actions button[hidden] {
+    display: none !important;
+}
+
+.maestro-calendar-dialog-actions button {
+    border-radius: 0.65rem;
+    background: rgb(79 70 229);
+    padding: 0.55rem 1rem;
+    color: white;
+    font-weight: 600;
+}
+
+.maestro-calendar-dialog-actions[data-calendar-manager-actions] {
+    justify-content: flex-start;
+    border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+    padding-top: 1rem;
+}
+
+.maestro-calendar-dialog-actions[data-calendar-manager-actions] button {
+    background: rgb(241 245 249);
+    color: rgb(51 65 85);
+    font-size: 0.8rem;
+}
+
+.dark .maestro-calendar-dialog-actions[data-calendar-manager-actions] button {
+    background: rgb(30 41 59);
+    color: rgb(226 232 240);
+}
+
+.maestro-calendar-panel {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius: 1rem;
+    padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.maestro-calendar-panel h2 {
+    color: rgb(15 23 42);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.dark .maestro-calendar-panel h2 {
+    color: rgb(248 250 252);
+}
+
+.maestro-calendar-panel p {
+    color: rgb(100 116 139);
+    font-size: 0.85rem;
+}
+
+.maestro-slot-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 0.65rem;
+}
+
+.maestro-slot-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 0.8rem;
+    background: rgb(248 250 252);
+    padding: 0.8rem;
+}
+
+.dark .maestro-slot-list li {
+    background: rgb(30 41 59 / 0.7);
+}
+
+.maestro-slot-list li > div {
+    display: grid;
+}
+
+.maestro-slot-list li span {
+    color: rgb(100 116 139);
+    font-size: 0.75rem;
+}
+
+.maestro-calendar-pill {
+    border-radius: 999px;
+    padding: 0.25rem 0.55rem;
+    white-space: nowrap;
+}
+
+.maestro-calendar-pill.is-clear {
+    background: rgb(220 252 231);
+    color: rgb(21 128 61);
+}
+
+.maestro-calendar-pill.is-warning {
+    background: rgb(254 243 199);
+    color: rgb(161 98 7);
+}
+
+.maestro-roster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 0.75rem;
+}
+
+.maestro-roster-grid article {
+    display: grid;
+    align-content: start;
+    gap: 0.8rem;
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    border-radius: 0.85rem;
+    padding: 1rem;
+}
+
+.maestro-roster-grid h3 {
+    font-weight: 700;
+}
+
+.maestro-roster-grid ul {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.maestro-roster-grid li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: rgb(71 85 105);
+    font-size: 0.8rem;
+}
+
+.dark .maestro-roster-grid li {
+    color: rgb(203 213 225);
+}
+
+.maestro-teaching-notes {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.maestro-teaching-notes-heading h2 {
+    color: rgb(15 23 42);
+    font-size: 1.2rem;
+    font-weight: 750;
+}
+
+.dark .maestro-teaching-notes-heading h2 {
+    color: white;
+}
+
+.maestro-teaching-notes-heading p:last-child {
+    color: rgb(100 116 139);
+    font-size: 0.85rem;
+}
+
+.maestro-note-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    gap: 0.8rem;
+}
+
+.maestro-note-grid > article,
+.maestro-note-empty {
+    display: grid;
+    align-content: start;
+    gap: 0.9rem;
+    border: 1px solid color-mix(in srgb, currentColor 13%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, white 96%, transparent);
+    padding: 1rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.dark .maestro-note-grid > article,
+.dark .maestro-note-empty {
+    background: rgb(15 23 42 / 0.45);
+}
+
+.maestro-note-grid header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.maestro-note-grid header p,
+.maestro-attachment-list small {
+    color: rgb(100 116 139);
+    font-size: 0.75rem;
+}
+
+.maestro-note-grid h3 {
+    color: rgb(15 23 42);
+    font-weight: 700;
+}
+
+.dark .maestro-note-grid h3 {
+    color: white;
+}
+
+.maestro-note-audience {
+    border-radius: 999px;
+    background: rgb(238 242 255);
+    padding: 0.25rem 0.55rem;
+    color: rgb(67 56 202);
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.dark .maestro-note-audience {
+    background: rgb(99 102 241 / 0.16);
+    color: rgb(165 180 252);
+}
+
+.maestro-note-summary {
+    color: rgb(71 85 105);
+    font-size: 0.85rem;
+}
+
+.dark .maestro-note-summary {
+    color: rgb(203 213 225);
+}
+
+.maestro-attachment-list {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.maestro-attachment-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-radius: 0.65rem;
+    background: rgb(248 250 252);
+    padding: 0.6rem;
+    font-size: 0.78rem;
+}
+
+.dark .maestro-attachment-list li {
+    background: rgb(30 41 59 / 0.72);
+}
+
+.maestro-attachment-list li > div {
+    display: grid;
+}
+
+.maestro-attachment-list li > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.maestro-attachment-list a,
+.maestro-attachment-list button {
+    color: rgb(79 70 229);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 0.15rem;
+}
+
+.maestro-note-grid footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+    border-top: 1px solid color-mix(in srgb, currentColor 9%, transparent);
+    padding-top: 0.8rem;
+}
+
+@media (max-width: 720px) {
+    .maestro-calendar-filters {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .maestro-calendar-filters label:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .maestro-calendar-shell .fc-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .maestro-calendar-shell .fc-toolbar-chunk {
+        display: flex;
+        justify-content: center;
+    }
+}
+
+@media print {
+    .fi-sidebar,
+    .fi-topbar,
+    .maestro-calendar-filters,
+    .maestro-calendar-status {
+        display: none !important;
+    }
+
+    .maestro-calendar-panel,
+    .maestro-calendar-dialog {
+        display: none !important;
+    }
+
+    .maestro-calendar-shell [data-calendar-root] {
+        border: 0;
+        padding: 0;
+    }
 }

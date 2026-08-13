@@ -53,11 +53,18 @@ final class PeopleLifecycleMigrationTest extends TestCase
                 'updated_at' => now(),
             ]);
 
-            $this->assertSame(0, Artisan::call('migrate:rollback', [
-                '--database' => $connection,
-                '--step' => 2,
-                '--force' => true,
-            ]));
+            foreach ([
+                'database/migrations/2026_08_13_110000_create_event_scheduling_core.php',
+                'database/migrations/2026_08_13_100000_create_scheduling_foundation.php',
+                'database/migrations/2026_08_12_100000_expand_people_and_student_lifecycle.php',
+                'database/migrations/2026_08_10_094000_add_invitation_delivery_and_audit_foundation.php',
+            ] as $migration) {
+                $this->assertSame(0, Artisan::call('migrate:rollback', [
+                    '--database' => $connection,
+                    '--path' => $migration,
+                    '--force' => true,
+                ]));
+            }
             $tokenColumn = collect($database->select('pragma table_info(studio_invitations)'))
                 ->firstWhere('name', 'token_hash');
             $this->assertNotNull($tokenColumn);

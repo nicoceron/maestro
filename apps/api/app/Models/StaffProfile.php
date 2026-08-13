@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 
@@ -75,6 +77,31 @@ class StaffProfile extends Model
     public function person(): BelongsTo
     {
         return $this->belongsTo(Person::class);
+    }
+
+    public function accountLink(): HasOne
+    {
+        return $this->hasOne(StaffAccountLink::class);
+    }
+
+    public function schedulingProfile(): HasOne
+    {
+        return $this->hasOne(StaffSchedulingProfile::class);
+    }
+
+    public function availabilityWindows(): HasMany
+    {
+        return $this->hasMany(StaffAvailabilityWindow::class);
+    }
+
+    public function availabilityOverrides(): HasMany
+    {
+        return $this->hasMany(StaffAvailabilityOverride::class);
+    }
+
+    public function travelBuffers(): HasMany
+    {
+        return $this->hasMany(StaffTravelBuffer::class);
     }
 
     protected function casts(): array

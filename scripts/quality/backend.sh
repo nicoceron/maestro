@@ -5,7 +5,7 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 api_dir="$repo_root/apps/api"
 
-if [[ ! -f "$api_dir/composer.json" || ! -f "$api_dir/composer.lock" ]]; then
+if [[ ! -f "$api_dir/composer.json" || ! -f "$api_dir/composer.lock" || ! -f "$api_dir/package.json" || ! -f "$api_dir/package-lock.json" ]]; then
   echo "Expected Laravel manifests in $api_dir" >&2
   exit 1
 fi
@@ -43,6 +43,14 @@ if [[ ! -x vendor/bin/pint ]]; then
   echo "Backend dependencies are missing; run composer install in $api_dir" >&2
   exit 1
 fi
+
+if [[ ! -d node_modules ]]; then
+  echo "Filament JavaScript dependencies are missing; run npm ci in $api_dir" >&2
+  exit 1
+fi
+
+npm audit --audit-level high
+npm run build
 
 vendor/bin/pint --test
 php artisan test --colors=always
