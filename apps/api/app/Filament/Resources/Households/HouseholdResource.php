@@ -2,16 +2,30 @@
 
 namespace App\Filament\Resources\Households;
 
+use App\Enums\MembershipRole;
+use App\Enums\MembershipStatus;
+use App\Filament\Resources\Households\Pages\CreateHousehold;
+use App\Filament\Resources\Households\Pages\EditHousehold;
 use App\Filament\Resources\Households\Pages\ListHouseholds;
+use App\Filament\Resources\Households\Pages\ViewHousehold;
+use App\Filament\Resources\Households\Schemas\HouseholdForm;
+use App\Filament\Resources\Households\Schemas\HouseholdInfolist;
 use App\Models\Household;
 use App\Models\Studio;
+use App\Models\StudioMembership;
+use App\Models\User;
 use BackedEnum;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Gate;
 
 class HouseholdResource extends Resource
 {
@@ -26,6 +40,16 @@ class HouseholdResource extends Resource
     protected static ?string $pluralModelLabel = 'families';
 
     protected static ?string $recordTitleAttribute = 'name';
+
+    public static function form(Schema $schema): Schema
+    {
+        return HouseholdForm::configure($schema);
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return HouseholdInfolist::configure($schema);
+    }
 
     public static function table(Table $table): Table
     {
@@ -57,7 +81,11 @@ class HouseholdResource extends Resource
                     ->toggleable(),
             ])
             ->defaultSort('name')
-            ->recordActions([])
+            ->recordUrl(fn (Household $record): string => static::getUrl('view', ['record' => $record]))
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
+            ])
             ->toolbarActions([]);
     }
 
@@ -65,7 +93,11 @@ class HouseholdResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $tenant = Filament::getTenant();
-        $query = parent::getEloquentQuery()->with('members.person');
+        $query = parent::getEloquentQuery()->with([
+            'members.person.studentProfile',
+            'guardianRelationships.guardian',
+            'guardianRelationships.student',
+        ]);
 
         if (! $tenant instanceof Studio) {
             return $query->whereRaw('1 = 0');
@@ -82,14 +114,61 @@ class HouseholdResource extends Resource
     {
         return [
             'index' => ListHouseholds::route('/'),
+            'create' => CreateHousehold::route('/create'),
+            'view' => ViewHousehold::route('/{record}'),
+            'edit' => EditHousehold::route('/{record}/edit'),
         ];
     }
 
     public static function canCreate(): bool
     {
-        // Household creation is an aggregate workflow. It will be enabled in
-        // Filament with the same guarded action used by the API, never as an
-        // empty model form.
-        return false;
+        $tenant = Filament::getTenant();
+
+        return $tenant instanceof Studio
+            && Gate::allows('create', [Household::class, $tenant]);
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return $record instanceof Household
+            && $record->studio_id === self::tenant()->getKey()
+            && Gate::allows('update', $record);
+    }
+
+    public static function tenant(): Studio
+    {
+        $tenant = Filament::getTenant();
+        abort_unless($tenant instanceof Studio, 404);
+
+        return $tenant;
+    }
+
+    public static function user(): User
+    {
+        $user = Filament::auth()->user();
+        abort_unless($user instanceof User, 403);
+
+        return $user;
+    }
+
+    public static function canViewPrivateHousehold(): bool
+    {
+        $tenant = Filament::getTenant();
+        $user = Filament::auth()->user();
+
+        if (! $tenant instanceof Studio || ! $user instanceof User) {
+            return false;
+        }
+
+        return StudioMembership::query()
+            ->where('studio_id', $tenant->getKey())
+            ->where('user_id', $user->getKey())
+            ->where('status', MembershipStatus::Active)
+            ->whereIn('role', [
+                MembershipRole::Owner->value,
+                MembershipRole::Administrator->value,
+                MembershipRole::Office->value,
+            ])
+            ->exists();
     }
 }
