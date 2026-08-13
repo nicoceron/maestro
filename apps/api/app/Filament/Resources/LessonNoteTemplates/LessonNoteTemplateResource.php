@@ -61,7 +61,7 @@ final class LessonNoteTemplateResource extends Resource
             Hidden::make('idempotency_key'),
             Hidden::make('version')->visible($editing),
             Section::make('Reusable lesson note')->schema([
-                TextInput::make('name')->required()->maxLength(120)
+                TextInput::make('name')->required()->maxLength(120)->autofocus()
                     ->helperText('Use a short, recognizable name for the teaching team.'),
                 Select::make('audience')->required()->native(false)->options([
                     LessonNoteAudience::Student->value => 'Student',
