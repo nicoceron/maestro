@@ -814,9 +814,9 @@ export interface paths {
          *     create is limited to 20 attempts/hour per inviter and 100 attempts/day per route studio.
          *     Rejected non-members, role-denied members, or unconfirmed callers do not consume these
          *     sensitive quotas; quota rejection returns `429` before invitation, delivery, audit, or job
-         *     effects. The delivery job contains only
-         *     the invitation ULID and delivery version; bearer material is derived only at the delivery
-         *     boundary and never serialized.
+         *     effects. The delivery job's invitation-domain payload contains only the invitation ULID
+         *     and delivery version, alongside Laravel's framework queue metadata; bearer material is
+         *     derived only at the delivery boundary and never serialized.
          */
         readonly post: operations["createStudioInvitation"];
         readonly delete?: never;
