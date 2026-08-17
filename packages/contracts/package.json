@@ -18,7 +18,7 @@
     "check": "pnpm run lint && pnpm run generate:check && pnpm run audit && pnpm run typecheck"
   },
   "devDependencies": {
-    "@redocly/cli": "2.46.0",
+    "@redocly/cli": "2.46.1",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3"
   },
